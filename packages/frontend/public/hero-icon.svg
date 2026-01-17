@@ -1,0 +1,39 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+  <defs>
+    <linearGradient id="heroGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#4F46E5;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#7C3AED;stop-opacity:1" />
+    </linearGradient>
+    <linearGradient id="shieldHighlight" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#818CF8;stop-opacity:0.6" />
+      <stop offset="100%" style="stop-color:#4F46E5;stop-opacity:0" />
+    </linearGradient>
+    <linearGradient id="hammerGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#FCD34D;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#F59E0B;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+  
+  <!-- Shield shape - heroic emblem -->
+  <path d="M50 5 L90 20 L90 45 C90 70 70 88 50 95 C30 88 10 70 10 45 L10 20 Z" 
+        fill="url(#heroGrad)" stroke="#1E1B4B" stroke-width="3"/>
+  
+  <!-- Shield highlight -->
+  <path d="M50 8 L85 21 L85 45 C85 67 67 83 50 90 C33 83 15 67 15 45 L15 21 Z" 
+        fill="url(#shieldHighlight)" opacity="0.4"/>
+  
+  <!-- Hammer/Anvil icon - workshop element -->
+  <g transform="translate(50,52)">
+    <!-- Hammer head -->
+    <rect x="-18" y="-22" width="36" height="14" rx="3" fill="url(#hammerGrad)" stroke="#92400E" stroke-width="1.5"/>
+    <!-- Hammer handle -->
+    <rect x="-4" y="-8" width="8" height="28" rx="2" fill="#78716C" stroke="#57534E" stroke-width="1"/>
+    <!-- Hammer head detail -->
+    <line x1="-12" y1="-15" x2="-12" y2="-15" stroke="#FEF3C7" stroke-width="2" stroke-linecap="round"/>
+    <rect x="-16" y="-19" width="4" height="8" rx="1" fill="#FEF3C7" opacity="0.5"/>
+  </g>
+  
+  <!-- Star accent - heroic flair -->
+  <polygon points="50,12 52,18 58,18 53,22 55,28 50,24 45,28 47,22 42,18 48,18" 
+           fill="#FCD34D" stroke="#F59E0B" stroke-width="0.5"/>
+</svg>
