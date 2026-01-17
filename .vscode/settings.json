@@ -1,5 +1,11 @@
 {
     "chat.tools.terminal.autoApprove": {
-        "iconv": true
+        "iconv": true,
+        "npm outdated": true,
+        "true": true,
+        "/^node --version && npm --version$/": {
+            "approve": true,
+            "matchCommandLine": true
+        }
     }
 }

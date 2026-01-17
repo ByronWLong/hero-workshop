@@ -142,6 +142,7 @@ export function EquipmentTab({ character, onUpdate }: EquipmentTabProps) {
     notes: '',
     levels: 1,
     selectedModifiers: [] as SelectedModifier[],
+    adders: [] as Adder[],
   });
   const [isEditingSubPowerModifier, setIsEditingSubPowerModifier] = useState(false);
   
@@ -174,7 +175,7 @@ export function EquipmentTab({ character, onUpdate }: EquipmentTabProps) {
 
   const matchPowerToDefinition = (power: Power): PowerDefinition | undefined => {
     // Try to match by type first (should be the XML ID)
-    let def = findPowerDefinition(power.type);
+    const def = findPowerDefinition(power.type);
     if (def) return def;
     
     // Try common mappings
@@ -467,7 +468,7 @@ export function EquipmentTab({ character, onUpdate }: EquipmentTabProps) {
       selectedModifiers: [],
     });
     setSubPowerDef(null);
-    setEditingSubPower(undefined);
+    setEditingSubPower(null);
     setIsEditingSubPowerModifier(true); // Flag to indicate we are working on sub-power context (reusing for modal trigger check, but maybe a separate flag is better)
     // Actually setIsEditingSubPowerModifier is for the modifier modal.
     setIsEditingSubPowerModifier(true);
@@ -496,7 +497,7 @@ export function EquipmentTab({ character, onUpdate }: EquipmentTabProps) {
       alias: power.alias || '',
       levels: power.levels || 1,
       notes: power.notes || '',
-      adders: [], 
+      adders: power.adders || [],
       selectedModifiers,
     });
     setSubPowerDef(def || null);
@@ -1518,7 +1519,7 @@ export function EquipmentTab({ character, onUpdate }: EquipmentTabProps) {
                   border: '1px dashed var(--border-color)',
                   borderRadius: '4px',
                 }}>
-                  No modifiers. Click "Add Modifier" to add.
+                  No modifiers. Click &quot;Add Modifier&quot; to add.
                 </div>
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', maxHeight: '200px', overflowY: 'auto' }}>

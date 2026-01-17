@@ -37,7 +37,7 @@ const TEMPLATES = [
 ];
 
 function createDefaultCharacter(name: string, playerName: string, templateId: string): Character {
-  const template = TEMPLATES.find(t => t.id === templateId) ?? TEMPLATES[1];
+  const template = TEMPLATES.find(t => t.id === templateId) ?? TEMPLATES[1]!;
   
   return {
     version: '6.0',

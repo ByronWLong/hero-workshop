@@ -26,8 +26,8 @@ hero-workshop/
 
 ## Prerequisites
 
-- Node.js 18+ 
-- npm 9+
+- Node.js 24+ 
+- npm 11+
 - Google Cloud Project with OAuth2 credentials
 
 ## Setup
@@ -117,16 +117,16 @@ This starts both the backend (port 3001) and frontend (port 5173).
 ## Technology Stack
 
 ### Frontend
-- React 18
-- TypeScript
-- Vite
+- React 19
+- TypeScript 5.8
+- Vite 6
 - React Query (TanStack Query)
 - React Router
 
 ### Backend
 - Node.js
-- Express
-- TypeScript
+- Express 5
+- TypeScript 5.8
 - Google APIs (Drive, OAuth2)
 - fast-xml-parser
 

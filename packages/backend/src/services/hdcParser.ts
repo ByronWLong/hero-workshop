@@ -953,7 +953,7 @@ function parsePower(obj: Record<string, unknown>): Power {
   const alias = getAttr(obj, 'ALIAS', '');
   
   // Display name: NAME is primary (like "Nightvision"), ALIAS is the description
-  let displayName = nameAttr || alias || xmlid || 'Unknown Power';
+  const displayName = nameAttr || alias || xmlid || 'Unknown Power';
   
   // Parse adders and modifiers
   const adders = parseAdders(obj);
@@ -1016,7 +1016,7 @@ function parsePower(obj: Record<string, unknown>): Power {
   }
   
   // Build description from alias and modifiers
-  let description = alias || '';
+  const description = alias || '';
   
   // Store PARENTID for list modifier application
   const parentId = getAttr(obj, 'PARENTID', '');
@@ -1074,7 +1074,7 @@ function parseDisadvantage(obj: Record<string, unknown>): Disadvantage {
   
   // Build display name - get details from adders
   const adders = parseAdders(obj);
-  let details = input || nameAttr || '';
+  const details = input || nameAttr || '';
   
   // Build modifier text from OPTION_ALIAS in adders
   const adderDescriptions: string[] = [];

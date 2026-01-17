@@ -144,7 +144,7 @@ export function SkillsTab({ character, onUpdate }: SkillsTabProps) {
   const [editingGroup, setEditingGroup] = useState<Skill | null>(null);
   const [moveMenuOpenFor, setMoveMenuOpenFor] = useState<string | null>(null);
 
-  const skills = character.skills ?? [];
+  const skills = useMemo(() => character.skills ?? [], [character.skills]);
 
   // Close move menu when clicking outside
   const handleClickOutside = useCallback((e: MouseEvent) => {

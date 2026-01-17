@@ -165,7 +165,7 @@ export function PowersTab({ character, onUpdate }: PowersTabProps) {
     }
   }, [moveMenuOpenFor, handleClickOutside]);
 
-  const powers = character.powers ?? [];
+  const powers = useMemo(() => character.powers ?? [], [character.powers]);
   // Build set of power IDs to check parent relationships
   const allPowerIds = useMemo(() => new Set(powers.map(p => p.id)), [powers]);
   
@@ -268,6 +268,7 @@ export function PowersTab({ character, onUpdate }: PowersTabProps) {
         levels: 0,
         selectedModifiers: [],
         adders: [],
+        discountAdder: 0,
       });
     } else {
       const defaultPower = getPowerDefinition('ENERGYBLAST')!;
@@ -279,6 +280,7 @@ export function PowersTab({ character, onUpdate }: PowersTabProps) {
         levels: 1,
         selectedModifiers: [],
         adders: [],
+        discountAdder: 0,
       });
     }
     setIsModalOpen(true);
@@ -1587,7 +1589,7 @@ export function PowersTab({ character, onUpdate }: PowersTabProps) {
                   border: '1px dashed var(--border-color)',
                   borderRadius: '4px',
                 }}>
-                  No sub-powers added. Click "Add Sub-Power" to add powers to this compound.
+                  No sub-powers added. Click &quot;Add Sub-Power&quot; to add powers to this compound.
                 </div>
               ) : (
                 <div style={{ 
@@ -1760,7 +1762,7 @@ export function PowersTab({ character, onUpdate }: PowersTabProps) {
                 placeholder={`e.g., ${selectedPowerDef.display}`}
               />
               <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '0.25rem' }}>
-                A custom name for this power (e.g., "Demonic Claws" instead of "Killing Attack - Hand-To-Hand")
+                A custom name for this power (e.g., &quot;Demonic Claws&quot; instead of &quot;Killing Attack - Hand-To-Hand&quot;)
               </div>
             </div>
             )}
@@ -1901,7 +1903,7 @@ export function PowersTab({ character, onUpdate }: PowersTabProps) {
                   border: '1px dashed var(--border-color)',
                   borderRadius: '4px',
                 }}>
-                  No modifiers added. Click "Add Modifier" to add advantages or limitations.
+                  No modifiers added. Click &quot;Add Modifier&quot; to add advantages or limitations.
                 </div>
               ) : (
                 <div style={{ 
@@ -2294,7 +2296,7 @@ export function PowersTab({ character, onUpdate }: PowersTabProps) {
                   border: '1px dashed var(--border-color)',
                   borderRadius: '4px',
                 }}>
-                  No modifiers. Click "Add Modifier" to add.
+                  No modifiers. Click &quot;Add Modifier&quot; to add.
                 </div>
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', maxHeight: '200px', overflowY: 'auto' }}>
