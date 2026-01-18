@@ -23,7 +23,7 @@ import type {
   Rules,
   CharacteristicType,
 } from '@hero-workshop/shared';
-import { generateId, getPowerDefinition, getModifierByXmlId } from '@hero-workshop/shared';
+import { generateId, getPowerDefinition, getModifierByXmlId, heroRoundCost } from '@hero-workshop/shared';
 
 // XML Parser configuration
 const parserOptions = {
@@ -103,7 +103,7 @@ export function serializeToHdc(character: Character): string {
       MARTIALARTS: serializeGenericList(character.martialArts),
       POWERS: serializeGenericList(character.powers),
       DISADVANTAGES: serializeGenericList(character.disadvantages),
-      EQUIPMENT: character.equipment ? serializeGenericList(character.equipment) : undefined,
+      EQUIPMENT: character.equipment ? serializeEquipmentList(character.equipment) : undefined,
       IMAGE: character.image ? {
         '@_FileName': character.image.fileName ?? '',
         '@_FilePath': character.image.filePath ?? '',
@@ -149,12 +149,16 @@ function parseBasicConfiguration(obj: Record<string, unknown>): BasicConfigurati
 }
 
 function parseCharacterInfo(obj: Record<string, unknown>): CharacterInfo {
+  // HDC files store height in inches and weight in lbs - convert to metric for display
+  const heightInches = getAttrNum(obj, 'HEIGHT');
+  const weightLbs = getAttrNum(obj, 'WEIGHT');
+  
   return {
     characterName: getAttr(obj, 'CHARACTER_NAME') || getAttr(obj, 'CHARACTERNAME', 'New Character'),
     alternateIdentities: getAttr(obj, 'ALTERNATE_IDENTITIES') || getAttr(obj, 'ALTERNATEIDS') || undefined,
     playerName: getAttr(obj, 'PLAYER_NAME') || getAttr(obj, 'PLAYERNAME') || undefined,
-    height: getAttrNum(obj, 'HEIGHT') || undefined,
-    weight: getAttrNum(obj, 'WEIGHT') || undefined,
+    height: heightInches ? Math.round(heightInches * 2.54) : undefined, // inches to cm
+    weight: weightLbs ? Math.round(weightLbs * 0.453592) : undefined, // lbs to kg
     hairColor: getAttr(obj, 'HAIR_COLOR') || getAttr(obj, 'HAIRCOLOR') || undefined,
     eyeColor: getAttr(obj, 'EYE_COLOR') || getAttr(obj, 'EYECOLOR') || undefined,
     campaignName: getAttr(obj, 'CAMPAIGN_NAME') || getAttr(obj, 'CAMPAIGNNAME') || undefined,
@@ -225,7 +229,8 @@ function parseCharacteristic(obj: Record<string, unknown>, type: CharacteristicT
   const baseValue = baseValues[type] ?? 0;
   const totalValue = baseValue + levels;
   const cost = costPerLevel[type] ?? 1;
-  const calculatedCost = Math.ceil(levels * cost);
+  // Negative levels are penalties with 0 cost, not refunds
+  const calculatedCost = levels < 0 ? 0 : Math.ceil(levels * cost);
   
   return {
     id: getAttr(obj, 'ID') || generateId(),
@@ -375,7 +380,7 @@ function parsePerksList(container: unknown): Perk[] {
   const containerObj = container as Record<string, unknown>;
   const perks: Perk[] = [];
   
-  // First, collect all LIST elements to get their discounts
+  // First, collect all LIST elements to get their discounts AND add them as group entries
   const listDiscounts: Map<string, number> = new Map();
   const listElements = containerObj['LIST'];
   if (listElements) {
@@ -389,6 +394,22 @@ function parsePerksList(container: unknown): Perk[] {
         if (listId && listDiscount !== 0) {
           listDiscounts.set(listId, listDiscount);
         }
+        
+        // Add LIST as a group entry in the perks array
+        const listName = getAttr(list, 'NAME', '') || getAttr(list, 'ALIAS', '') || 'Perk Group';
+        perks.push({
+          id: listId || generateId(),
+          name: listName,
+          alias: getAttr(list, 'ALIAS', '') || undefined,
+          position: getAttrNum(list, 'POSITION', 0),
+          levels: 0,
+          baseCost: 0,
+          realCost: 0,
+          type: 'GENERIC',
+          isGroup: true,
+          notes: getAttr(list, 'NOTES') || undefined,
+          adders: listAdders,
+        });
       }
     }
   }
@@ -424,6 +445,32 @@ function parseTalentsList(container: unknown): Talent[] {
   const containerObj = container as Record<string, unknown>;
   const talents: Talent[] = [];
   
+  // First, parse LIST elements as group entries
+  const listElements = containerObj['LIST'];
+  if (listElements) {
+    const lists = Array.isArray(listElements) ? listElements : [listElements];
+    for (const listItem of lists) {
+      if (typeof listItem === 'object' && listItem !== null) {
+        const list = listItem as Record<string, unknown>;
+        const listId = getAttr(list, 'ID', '');
+        const listName = getAttr(list, 'NAME', '') || getAttr(list, 'ALIAS', '') || 'Talent Group';
+        
+        talents.push({
+          id: listId || generateId(),
+          name: listName,
+          alias: getAttr(list, 'ALIAS', '') || undefined,
+          position: getAttrNum(list, 'POSITION', 0),
+          levels: 0,
+          baseCost: 0,
+          realCost: 0,
+          type: 'GENERIC',
+          isGroup: true,
+          notes: getAttr(list, 'NOTES') || undefined,
+        });
+      }
+    }
+  }
+  
   const talentElements = containerObj['TALENT'];
   if (talentElements) {
     const arr = Array.isArray(talentElements) ? talentElements : [talentElements];
@@ -438,12 +485,39 @@ function parseTalentsList(container: unknown): Talent[] {
 }
 
 /**
- * Parse MARTIALARTS section - handles MANEUVER and WEAPON_ELEMENT elements
+ * Parse MARTIALARTS section - handles LIST, MANEUVER and WEAPON_ELEMENT elements
  */
 function parseMartialArtsList(container: unknown): MartialManeuver[] {
   if (!container || typeof container !== 'object') return [];
   const containerObj = container as Record<string, unknown>;
   const maneuvers: MartialManeuver[] = [];
+  
+  // First, parse LIST elements (martial arts styles) as group entries
+  const listElements = containerObj['LIST'];
+  if (listElements) {
+    const lists = Array.isArray(listElements) ? listElements : [listElements];
+    for (const listItem of lists) {
+      if (typeof listItem === 'object' && listItem !== null) {
+        const list = listItem as Record<string, unknown>;
+        const listId = getAttr(list, 'ID', '');
+        const listName = getAttr(list, 'NAME', '') || getAttr(list, 'ALIAS', '') || 'Martial Arts Style';
+        
+        maneuvers.push({
+          id: listId || generateId(),
+          name: listName,
+          alias: getAttr(list, 'ALIAS', '') || undefined,
+          position: getAttrNum(list, 'POSITION', 0),
+          levels: 0,
+          baseCost: 0,
+          realCost: 0,
+          ocv: 0,
+          dcv: 0,
+          isGroup: true,
+          notes: getAttr(list, 'NOTES') || undefined,
+        });
+      }
+    }
+  }
   
   // Parse MANEUVER elements
   const maneuverElements = containerObj['MANEUVER'];
@@ -475,12 +549,15 @@ function parseMartialArtsList(container: unknown): MartialManeuver[] {
  */
 function parseWeaponElement(obj: Record<string, unknown>): MartialManeuver {
   const alias = getAttr(obj, 'ALIAS', '');
-  const adders = parseAdders(obj);
-  const adderCost = calculateAdderCost(adders);
+  // Use hierarchy-preserving mode for weapon elements so we can edit them
+  const hierarchicalAdders = parseAdders(obj, true);
+  // Also get flattened adders for cost calculation
+  const flatAdders = parseAdders(obj, false);
+  const adderCost = calculateAdderCost(flatAdders);
   
   // Build weapon description from selected adders
   const weaponNames: string[] = [];
-  for (const adder of adders) {
+  for (const adder of flatAdders) {
     if (adder.name && adder.name !== 'Common Adder' && adder.name !== 'Unknown Adder') {
       weaponNames.push(adder.name);
     }
@@ -499,7 +576,9 @@ function parseWeaponElement(obj: Record<string, unknown>): MartialManeuver {
     dcv: 0,
     effect: 'Weapon Element',
     modifiers: [],
-    adders: adders,
+    adders: hierarchicalAdders,
+    isWeaponElement: true,
+    parentId: getAttr(obj, 'PARENTID', '') || undefined,
   };
 }
 
@@ -595,12 +674,12 @@ function parsePowersList(container: unknown): Power[] {
           
           // Recalculate active cost with combined advantages (power + list)
           const totalAdvantages = powerAdvantages + listAdvantages;
-          power.activeCost = Math.floor(trueBase * (1 + totalAdvantages));
+          power.activeCost = heroRoundCost(trueBase * (1 + totalAdvantages));
           
           // Recalculate real cost with combined limitations (power + list)
           const totalLimitations = powerLimitations + listLimitations;
           power.realCost = totalLimitations > 0
-            ? Math.floor(power.activeCost / (1 + totalLimitations))
+            ? heroRoundCost(power.activeCost / (1 + totalLimitations))
             : power.activeCost;
         }
         
@@ -612,9 +691,11 @@ function parsePowersList(container: unknown): Power[] {
         
         powers.push(power);
         
-        // Handle COMPOUNDPOWER - parse nested POWER elements as children
+        // Handle COMPOUNDPOWER - parse nested POWER elements and characteristic elements as children
         if (power.type === 'COMPOUNDPOWER') {
           power.isContainer = true;
+          
+          // Parse nested POWER elements
           const nestedPowers = powerObj['POWER'];
           if (nestedPowers) {
             const nestedArr = Array.isArray(nestedPowers) ? nestedPowers : [nestedPowers];
@@ -622,6 +703,43 @@ function parsePowersList(container: unknown): Power[] {
               if (typeof nestedItem === 'object' && nestedItem !== null) {
                 const childPower = parsePower(nestedItem as Record<string, unknown>);
                 // Set the parent ID to the compound power's ID
+                childPower.parentId = power.id;
+                powers.push(childPower);
+              }
+            }
+          }
+          
+          // Parse characteristic elements (STR, DEX, CON, etc.) inside compound powers
+          // These are characteristic boosts that can be part of equipment/items
+          const characteristicTypes = [
+            'STR', 'DEX', 'CON', 'INT', 'EGO', 'PRE',
+            'OCV', 'DCV', 'OMCV', 'DMCV',
+            'SPD', 'PD', 'ED', 'REC', 'END', 'BODY', 'STUN',
+            'RUNNING', 'SWIMMING', 'LEAPING'
+          ];
+          
+          for (const charType of characteristicTypes) {
+            const charElement = powerObj[charType];
+            if (charElement) {
+              const charArr = Array.isArray(charElement) ? charElement : [charElement];
+              for (const charItem of charArr) {
+                if (typeof charItem === 'object' && charItem !== null) {
+                  const childPower = parsePower(charItem as Record<string, unknown>);
+                  childPower.parentId = power.id;
+                  powers.push(childPower);
+                }
+              }
+            }
+          }
+          
+          // Parse SKILL elements inside compound powers (skill enhancers, etc.)
+          const nestedSkills = powerObj['SKILL'];
+          if (nestedSkills) {
+            const skillArr = Array.isArray(nestedSkills) ? nestedSkills : [nestedSkills];
+            for (const skillItem of skillArr) {
+              if (typeof skillItem === 'object' && skillItem !== null) {
+                // Parse skill as power with minimal info for cost calculation
+                const childPower = parsePower(skillItem as Record<string, unknown>);
                 childPower.parentId = power.id;
                 powers.push(childPower);
               }
@@ -703,26 +821,78 @@ function parseSkill(obj: Record<string, unknown>): Skill {
   
   // Calculate cost: BASECOST + LEVELS + Adder costs  
   const adders = parseAdders(obj);
+  const modifiers = parseModifiers(obj);
   const baseCost = getAttrNum(obj, 'BASECOST', 0);
   const levels = getAttrNum(obj, 'LEVELS', 0);
   const adderCost = calculateAdderCost(adders);
   const familiarity = getAttrBool(obj, 'FAMILIARITY');
   const everyman = getAttrBool(obj, 'EVERYMAN');
+  const option = getAttr(obj, 'OPTION', '');
   
   let totalCost = Math.ceil(baseCost + levels + adderCost);
+  
+  // Combat Skill Levels have costs based on broadness (option)
+  // SINGLE = 2 CP/level, TIGHT = 3 CP/level, BROAD/HTH/RANGED = 5 CP/level, ALL = 8 CP/level
+  if (xmlid === 'COMBAT_LEVELS') {
+    const cslCostPerLevel: Record<string, number> = {
+      'SINGLE': 2,     // Single Attack
+      'TIGHT': 3,      // Three Maneuvers or Tight Group  
+      'SMALL': 3,      // Small Group (alias for tight)
+      'HTH': 5,        // All HTH Combat
+      'RANGED': 5,     // All Ranged Combat
+      'BROAD': 5,      // All HTH or All Ranged
+      'ALL': 8,        // All Combat
+      'DCV': 8,        // Overall DCV (like ALL)
+      'OCV': 8,        // Overall OCV (like ALL)
+    };
+    const costPerLevel = cslCostPerLevel[option] ?? 2; // Default to SINGLE if unknown
+    totalCost = levels * costPerLevel;
+  }
+  
+  // Regular Skill Levels have costs based on broadness (option)
+  // SINGLE/CHARACTERISTIC = 2 CP/level, THREE = 3 CP/level, GROUP = 4 CP/level, ALL = 6 CP/level
+  if (xmlid === 'SKILL_LEVELS') {
+    const slCostPerLevel: Record<string, number> = {
+      'SINGLE': 2,          // Single Skill
+      'CHARACTERISTIC': 2,  // Single Skill or Characteristic Roll
+      'THREE': 3,           // Three Related Skills
+      'TIGHT': 3,           // Tight Group of Skills
+      'GROUP': 4,           // Broad Group of Skills
+      'BROAD': 4,           // Broad Group of Skills
+      'OVERALL': 6,         // All Skills based on a Characteristic
+      'ALL': 6,             // All Skills based on a Characteristic
+    };
+    const costPerLevel = slCostPerLevel[option] ?? 2; // Default to SINGLE if unknown
+    totalCost = levels * costPerLevel;
+  }
+  
+  // Apply modifiers (limitations reduce cost, advantages would increase active cost)
+  // For skills, we only care about limitations which reduce the real cost
+  const limitations = modifiers
+    .filter(m => (m.value ?? 0) < 0)
+    .reduce((sum, m) => sum + Math.abs(m.value ?? 0), 0);
+  
+  let realCost = totalCost;
+  if (limitations > 0) {
+    // Real Cost = Active Cost / (1 + Total Limitations)
+    realCost = heroRoundCost(totalCost / (1 + limitations));
+  }
   
   // Everyman skills are always free (0 cost)
   if (everyman) {
     totalCost = 0;
+    realCost = 0;
   }
   // Familiarity costs 1 point minimum (unless it's native tongue or everyman)
   else if (familiarity && totalCost === 0) {
     totalCost = 1;
+    realCost = 1;
   }
   
   // Native tongue languages are free (0 cost) - native literacy is also free per campaign rules
   if (nativeTongue) {
     totalCost = 0; // Native tongue and native literacy are free
+    realCost = 0;
   }
   
   // Store PARENTID for list discount application
@@ -735,7 +905,7 @@ function parseSkill(obj: Record<string, unknown>): Skill {
     position: getAttrNum(obj, 'POSITION', 0),
     levels: levels,
     baseCost: totalCost,
-    realCost: totalCost,
+    realCost: realCost,
     notes: getAttr(obj, 'NOTES') || undefined,
     type: 'GENERAL',
     characteristic: getAttr(obj, 'CHARACTERISTIC') as CharacteristicType || undefined,
@@ -747,7 +917,7 @@ function parseSkill(obj: Record<string, unknown>): Skill {
     xmlid: xmlid || undefined,
     option: getAttr(obj, 'OPTION') || undefined,
     optionAlias: optionAlias || undefined,
-    modifiers: parseModifiers(obj),
+    modifiers: modifiers,
     adders: adders,
     parentId: parentId || undefined,
   };
@@ -835,6 +1005,7 @@ function parsePerk(obj: Record<string, unknown>): Perk {
     activeCost = totalCost;
   } else if (xmlid === 'REPUTATION' || xmlid === 'POSITIVE_REPUTATION') {
     // Reputation: cost is from adders only (LEVELS is effect magnitude, not cost)
+    // The LEVELS attribute describes the reaction roll bonus (+X/+Xd6), not cost
     // Adders with INCLUDEINBASE="Yes" contribute to the base cost
     activeCost = Math.ceil(Math.abs(baseCost) + adderCost);
     totalCost = activeCost; // Real cost will be adjusted by list discount later
@@ -888,6 +1059,7 @@ function parseTalent(obj: Record<string, unknown>): Talent {
     characteristic: getAttr(obj, 'CHARACTERISTIC') as CharacteristicType || undefined,
     modifiers: parseModifiers(obj),
     adders: adders,
+    parentId: getAttr(obj, 'PARENTID', '') || undefined,
   };
 }
 
@@ -939,10 +1111,13 @@ function parseMartialManeuver(obj: Record<string, unknown>): MartialManeuver {
     notes: getAttr(obj, 'NOTES') || undefined,
     ocv: parseOcvDcv(ocvStr),
     dcv: parseOcvDcv(dcvStr),
-    damage: getAttr(obj, 'DC') || undefined, // Damage class
+    phase: phase || '1/2',
+    dc: dc,
+    damage: getAttr(obj, 'DC') || undefined, // Damage class as string
     effect: effectString || undefined,
     modifiers: parseModifiers(obj),
     adders: parseAdders(obj),
+    parentId: getAttr(obj, 'PARENTID', '') || undefined,
   };
 }
 
@@ -963,6 +1138,9 @@ function parsePower(obj: Record<string, unknown>): Power {
   const hdcBaseCost = getAttrNum(obj, 'BASECOST', 0);
   const levels = getAttrNum(obj, 'LEVELS', 0);
   
+  // Get OPTION for powers like Darkness with sense group selection
+  const optionId = getAttr(obj, 'OPTION', '');
+  
   // Get level cost from HDC file first
   let lvlCost = getAttrNum(obj, 'LVLCOST', -1); // Use -1 as sentinel for "not specified"
   
@@ -972,6 +1150,13 @@ function parsePower(obj: Record<string, unknown>): Power {
   if (lvlCost < 0) {
     if (powerDef) {
       lvlCost = powerDef.lvlCost;
+      // Check for option-specific lvlCost (e.g., Darkness Hearing Group = 3, Sight Group = 5)
+      if (optionId && powerDef.options) {
+        const selectedOption = powerDef.options.find(o => o.xmlId === optionId);
+        if (selectedOption && selectedOption.lvlCost !== undefined) {
+          lvlCost = selectedOption.lvlCost;
+        }
+      }
     } else {
       lvlCost = 1; // Default fallback
     }
@@ -980,7 +1165,71 @@ function parsePower(obj: Record<string, unknown>): Power {
   const adderCost = calculateAdderCost(adders);
   
   // True base cost = BASECOST + (levels * lvlCost) + adderCosts (before advantages)
-  const trueBaseCost = hdcBaseCost + (levels * lvlCost) + adderCost;
+  let trueBaseCost = hdcBaseCost + (levels * lvlCost) + adderCost;
+  
+  // Negative levels on characteristics are penalties with 0 cost, not refunds
+  // Check if this is a characteristic power type
+  const characteristicTypes = new Set([
+    'STR', 'DEX', 'CON', 'INT', 'EGO', 'PRE',
+    'OCV', 'DCV', 'OMCV', 'DMCV',
+    'SPD', 'PD', 'ED', 'REC', 'END', 'BODY', 'STUN',
+    'RUNNING', 'SWIMMING', 'LEAPING'
+  ]);
+  if (characteristicTypes.has(xmlid) && levels < 0) {
+    trueBaseCost = 0; // Negative stats are penalties, not refunds
+  }
+  
+  // Barrier-specific fields (extracted for storage)
+  let barrierFields: {
+    pdLevels?: number;
+    edLevels?: number;
+    mdLevels?: number;
+    powdLevels?: number;
+    bodyLevels?: number;
+    lengthLevels?: number;
+    heightLevels?: number;
+    widthLevels?: number;
+  } = {};
+  
+  // Special handling for FORCEWALL (Barrier) cost calculation
+  // Per rulebook: 3 CP for base (1m x 1m x 0.5m, 0 BODY, 0 DEF)
+  // +1 CP per +1m length or +1m height or +0.5m thickness
+  // +1 CP per +1 BODY
+  // +3 CP per +2 resistant DEF (PD, ED, MD, PowD)
+  if (xmlid === 'FORCEWALL') {
+    const pdLevels = getAttrNum(obj, 'PDLEVELS', 0);
+    const edLevels = getAttrNum(obj, 'EDLEVELS', 0);
+    const mdLevels = getAttrNum(obj, 'MDLEVELS', 0);
+    const powdLevels = getAttrNum(obj, 'POWDLEVELS', 0);
+    // HDC stores levels above base - convert to actual dimensions
+    const lengthLevelsRaw = getAttrNum(obj, 'LENGTHLEVELS', 0);
+    const heightLevelsRaw = getAttrNum(obj, 'HEIGHTLEVELS', 0);
+    const bodyLevels = getAttrNum(obj, 'BODYLEVELS', 0);
+    const widthLevelsRaw = parseFloat(getAttr(obj, 'WIDTHLEVELS', '0')) || 0;
+    
+    // Convert to actual dimensions (base + levels)
+    const lengthLevels = lengthLevelsRaw + 1;  // Base 1m + levels
+    const heightLevels = heightLevelsRaw + 1;  // Base 1m + levels
+    const widthLevels = widthLevelsRaw + 0.5;  // Base 0.5m + levels
+    
+    // Store actual dimensions for return value
+    barrierFields = { pdLevels, edLevels, mdLevels, powdLevels, bodyLevels, lengthLevels, heightLevels, widthLevels };
+    
+    // Calculate cost:
+    // Defense cost: 3 CP per 2 points of resistant defense (round up)
+    // So each point of defense costs 1.5 CP
+    const totalDefense = pdLevels + edLevels + mdLevels + powdLevels;
+    const defenseCost = Math.ceil(totalDefense * 1.5);
+    
+    // Dimension cost: 1 CP per meter above base (using raw levels)
+    const dimensionCost = lengthLevelsRaw + heightLevelsRaw + (widthLevelsRaw * 2);
+    
+    // Body cost: 1 CP per BODY
+    const bodyCost = bodyLevels;
+    
+    // Base cost of 3 CP is in hdcBaseCost
+    trueBaseCost = hdcBaseCost + defenseCost + dimensionCost + bodyCost + adderCost;
+  }
   
   // Calculate advantage total (positive modifiers)
   const advantageTotal = modifiers
@@ -993,12 +1242,12 @@ function parsePower(obj: Record<string, unknown>): Power {
     .reduce((sum, m) => sum + Math.abs(m.value ?? 0), 0);
   
   // Active Points = base * (1 + advantage total)
-  const activeCost = Math.floor(trueBaseCost * (1 + advantageTotal));
+  const activeCost = heroRoundCost(trueBaseCost * (1 + advantageTotal));
   
   // Real Cost = Active Points / (1 + limitation total)
   let realCost = activeCost;
   if (limitationTotal > 0) {
-    realCost = Math.floor(activeCost / (1 + limitationTotal));
+    realCost = heroRoundCost(activeCost / (1 + limitationTotal));
   }
 
   // Calculate END Cost if not specified in XML
@@ -1021,6 +1270,15 @@ function parsePower(obj: Record<string, unknown>): Power {
   // Store PARENTID for list modifier application
   const parentId = getAttr(obj, 'PARENTID', '');
   
+  // Get OPTION_ALIAS for powers like Darkness with sense group selection
+  const optionAlias = getAttr(obj, 'OPTION_ALIAS', '');
+  
+  // Parse AFFECTS_PRIMARY and AFFECTS_TOTAL flags
+  // These determine if the power contributes to primary/total character stats
+  // Default to true (most powers do affect stats)
+  const affectsPrimary = getAttrBool(obj, 'AFFECTS_PRIMARY', true);
+  const affectsTotal = getAttrBool(obj, 'AFFECTS_TOTAL', true);
+  
   return {
     id: getAttr(obj, 'ID') || generateId(),
     name: displayName,
@@ -1042,6 +1300,12 @@ function parsePower(obj: Record<string, unknown>): Power {
     modifiers: modifiers,
     adders: adders,
     parentId: parentId || undefined,
+    option: optionId || undefined,
+    optionAlias: optionAlias || undefined,
+    affectsPrimary: affectsPrimary,
+    affectsTotal: affectsTotal,
+    // Barrier-specific fields
+    ...barrierFields,
   };
 }
 
@@ -1208,6 +1472,42 @@ function parseEquipmentItem(obj: Record<string, unknown>): Equipment {
     }
   }
   
+  // Check for characteristic elements (STR, DEX, CON, etc.) inside compound equipment
+  // These are characteristic boosts that can be part of equipment/items
+  const characteristicTypes = [
+    'STR', 'DEX', 'CON', 'INT', 'EGO', 'PRE',
+    'OCV', 'DCV', 'OMCV', 'DMCV',
+    'SPD', 'PD', 'ED', 'REC', 'END', 'BODY', 'STUN',
+    'RUNNING', 'SWIMMING', 'LEAPING'
+  ];
+  
+  for (const charType of characteristicTypes) {
+    // Skip DCV if already handled above (DCV has special handling for shields)
+    if (charType === 'DCV') continue;
+    
+    const charElement = obj[charType];
+    if (charElement) {
+      const charArr = Array.isArray(charElement) ? charElement : [charElement];
+      for (const charItem of charArr) {
+        if (typeof charItem === 'object' && charItem !== null) {
+          const childPower = parsePower(charItem as Record<string, unknown>);
+          childPower.parentId = getAttr(obj, 'ID'); // Link to parent
+          subPowers.push(childPower);
+          
+          const childActive = childPower.activeCost ?? 0;
+          const childReal = childPower.realCost ?? 0;
+          
+          totalActiveCost += childActive;
+          totalRealCost += childReal;
+          
+          const powerDef = getPowerDefinition(charType);
+          const displayName = powerDef?.display || `+${childPower.levels} ${charType}`;
+          childPowerDescriptions.push(`${displayName} (Real Cost: ${childReal})`);
+        }
+      }
+    }
+  }
+  
   // Also check for DCV elements (shields, etc.)
   const dcvElements = obj['DCV'];
   if (dcvElements) {
@@ -1225,7 +1525,7 @@ function parseEquipmentItem(obj: Record<string, unknown>): Equipment {
           .reduce((sum, m) => sum + Math.abs(m.value ?? 0), 0);
         
         const dcvActive = dcvBase + (dcvLevels * dcvLvlCost);
-        const dcvReal = dcvLimTotal > 0 ? Math.floor(dcvActive / (1 + dcvLimTotal)) : dcvActive;
+        const dcvReal = dcvLimTotal > 0 ? heroRoundCost(dcvActive / (1 + dcvLimTotal)) : dcvActive;
         
         totalActiveCost += dcvActive;
         totalRealCost += dcvReal;
@@ -1246,8 +1546,8 @@ function parseEquipmentItem(obj: Record<string, unknown>): Equipment {
   
   // If no nested powers, calculate from main power
   if (totalRealCost === 0) {
-    totalActiveCost = Math.floor((baseCost + (levels * lvlCost) + adderCost) * (1 + advantageTotal));
-    totalRealCost = limitationTotal > 0 ? Math.floor(totalActiveCost / (1 + limitationTotal)) : totalActiveCost;
+    totalActiveCost = heroRoundCost((baseCost + (levels * lvlCost) + adderCost) * (1 + advantageTotal));
+    totalRealCost = limitationTotal > 0 ? heroRoundCost(totalActiveCost / (1 + limitationTotal)) : totalActiveCost;
   }
   
   // Build description - include modifier details and child power details
@@ -1264,6 +1564,10 @@ function parseEquipmentItem(obj: Record<string, unknown>): Equipment {
   // Calculate END cost
   const endCost = Math.ceil(totalActiveCost / 10);
   
+  // Convert weight from lbs (HDC file) to kg (UI)
+  const weightLbs = getAttrNum(obj, 'WEIGHT');
+  const weightKg = weightLbs ? Math.round(weightLbs * 0.453592 * 10) / 10 : undefined;
+  
   return {
     id: getAttr(obj, 'ID') || generateId(),
     xmlId: xmlid,
@@ -1276,7 +1580,7 @@ function parseEquipmentItem(obj: Record<string, unknown>): Equipment {
     realCost: totalRealCost,
     notes: getAttr(obj, 'NOTES') || undefined,
     price: getAttrNum(obj, 'PRICE') || undefined,
-    weight: getAttrNum(obj, 'WEIGHT') || undefined,
+    weight: weightKg,
     carried: getAttrBool(obj, 'CARRIED', true),
     endCost: endCost > 0 ? endCost : undefined,
     subPowers: subPowers.length > 0 ? subPowers : undefined,
@@ -1318,20 +1622,19 @@ function parseModifiers(obj: Record<string, unknown>): Modifier[] {
         modValue = (modDef.baseCost || 0) + (levels * (modDef.lvlCost || 0));
       }
       
-      // For AOE (Area of Effect), calculate value based on levels and shape
+      // For AOE (Area of Effect), calculate value based on area size and shape
+      // Different shapes have multipliers - LINE gets 4x distance for same cost as RADIUS
+      // Formula: +1/4 per 4m of effective radius, round up
       if (xmlid === 'AOE' && levels > 0) {
-        // AOE base sizes by shape (in meters)
-        const aoeBases: Record<string, number> = {
-          'RADIUS': 2,
-          'CONE': 8,
-          'LINE': 16,  // 16m is the base for Line
-          'SURFACE': 1,
+        const shapeMultipliers: Record<string, number> = {
+          'RADIUS': 1,
+          'CONE': 2,
+          'LINE': 4,
+          'SURFACE': 0.5,
         };
-        const baseSize = aoeBases[optionId] || 2;
-        
-        // Calculate cost levels: each doubling from base adds +1/4
-        // Minimum is 1 level (+1/4) for base size or smaller
-        const costLevels = Math.max(1, Math.ceil(Math.log2(levels / baseSize)) + 1);
+        const shapeMultiplier = shapeMultipliers[optionId] || 1;
+        const effectiveRadius = levels / shapeMultiplier;
+        const costLevels = Math.ceil(effectiveRadius / 4);
         modValue = costLevels * 0.25;
       }
       
@@ -1365,6 +1668,7 @@ function parseModifiers(obj: Record<string, unknown>): Modifier[] {
       
       modifiers.push({
         id: getAttr(mod, 'ID') || generateId(),
+        xmlId: xmlid || undefined,
         name: displayName || getAttr(mod, 'NAME', 'Unknown Modifier'),
         alias: alias || undefined,
         value: modValue,  // Use calculated modifier value
@@ -1383,7 +1687,7 @@ function parseModifiers(obj: Record<string, unknown>): Modifier[] {
   return modifiers;
 }
 
-function parseAdders(obj: Record<string, unknown>): Adder[] {
+function parseAdders(obj: Record<string, unknown>, preserveHierarchy: boolean = false): Adder[] {
   const adders: Adder[] = [];
   const adderContainer = obj['ADDERS'] ?? obj['ADDER'];
   
@@ -1393,11 +1697,16 @@ function parseAdders(obj: Record<string, unknown>): Adder[] {
   for (const item of items) {
     if (typeof item === 'object' && item !== null) {
       const add = item as Record<string, unknown>;
-      // Only count SELECTED="YES" adders, or those without SELECTED attribute
+      // Check if this adder is selected
       const selected = getAttr(add, 'SELECTED', 'YES');
-      if (selected !== 'NO') {
-        // Recursively parse nested adders
-        const nestedAdders = parseAdders(add);
+      const isSelected = selected !== 'NO';
+      
+      // Recursively parse nested adders
+      const nestedAdders = parseAdders(add, preserveHierarchy);
+      
+      // Only add this adder if it's selected (SELECTED="YES" or no SELECTED attribute)
+      // Or if we're preserving hierarchy for weapon element editing
+      if (isSelected || preserveHierarchy) {
         const includeInBase = getAttr(add, 'INCLUDEINBASE', 'No').toUpperCase() === 'YES';
         const optionAlias = getAttr(add, 'OPTION_ALIAS', '');
         const rawLevels = getAttrNum(add, 'LEVELS', 0);
@@ -1410,7 +1719,7 @@ function parseAdders(obj: Record<string, unknown>): Adder[] {
         // e.g., TELESCOPIC with LEVELS=6, LVLVAL=2 => effective 3 levels (+3 range, 3 pts)
         const effectiveLevels = lvlVal > 1 ? Math.floor(rawLevels / lvlVal) : rawLevels;
         
-        adders.push({
+        const adder: Adder = {
           id: getAttr(add, 'ID') || generateId(),
           xmlId: xmlId || undefined,
           name: getAttr(add, 'ALIAS') || getAttr(add, 'NAME', 'Unknown Adder'),
@@ -1422,8 +1731,19 @@ function parseAdders(obj: Record<string, unknown>): Adder[] {
           notes: getAttr(add, 'NOTES') || undefined,
           optionAlias: optionAlias || undefined,
           includeInBase: includeInBase,
-        });
-        // Add nested adders to the list
+          selected: isSelected,
+        };
+        
+        // If preserving hierarchy, attach nested adders directly
+        if (preserveHierarchy && nestedAdders.length > 0) {
+          adder.adders = nestedAdders;
+        }
+        
+        adders.push(adder);
+      }
+      
+      // If not preserving hierarchy, flatten nested adders into the list
+      if (!preserveHierarchy) {
         adders.push(...nestedAdders);
       }
     }
@@ -1522,12 +1842,16 @@ function serializeBasicConfiguration(config: BasicConfiguration): Record<string,
 }
 
 function serializeCharacterInfo(info: CharacterInfo): Record<string, unknown> {
+  // UI stores height in cm and weight in kg - convert to imperial for HDC file
+  const heightInches = info.height ? info.height / 2.54 : '';
+  const weightLbs = info.weight ? info.weight / 0.453592 : '';
+  
   return {
     '@_CHARACTER_NAME': info.characterName,
     '@_ALTERNATE_IDENTITIES': info.alternateIdentities ?? '',
     '@_PLAYER_NAME': info.playerName ?? '',
-    '@_HEIGHT': info.height ?? '',
-    '@_WEIGHT': info.weight ?? '',
+    '@_HEIGHT': heightInches,
+    '@_WEIGHT': weightLbs,
     '@_HAIR_COLOR': info.hairColor ?? '',
     '@_EYE_COLOR': info.eyeColor ?? '',
     '@_CAMPAIGN_NAME': info.campaignName ?? '',
@@ -1568,6 +1892,19 @@ function serializeCharacteristics(characteristics: Characteristic[]): Record<str
   return result;
 }
 
+function serializeEquipmentList(items: Equipment[]): Record<string, unknown> {
+  const result: Record<string, unknown> = {};
+  
+  for (const item of items) {
+    const key = item.name.toUpperCase().replace(/\s+/g, '_');
+    // Convert weight from kg (UI) back to lbs (HDC file)
+    const weightLbs = item.weight ? item.weight / 0.453592 : undefined;
+    result[key] = serializeGenericObject({ ...item, weight: weightLbs });
+  }
+  
+  return result;
+}
+
 function serializeGenericList<T extends { id: string; name: string }>(
   items: T[]
 ): Record<string, unknown> {
@@ -1581,6 +1918,21 @@ function serializeGenericList<T extends { id: string; name: string }>(
   return result;
 }
 
+// Map camelCase field names to XML attribute names (with underscores)
+const FIELD_NAME_MAP: Record<string, string> = {
+  optionAlias: 'OPTION_ALIAS',
+  nativeTongue: 'NATIVE_TONGUE',
+  affectsPrimary: 'AFFECTS_PRIMARY',
+  affectsTotal: 'AFFECTS_TOTAL',
+};
+
+// Fields that should be serialized as "Yes"/"No" instead of true/false
+const BOOLEAN_YES_NO_FIELDS = new Set([
+  'affectsPrimary',
+  'affectsTotal',
+  'nativeTongue',
+]);
+
 function serializeGenericObject(obj: Record<string, unknown>): Record<string, unknown> {
   const result: Record<string, unknown> = {};
   
@@ -1588,7 +1940,15 @@ function serializeGenericObject(obj: Record<string, unknown>): Record<string, un
     if (value === undefined || value === null) continue;
     if (key === 'modifiers' || key === 'adders') continue; // Handle separately
     
-    result[`@_${key.toUpperCase()}`] = value;
+    // Use mapped name if available, otherwise uppercase the key
+    const xmlKey = FIELD_NAME_MAP[key] || key.toUpperCase();
+    
+    // Convert boolean fields to "Yes"/"No" for XML compatibility
+    if (BOOLEAN_YES_NO_FIELDS.has(key) && typeof value === 'boolean') {
+      result[`@_${xmlKey}`] = value ? 'Yes' : 'No';
+    } else {
+      result[`@_${xmlKey}`] = value;
+    }
   }
   
   return result;

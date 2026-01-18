@@ -91,13 +91,6 @@ export function CharacterEditorPage() {
     <div>
       <div className="page-header">
         <div>
-          <button 
-            className="btn btn-secondary" 
-            onClick={() => navigate('/characters')}
-            style={{ marginBottom: '0.5rem' }}
-          >
-            ← Back
-          </button>
           <h1 className="page-title">
             {displayCharacter.characterInfo.characterName}
             {hasChanges && <span style={{ color: 'var(--warning)', marginLeft: '0.5rem' }}>•</span>}

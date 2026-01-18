@@ -5,6 +5,7 @@ import {
   getPowerDefinition,
   calculatePowerBaseCost,
   calculateAdderCost,
+  heroRoundCost,
   type PowerDefinition,
   type PowerAdder,
 } from '@hero-workshop/shared';
@@ -32,6 +33,12 @@ const POWER_CATEGORIES: Record<string, PowerDefinition[]> = {
   'Adjustment Powers': Object.values(ALL_POWERS).filter((p: PowerDefinition) => p.types.includes('ADJUSTMENT')),
   'Special Powers': Object.values(ALL_POWERS).filter((p: PowerDefinition) => p.types.includes('SPECIAL') && !p.types.includes('ATTACK')),
   'Standard Powers': Object.values(ALL_POWERS).filter((p: PowerDefinition) => p.types.includes('STANDARD') && p.types.length === 1),
+  'Characteristic Powers': Object.values(ALL_POWERS).filter((p: PowerDefinition) => 
+    ['STR', 'DEX', 'CON', 'INT', 'EGO', 'PRE', 'OCV', 'DCV', 'OMCV', 'DMCV', 'SPD', 'PD', 'ED', 'REC', 'END', 'BODY', 'STUN'].includes(p.xmlId)
+  ),
+  'Skill Levels': Object.values(ALL_POWERS).filter((p: PowerDefinition) => 
+    ['COMBAT_LEVELS', 'MENTAL_COMBAT_LEVELS', 'SKILL_LEVELS', 'PENALTY_SKILL_LEVELS'].includes(p.xmlId)
+  ),
 };
 
 // Convert ADVANTAGES and LIMITATIONS to arrays for easier rendering
@@ -53,6 +60,82 @@ interface SelectedModifier {
 
 function generateId(): string {
   return Math.random().toString(36).substring(2, 11);
+}
+
+/**
+ * Shape multipliers for AOE - different shapes get more distance for the same cost
+ * RADIUS is baseline, LINE gets 4x the distance for the same cost
+ */
+const AOE_SHAPE_MULTIPLIERS: Record<string, number> = {
+  'RADIUS': 1,
+  'CONE': 2,
+  'LINE': 4,
+  'SURFACE': 0.5,
+};
+
+/**
+ * Calculate AOE modifier cost based on area size and shape
+ * Formula: +1/4 per 4m of effective radius, round up
+ * Effective radius = actual_size / shape_multiplier
+ * So 16m LINE (mult=4) = 4m effective = +1/4
+ */
+function calculateAoeCost(optionId: string, areaSize: number): number {
+  if (areaSize <= 0) return 0.25; // Minimum cost
+  
+  const shapeMultiplier = AOE_SHAPE_MULTIPLIERS[optionId] || 1;
+  const effectiveRadius = areaSize / shapeMultiplier;
+  
+  // +1/4 per 4m of effective radius, round up
+  const levels = Math.ceil(effectiveRadius / 4);
+  return levels * 0.25;
+}
+
+/**
+ * Format modifier display name, including AOE details with area size
+ */
+function formatModifierDisplay(mod: { name: string; xmlId?: string; optionId?: string; optionName?: string; optionAlias?: string; levels?: number }): string {
+  if (mod.xmlId === 'AOE' && mod.optionId) {
+    const templateName = mod.optionName || mod.optionAlias || mod.optionId;
+    const areaSize = mod.levels || 4; // Default to 4m if not specified
+    return `Area Of Effect (${areaSize}m ${templateName})`;
+  }
+  return mod.name;
+}
+
+/**
+ * Calculate Barrier base cost
+ * Per rulebook: 3 CP for base (1m x 1m x 0.5m, 0 BODY, 0 DEF)
+ * +1 CP per +1m length or +1m height or +0.5m thickness
+ * +1 CP per +1 BODY
+ * +3 CP per +2 resistant DEF (so 1.5 CP per point of defense)
+ * 
+ * Parameters are actual dimensions (e.g., length=8 means 8m total)
+ */
+function calculateBarrierBaseCost(
+  length: number,      // Actual length in meters (min 1)
+  height: number,      // Actual height in meters (min 1)  
+  thickness: number,   // Actual thickness in meters (min 0.5)
+  body: number,
+  pdLevels: number,
+  edLevels: number,
+  mdLevels: number,
+  powdLevels: number
+): number {
+  const baseCost = 3; // Base 3 CP for 1m x 1m x 0.5m with 0 BODY, 0 DEF
+  
+  // Dimension costs (above base): +1 CP per extra meter
+  const lengthCost = Math.max(0, length - 1);       // Base is 1m
+  const heightCost = Math.max(0, height - 1);       // Base is 1m  
+  const thicknessCost = Math.max(0, (thickness - 0.5) * 2); // Base is 0.5m, +1 CP per 0.5m
+  
+  // Body cost: +1 CP per BODY
+  const bodyCost = body;
+  
+  // Defense cost: +3 CP per 2 DEF (1.5 CP per point, round up total)
+  const totalDefense = pdLevels + edLevels + mdLevels + powdLevels;
+  const defenseCost = Math.ceil(totalDefense * 1.5);
+  
+  return baseCost + lengthCost + heightCost + thicknessCost + bodyCost + defenseCost;
 }
 
 /**
@@ -87,7 +170,7 @@ export function PowersTab({ character, onUpdate }: PowersTabProps) {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingPower, setEditingPower] = useState<Power | null>(null);
   const [isCompound, setIsCompound] = useState(false);
-  const [expandedPowers, setExpandedPowers] = useState<Set<string>>(new Set());
+  const [collapsedPowers, setCollapsedPowers] = useState<Set<string>>(new Set());
   const [isEditingList, setIsEditingList] = useState(false);
   const [parentListId, setParentListId] = useState<string | null>(null);  // For adding power to a specific list
   
@@ -103,6 +186,20 @@ export function PowersTab({ character, onUpdate }: PowersTabProps) {
     selectedModifiers: [] as SelectedModifier[],
     adders: [] as Adder[],
     discountAdder: 0, // For lists: -1, -2, etc. to discount child power costs
+    selectedOption: '' as string, // For powers with options (e.g., Darkness sense group)
+    customCost: 0, // For custom powers: manually set base cost
+    // Affects Primary/Total flags
+    affectsPrimary: true,
+    affectsTotal: true,
+    // Barrier-specific fields
+    pdLevels: 0,
+    edLevels: 0,
+    mdLevels: 0,
+    powdLevels: 0,
+    bodyLevels: 0,
+    lengthLevels: 1,  // Default 1m
+    heightLevels: 1,  // Default 1m
+    widthLevels: 0.5, // Default 0.5m (minimum thickness)
   });
   
   // Inherited modifiers from parent list (read-only)
@@ -269,6 +366,18 @@ export function PowersTab({ character, onUpdate }: PowersTabProps) {
         selectedModifiers: [],
         adders: [],
         discountAdder: 0,
+        selectedOption: '',
+        customCost: 0,
+        affectsPrimary: true,
+        affectsTotal: true,
+        pdLevels: 0,
+        edLevels: 0,
+        mdLevels: 0,
+        powdLevels: 0,
+        bodyLevels: 0,
+        lengthLevels: 1,
+        heightLevels: 1,
+        widthLevels: 0.5,
       });
     } else {
       const defaultPower = getPowerDefinition('ENERGYBLAST')!;
@@ -281,6 +390,18 @@ export function PowersTab({ character, onUpdate }: PowersTabProps) {
         selectedModifiers: [],
         adders: [],
         discountAdder: 0,
+        selectedOption: '',
+        customCost: 0,
+        affectsPrimary: true,
+        affectsTotal: true,
+        pdLevels: 0,
+        edLevels: 0,
+        mdLevels: 0,
+        powdLevels: 0,
+        bodyLevels: 0,
+        lengthLevels: 1,
+        heightLevels: 1,
+        widthLevels: 0.5,
       });
     }
     setIsModalOpen(true);
@@ -302,6 +423,18 @@ export function PowersTab({ character, onUpdate }: PowersTabProps) {
       selectedModifiers: [],
       adders: [],
       discountAdder: 0,
+      selectedOption: '',
+      customCost: 0,
+      affectsPrimary: true,
+      affectsTotal: true,
+      pdLevels: 0,
+      edLevels: 0,
+      mdLevels: 0,
+      powdLevels: 0,
+      bodyLevels: 0,
+      lengthLevels: 1,
+      heightLevels: 1,
+      widthLevels: 0.5,
     });
     setCompoundChildPowers([]);
     setIsModalOpen(true);
@@ -366,6 +499,20 @@ export function PowersTab({ character, onUpdate }: PowersTabProps) {
       selectedModifiers: selectedMods,
       adders: power.adders ?? [],
       discountAdder: existingDiscount?.baseCost ?? 0,
+      selectedOption: power.option ?? '',
+      customCost: power.baseCost ?? 0, // Load existing cost for custom powers
+      // Affects Primary/Total flags
+      affectsPrimary: power.affectsPrimary ?? true,
+      affectsTotal: power.affectsTotal ?? true,
+      // Barrier fields
+      pdLevels: power.pdLevels ?? 0,
+      edLevels: power.edLevels ?? 0,
+      mdLevels: power.mdLevels ?? 0,
+      powdLevels: power.powdLevels ?? 0,
+      bodyLevels: power.bodyLevels ?? 0,
+      lengthLevels: power.lengthLevels ?? 1,
+      heightLevels: power.heightLevels ?? 1,
+      widthLevels: power.widthLevels ?? 0.5,
     });
     
     setIsModalOpen(true);
@@ -375,9 +522,12 @@ export function PowersTab({ character, onUpdate }: PowersTabProps) {
     const def = getPowerDefinition(xmlId);
     if (def) {
       setSelectedPowerDef(def);
+      // Set default option if the power has options
+      const defaultOption = (def.options && def.options.length > 0) ? def.options[0]!.xmlId : '';
       setFormData({
         ...formData,
         name: def.display,
+        selectedOption: defaultOption,
       });
     }
   };
@@ -575,15 +725,15 @@ export function PowersTab({ character, onUpdate }: PowersTabProps) {
     const advantages = subPowerFormData.selectedModifiers
       .filter(m => m.isAdvantage)
       .reduce((sum, m) => sum + m.value, 0);
-    const activeCost = Math.floor(baseCost * (1 + advantages));
+    const activeCost = heroRoundCost(baseCost * (1 + advantages));
     const limitations = subPowerFormData.selectedModifiers
       .filter(m => m.isLimitation)
       .reduce((sum, m) => sum + Math.abs(m.value), 0);
-    const realCost = limitations > 0 ? Math.floor(activeCost / (1 + limitations)) : activeCost;
+    const realCost = limitations > 0 ? heroRoundCost(activeCost / (1 + limitations)) : activeCost;
     const endCost = subPowerDef?.usesEnd !== false ? Math.ceil(activeCost / 10) : 0;
 
     const modifiers: Modifier[] = subPowerFormData.selectedModifiers.map(mod => ({
-      id: mod.xmlId,
+      id: generateId(),
       name: mod.name,
       alias: mod.optionName,
       value: mod.value,
@@ -592,6 +742,9 @@ export function PowersTab({ character, onUpdate }: PowersTabProps) {
       levels: mod.levels,
       notes: mod.notes,
       adders: mod.adders,
+      xmlId: mod.xmlId,
+      optionId: mod.optionId,
+      optionAlias: mod.optionName,
     }));
 
     const isCustomPower = !subPowerDef;
@@ -674,6 +827,24 @@ export function PowersTab({ character, onUpdate }: PowersTabProps) {
     setFormData({ ...formData, selectedModifiers: mods });
   };
 
+  // Update AOE modifier template (option) and area size (levels)
+  const updateAoeModifier = (index: number, optionId: string, areaSize: number) => {
+    const mods = [...formData.selectedModifiers];
+    const mod = mods[index];
+    if (!mod || mod.xmlId !== 'AOE') return;
+    
+    const modDef = ADVANTAGES['AOE'];
+    const selectedOption = modDef?.options?.find(o => o.xmlId === optionId);
+    
+    mod.optionId = optionId;
+    mod.optionName = selectedOption?.display || optionId;
+    mod.levels = areaSize;
+    mod.name = `Area Of Effect (${areaSize}m ${selectedOption?.display || optionId})`;
+    mod.value = calculateAoeCost(optionId, areaSize);
+    
+    setFormData({ ...formData, selectedModifiers: mods });
+  };
+
   const calculateCosts = () => {
     // For lists, cost is calculated from children - return 0 here
     if (isEditingList) {
@@ -687,14 +858,48 @@ export function PowersTab({ character, onUpdate }: PowersTabProps) {
       return { baseCost: totalActive, activeCost: totalActive, realCost: totalReal, endCost: 0 };
     }
     
+    // For custom powers, use the manually set customCost
     if (!selectedPowerDef) {
-      return { baseCost: 0, activeCost: 0, realCost: 0, endCost: 0 };
+      const baseCost = formData.customCost;
+      
+      // Apply modifiers to custom power
+      const allModifiers = [...formData.selectedModifiers];
+      const advantageTotal = allModifiers
+        .filter(m => m.isAdvantage)
+        .reduce((sum, m) => sum + m.value, 0);
+      const limitationTotal = allModifiers
+        .filter(m => m.isLimitation)
+        .reduce((sum, m) => sum + Math.abs(m.value), 0);
+      
+      const activeCost = heroRoundCost(baseCost * (1 + advantageTotal));
+      const realCost = limitationTotal > 0 
+        ? heroRoundCost(activeCost / (1 + limitationTotal))
+        : activeCost;
+      
+      return { baseCost, activeCost, realCost, endCost: Math.ceil(activeCost / 10) };
     }
 
     // Base cost from power definition + adders
-    const powerBaseCost = calculatePowerBaseCost(selectedPowerDef, formData.levels);
-    const adderCost = calculateAdderCost(formData.adders);
-    const baseCost = powerBaseCost + adderCost;
+    // Calculate base cost - special handling for Barrier
+    let baseCost: number;
+    if (selectedPowerDef.xmlId === 'FORCEWALL') {
+      const barrierCost = calculateBarrierBaseCost(
+        formData.lengthLevels,
+        formData.heightLevels,
+        formData.widthLevels,
+        formData.bodyLevels,
+        formData.pdLevels,
+        formData.edLevels,
+        formData.mdLevels,
+        formData.powdLevels
+      );
+      const adderCost = calculateAdderCost(formData.adders);
+      baseCost = barrierCost + adderCost;
+    } else {
+      const powerBaseCost = calculatePowerBaseCost(selectedPowerDef, formData.levels, formData.selectedOption || undefined);
+      const adderCost = calculateAdderCost(formData.adders);
+      baseCost = powerBaseCost + adderCost;
+    }
     
     // Include both own modifiers and inherited modifiers from parent list
     const allModifiers = [...formData.selectedModifiers];
@@ -723,9 +928,9 @@ export function PowersTab({ character, onUpdate }: PowersTabProps) {
     
     const totalLimitations = ownLimitationTotal + inheritedLimitationTotal;
     
-    const activeCost = Math.floor(baseCost * (1 + advantageTotal));
+    const activeCost = heroRoundCost(baseCost * (1 + advantageTotal));
     const realCost = totalLimitations > 0 
-      ? Math.floor(activeCost / (1 + totalLimitations))
+      ? heroRoundCost(activeCost / (1 + totalLimitations))
       : activeCost;
     
     const endCost = selectedPowerDef.usesEnd !== false ? Math.ceil(activeCost / 10) : 0;
@@ -737,7 +942,7 @@ export function PowersTab({ character, onUpdate }: PowersTabProps) {
     // Handle saving a list container
     if (isEditingList) {
       const modifiers: Modifier[] = formData.selectedModifiers.map(mod => ({
-        id: mod.xmlId,
+        id: generateId(),
         name: mod.name,
         alias: mod.optionName,
         value: mod.value,
@@ -746,6 +951,9 @@ export function PowersTab({ character, onUpdate }: PowersTabProps) {
         levels: mod.levels,
         notes: mod.notes,
         adders: mod.adders,
+        xmlId: mod.xmlId,
+        optionId: mod.optionId,
+        optionAlias: mod.optionName,
       }));
       
       // Build adders array - include discount adder if set
@@ -827,6 +1035,8 @@ export function PowersTab({ character, onUpdate }: PowersTabProps) {
         levels: 0,
         position: editingPower?.position ?? powers.length,
         parentId: parentListId ?? editingPower?.parentId,
+        affectsPrimary: formData.affectsPrimary,
+        affectsTotal: formData.affectsTotal,
       };
       
       // Set parentId on all child powers
@@ -856,7 +1066,7 @@ export function PowersTab({ character, onUpdate }: PowersTabProps) {
     
     // Regular power saving
     const modifiers: Modifier[] = formData.selectedModifiers.map(mod => ({
-      id: mod.xmlId,
+      id: generateId(),
       name: mod.name,
       alias: mod.optionName,
       value: mod.value,
@@ -865,6 +1075,9 @@ export function PowersTab({ character, onUpdate }: PowersTabProps) {
       levels: mod.levels,
       notes: mod.notes,
       adders: mod.adders,
+      xmlId: mod.xmlId,
+      optionId: mod.optionId,
+      optionAlias: mod.optionName,
     }));
     
     // For custom powers (no selectedPowerDef), preserve the original name and type
@@ -875,6 +1088,9 @@ export function PowersTab({ character, onUpdate }: PowersTabProps) {
     const powerType = isCustomPower
       ? (editingPower?.type ?? 'GENERIC')
       : selectedPowerDef.xmlId;
+    
+    // Build option info if power has options
+    const selectedOption = selectedPowerDef?.options?.find(o => o.xmlId === formData.selectedOption);
     
     const newPower: Power = {
       id: editingPower?.id ?? generateId(),
@@ -895,6 +1111,22 @@ export function PowersTab({ character, onUpdate }: PowersTabProps) {
       doesDamage: selectedPowerDef?.doesDamage ?? editingPower?.doesDamage,
       killing: selectedPowerDef?.isKilling ?? editingPower?.killing,
       parentId: parentListId ?? editingPower?.parentId,
+      option: selectedOption?.xmlId ?? editingPower?.option,
+      optionAlias: selectedOption?.display ?? editingPower?.optionAlias,
+      // Affects Primary/Total flags
+      affectsPrimary: formData.affectsPrimary,
+      affectsTotal: formData.affectsTotal,
+      // Barrier-specific fields
+      ...(selectedPowerDef?.xmlId === 'FORCEWALL' ? {
+        pdLevels: formData.pdLevels,
+        edLevels: formData.edLevels,
+        mdLevels: formData.mdLevels,
+        powdLevels: formData.powdLevels,
+        bodyLevels: formData.bodyLevels,
+        lengthLevels: formData.lengthLevels,
+        heightLevels: formData.heightLevels,
+        widthLevels: formData.widthLevels,
+      } : {}),
     };
 
     let updatedPowers: Power[];
@@ -980,13 +1212,13 @@ export function PowersTab({ character, onUpdate }: PowersTabProps) {
   };
 
   const togglePowerExpanded = (powerId: string) => {
-    const newExpanded = new Set(expandedPowers);
-    if (newExpanded.has(powerId)) {
-      newExpanded.delete(powerId);
+    const newCollapsed = new Set(collapsedPowers);
+    if (newCollapsed.has(powerId)) {
+      newCollapsed.delete(powerId);
     } else {
-      newExpanded.add(powerId);
+      newCollapsed.add(powerId);
     }
-    setExpandedPowers(newExpanded);
+    setCollapsedPowers(newCollapsed);
   };
 
   // Filter for compound/parent powers only at top level
@@ -1031,6 +1263,32 @@ export function PowersTab({ character, onUpdate }: PowersTabProps) {
     return isKilling ? `${baseDice}d6K` : `${baseDice}d6`;
   };
 
+  /**
+   * Get barrier display string showing dimensions and defenses
+   */
+  const getBarrierDisplay = (power: Power): string | null => {
+    if (power.type !== 'FORCEWALL') return null;
+    
+    const length = power.lengthLevels ?? 1;
+    const height = power.heightLevels ?? 1;
+    const thickness = power.widthLevels ?? 0.5;
+    const body = power.bodyLevels ?? 0;
+    const pd = power.pdLevels ?? 0;
+    const ed = power.edLevels ?? 0;
+    const md = power.mdLevels ?? 0;
+    const powd = power.powdLevels ?? 0;
+    
+    const dims = `${length}m × ${height}m × ${thickness}m`;
+    const defenses: string[] = [];
+    if (pd > 0) defenses.push(`${pd} rPD`);
+    if (ed > 0) defenses.push(`${ed} rED`);
+    if (md > 0) defenses.push(`${md} rMD`);
+    if (powd > 0) defenses.push(`${powd} rPowD`);
+    
+    const defStr = defenses.length > 0 ? defenses.join('/') : '0 DEF';
+    return `${dims}, ${body} BODY, ${defStr}`;
+  };
+
   const filteredModifiers = useMemo(() => {
     if (modifierType === 'custom') return []; // Custom tab doesn't use the list
     const list = modifierType === 'advantage' ? ALL_ADVANTAGES : ALL_LIMITATIONS;
@@ -1060,7 +1318,7 @@ export function PowersTab({ character, onUpdate }: PowersTabProps) {
             Add Compound Power
           </button>
           <button className="btn btn-secondary" onClick={openAddListModal}>
-            Add List
+            Add Group
           </button>
         </div>
       </div>
@@ -1079,8 +1337,8 @@ export function PowersTab({ character, onUpdate }: PowersTabProps) {
             <button className="btn btn-secondary" onClick={() => openAddModal(true)}>
               Add Compound
             </button>
-            <button className="btn btn-secondary" onClick={openAddListModal} title="Add a power list/framework with shared modifiers">
-              Add List
+            <button className="btn btn-secondary" onClick={openAddListModal} title="Add a power group/framework with shared modifiers">
+              Add Group
             </button>
           </div>
         </div>
@@ -1106,22 +1364,31 @@ export function PowersTab({ character, onUpdate }: PowersTabProps) {
         <div className="item-list">
           {topLevelPowers.map(power => {
             const children = getChildPowers(power.id);
-            const isExpanded = expandedPowers.has(power.id);
+            const isExpanded = !collapsedPowers.has(power.id);
             const damageDisplay = getAttackDamageDisplay(power);
+            const barrierDisplay = getBarrierDisplay(power);
             const isCompoundPower = power.type === 'COMPOUNDPOWER';
             // isList: only true LIST containers, not compound powers
             const isList = (power.isContainer || power.type === 'LIST') && !isCompoundPower;
+            
+            // Check if this is a characteristic power (STR, DEX, etc.)
+            const characteristicTypes = new Set([
+              'STR', 'DEX', 'CON', 'INT', 'EGO', 'PRE',
+              'OCV', 'DCV', 'OMCV', 'DMCV',
+              'SPD', 'PD', 'ED', 'REC', 'END', 'BODY', 'STUN',
+              'RUNNING', 'SWIMMING', 'LEAPING'
+            ]);
+            const isCharacteristicPower = characteristicTypes.has(power.type);
+            const powerDisplayName = isCharacteristicPower 
+              ? `${(power.levels ?? 0) >= 0 ? '+' : ''}${power.levels ?? 0} ${power.type}`
+              : power.name;
             
             return (
               <div key={power.id}>
                 <div
                   className="item-row"
                   style={{ 
-                    borderLeft: `3px solid ${isList ? 'var(--warning-color)' : (isCompoundPower ? 'var(--secondary-color)' : 'var(--primary-color)')}`,
                     cursor: isList ? 'pointer' : 'default',
-                    backgroundColor: isList ? 'rgba(255, 193, 7, 0.05)' : (isCompoundPower ? 'rgba(139, 92, 246, 0.05)' : undefined),
-                    minHeight: '48px',
-                    boxSizing: 'border-box',
                   }}
                   onClick={() => isList && togglePowerExpanded(power.id)}
                 >
@@ -1132,15 +1399,20 @@ export function PowersTab({ character, onUpdate }: PowersTabProps) {
                           {isExpanded ? '▼' : '▶'}
                         </span>
                       )}
-                      {isList && <span style={{ marginRight: '0.5rem' }}>📁</span>}
                       {isCompoundPower && <span style={{ marginRight: '0.5rem' }}>⚡</span>}
-                      <strong>{power.name}{isList ? '' : ':'}</strong>
-                      {!isList && power.alias && power.alias !== power.name && ` ${power.alias}`}
+                      <strong>{powerDisplayName}{isList ? '' : ':'}</strong>
+                      {!isList && !isCharacteristicPower && power.alias && power.alias !== power.name && ` ${power.alias}`}
+                      {!isList && power.optionAlias && ` (${power.optionAlias})`}
                     </div>
                     <div className="item-details">
                       {isList && power.modifiers && power.modifiers.length > 0 && (
                         <span style={{ color: 'var(--warning-color)' }}>
-                          List Modifiers: {power.modifiers.map(m => `${m.name} (${formatModifierValue(m.value)})`).join(', ')}
+                          Group Modifiers: {power.modifiers.map(m => {
+                            const displayName = m.xmlId === 'AOE' && m.optionId
+                              ? `Area Of Effect (${m.levels || 4}m ${m.optionAlias || m.optionId})`
+                              : m.name;
+                            return `${displayName} (${formatModifierValue(m.value)})`;
+                          }).join(', ')}
                         </span>
                       )}
                       {!isList && damageDisplay && (
@@ -1152,12 +1424,26 @@ export function PowersTab({ character, onUpdate }: PowersTabProps) {
                           {damageDisplay}
                         </span>
                       )}
-                      {!isList && !damageDisplay && power.effectDice && (
+                      {!isList && barrierDisplay && (
+                        <span style={{ 
+                          color: 'var(--info-color)', 
+                          fontWeight: 600,
+                          marginRight: '0.5rem'
+                        }}>
+                          {barrierDisplay}
+                        </span>
+                      )}
+                      {!isList && !damageDisplay && !barrierDisplay && power.effectDice && (
                         <span>{power.effectDice}</span>
                       )}
                       {!isList && power.modifiers && power.modifiers.length > 0 && (
                         <span style={{ marginLeft: '0.5rem' }}>
-                          • {power.modifiers.map(m => `${m.name} (${formatModifierValue(m.value)})`).join(', ')}
+                          • {power.modifiers.map(m => {
+                            const displayName = m.xmlId === 'AOE' && m.optionId
+                              ? `Area Of Effect (${m.levels || 4}m ${m.optionAlias || m.optionId})`
+                              : m.name;
+                            return `${displayName} (${formatModifierValue(m.value)})`;
+                          }).join(', ')}
                         </span>
                       )}
                     </div>
@@ -1176,6 +1462,11 @@ export function PowersTab({ character, onUpdate }: PowersTabProps) {
                       }}>
                         {children.map((child, idx) => {
                           const childDamageDisplay = getAttackDamageDisplay(child);
+                          const childBarrierDisplay = getBarrierDisplay(child);
+                          const isChildCharPower = characteristicTypes.has(child.type);
+                          const childDisplayName = isChildCharPower 
+                            ? `${(child.levels ?? 0) >= 0 ? '+' : ''}${child.levels ?? 0} ${child.type}`
+                            : (child.name || child.type);
                           return (
                             <div key={child.id} style={{ 
                               marginLeft: '0.5rem',
@@ -1183,16 +1474,26 @@ export function PowersTab({ character, onUpdate }: PowersTabProps) {
                               color: 'var(--text-primary)'
                             }}>
                               <span style={{ color: 'var(--secondary-color)', marginRight: '0.25rem' }}>•</span>
-                              <strong>{child.name || child.type}:</strong> {child.alias}
+                              <strong>{childDisplayName}:</strong> {!isChildCharPower && child.alias}
                               {child.activeCost && <span style={{ color: 'var(--text-secondary)' }}> ({child.activeCost} AP)</span>}
                               {childDamageDisplay && (
                                 <span style={{ color: 'var(--danger-color)', fontWeight: 600, marginLeft: '0.5rem' }}>
                                   {childDamageDisplay}
                                 </span>
                               )}
+                              {childBarrierDisplay && (
+                                <span style={{ color: 'var(--info-color)', fontWeight: 600, marginLeft: '0.5rem' }}>
+                                  {childBarrierDisplay}
+                                </span>
+                              )}
                               {child.modifiers && child.modifiers.length > 0 && (
                                 <span style={{ color: 'var(--text-secondary)', marginLeft: '0.5rem' }}>
-                                  [{child.modifiers.map(m => `${m.name} (${formatModifierValue(m.value)})`).join(', ')}]
+                                  [{child.modifiers.map(m => {
+                                    const displayName = m.xmlId === 'AOE' && m.optionId
+                                      ? `Area Of Effect (${m.levels || 4}m ${m.optionAlias || m.optionId})`
+                                      : m.name;
+                                    return `${displayName} (${formatModifierValue(m.value)})`;
+                                  }).join(', ')}]
                                 </span>
                               )}
                             </div>
@@ -1216,13 +1517,13 @@ export function PowersTab({ character, onUpdate }: PowersTabProps) {
                     </div>
                   </div>
                   <div className="item-actions" onClick={e => e.stopPropagation()}>
-                    {/* Move to list - compact icon button with popup */}
+                    {/* Move to group - compact icon button with popup */}
                     {!isList && powerLists.length > 0 && (
                       <div data-move-menu style={{ position: 'relative' }}>
                         <button
                           className="btn-icon-small"
                           onClick={() => setMoveMenuOpenFor(moveMenuOpenFor === power.id ? null : power.id)}
-                          title="Move to list"
+                          title="Move to group"
                           style={{ 
                             opacity: 1,
                             background: moveMenuOpenFor === power.id ? 'var(--surface)' : undefined,
@@ -1259,7 +1560,7 @@ export function PowersTab({ character, onUpdate }: PowersTabProps) {
                               onMouseEnter={e => { if (power.parentId) e.currentTarget.style.background = 'var(--surface-light)'; }}
                               onMouseLeave={e => { if (power.parentId) e.currentTarget.style.background = ''; }}
                             >
-                              No List
+                              No Group
                             </div>
                             {powerLists.map(list => (
                               <div
@@ -1300,28 +1601,27 @@ export function PowersTab({ character, onUpdate }: PowersTabProps) {
                 
                 {/* Child powers for LIST containers only - compound power children are shown inline above */}
                 {isList && isExpanded && (
-                  <div style={{ marginLeft: '2rem', borderLeft: '2px solid var(--warning-color)' }}>
+                  <div style={{ marginLeft: '2rem' }}>
                     {children.map(child => {
                       const childDamageDisplay = getAttackDamageDisplay(child);
+                      const childBarrierDisplay = getBarrierDisplay(child);
                       const parentList = getParentList(child);
                       const listModifiers = parentList?.modifiers ?? [];
                       const grandChildren = powers.filter(p => p.parentId === child.id);
                       const isCompoundChild = child.type === 'COMPOUNDPOWER';
+                      const isChildCharPower = characteristicTypes.has(child.type);
+                      const childDisplayName = isChildCharPower 
+? `${(child.levels ?? 0) >= 0 ? '+' : ''}${child.levels ?? 0} ${child.type}`
+                        : child.name;
                       
                       return (
                         <div
                           key={child.id}
                           className="item-row"
-                          style={{ 
-                            borderLeft: '3px solid var(--primary-color)',
-                            backgroundColor: 'var(--background-tertiary)',
-                            minHeight: '48px',
-                            boxSizing: 'border-box',
-                          }}
                         >
                           <div className="item-info">
                             <div className="item-name">
-                              <strong>{child.name}:</strong> {child.alias}
+                              <strong>{childDisplayName}:</strong> {!isChildCharPower && child.alias}
                             </div>
                             <div className="item-details">
                               {childDamageDisplay && (
@@ -1329,15 +1629,30 @@ export function PowersTab({ character, onUpdate }: PowersTabProps) {
                                   {childDamageDisplay}
                                 </span>
                               )}
-                              {!childDamageDisplay && child.effectDice && <span>{child.effectDice}</span>}
+                              {childBarrierDisplay && (
+                                <span style={{ color: 'var(--info-color)', fontWeight: 600, marginRight: '0.5rem' }}>
+                                  {childBarrierDisplay}
+                                </span>
+                              )}
+                              {!childDamageDisplay && !childBarrierDisplay && child.effectDice && <span>{child.effectDice}</span>}
                               {child.modifiers && child.modifiers.length > 0 && (
                                 <span style={{ marginLeft: '0.5rem' }}>
-                                  • {child.modifiers.map(m => `${m.name} (${formatModifierValue(m.value)})`).join(', ')}
+                                  • {child.modifiers.map(m => {
+                                    const displayName = m.xmlId === 'AOE' && m.optionId
+                                      ? `Area Of Effect (${m.levels || 4}m ${m.optionAlias || m.optionId})`
+                                      : m.name;
+                                    return `${displayName} (${formatModifierValue(m.value)})`;
+                                  }).join(', ')}
                                 </span>
                               )}
                               {listModifiers.length > 0 && (
                                 <span style={{ marginLeft: '0.5rem', color: 'var(--warning-color)', fontStyle: 'italic' }}>
-                                  • [From List: {listModifiers.map(m => `${m.name} (${formatModifierValue(m.value)})`).join(', ')}]
+                                  • [From Group: {listModifiers.map(m => {
+                                    const displayName = m.xmlId === 'AOE' && m.optionId
+                                      ? `Area Of Effect (${m.levels || 4}m ${m.optionAlias || m.optionId})`
+                                      : m.name;
+                                    return `${displayName} (${formatModifierValue(m.value)})`;
+                                  }).join(', ')}]
                                 </span>
                               )}
                             </div>
@@ -1350,6 +1665,11 @@ export function PowersTab({ character, onUpdate }: PowersTabProps) {
                               }}>
                                 {grandChildren.map((grandChild, idx) => {
                                   const grandChildDamageDisplay = getAttackDamageDisplay(grandChild);
+                                  const grandChildBarrierDisplay = getBarrierDisplay(grandChild);
+                                  const isGrandChildCharPower = characteristicTypes.has(grandChild.type);
+                                  const grandChildDisplayName = isGrandChildCharPower 
+                                    ? `${(grandChild.levels ?? 0) >= 0 ? '+' : ''}${grandChild.levels ?? 0} ${grandChild.type}`
+                                    : (grandChild.name || grandChild.type);
                                   return (
                                     <div key={grandChild.id} style={{ 
                                       marginLeft: '0.5rem',
@@ -1357,16 +1677,26 @@ export function PowersTab({ character, onUpdate }: PowersTabProps) {
                                       color: 'var(--text-primary)'
                                     }}>
                                       <span style={{ color: 'var(--secondary-color)', marginRight: '0.25rem' }}>•</span>
-                                      <strong>{grandChild.name || grandChild.type}:</strong> {grandChild.alias}
+                                      <strong>{grandChildDisplayName}:</strong> {!isGrandChildCharPower && grandChild.alias}
                                       {grandChild.activeCost && <span style={{ color: 'var(--text-secondary)' }}> ({grandChild.activeCost} AP)</span>}
                                       {grandChildDamageDisplay && (
                                         <span style={{ color: 'var(--danger-color)', fontWeight: 600, marginLeft: '0.5rem' }}>
                                           {grandChildDamageDisplay}
                                         </span>
                                       )}
+                                      {grandChildBarrierDisplay && (
+                                        <span style={{ color: 'var(--info-color)', fontWeight: 600, marginLeft: '0.5rem' }}>
+                                          {grandChildBarrierDisplay}
+                                        </span>
+                                      )}
                                       {grandChild.modifiers && grandChild.modifiers.length > 0 && (
                                         <span style={{ color: 'var(--text-secondary)', marginLeft: '0.5rem' }}>
-                                          [{grandChild.modifiers.map(m => `${m.name} (${formatModifierValue(m.value)})`).join(', ')}]
+                                          [{grandChild.modifiers.map(m => {
+                                            const displayName = m.xmlId === 'AOE' && m.optionId
+                                              ? `Area Of Effect (${m.levels || 4}m ${m.optionAlias || m.optionId})`
+                                              : m.name;
+                                            return `${displayName} (${formatModifierValue(m.value)})`;
+                                          }).join(', ')}]
                                         </span>
                                       )}
                                     </div>
@@ -1390,13 +1720,13 @@ export function PowersTab({ character, onUpdate }: PowersTabProps) {
                             </div>
                           </div>
                           <div className="item-actions" onClick={e => e.stopPropagation()}>
-                            {/* Move to list - compact icon button with popup */}
+                            {/* Move to group - compact icon button with popup */}
                             {powerLists.length > 0 && (
                               <div data-move-menu style={{ position: 'relative' }}>
                                 <button
                                   className="btn-icon-small"
                                   onClick={() => setMoveMenuOpenFor(moveMenuOpenFor === child.id ? null : child.id)}
-                                  title="Move to list"
+                                  title="Move to group"
                                   style={{ 
                                     opacity: 1,
                                     background: moveMenuOpenFor === child.id ? 'var(--surface)' : undefined,
@@ -1433,7 +1763,7 @@ export function PowersTab({ character, onUpdate }: PowersTabProps) {
                                       onMouseEnter={e => { if (child.parentId) e.currentTarget.style.background = 'var(--surface-light)'; }}
                                       onMouseLeave={e => { if (child.parentId) e.currentTarget.style.background = ''; }}
                                     >
-                                      No List
+                                      No Group
                                     </div>
                                     {powerLists.map(list => (
                                       <div
@@ -1473,31 +1803,6 @@ export function PowersTab({ character, onUpdate }: PowersTabProps) {
                         </div>
                       );
                     })}
-                    {/* Add power to this list buttons */}
-                    {isList && (
-                      <div style={{ padding: '0.5rem 1rem', display: 'flex', justifyContent: 'flex-end', gap: '0.5rem' }}>
-                        <button 
-                          className="btn btn-primary" 
-                          style={{ fontSize: '0.875rem' }}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            openAddModal(false, power.id);
-                          }}
-                        >
-                          + Add Power
-                        </button>
-                        <button 
-                          className="btn btn-secondary" 
-                          style={{ fontSize: '0.875rem' }}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            openAddModal(true, power.id);
-                          }}
-                        >
-                          + Add Compound
-                        </button>
-                      </div>
-                    )}
                   </div>
                 )}
               </div>
@@ -1511,7 +1816,7 @@ export function PowersTab({ character, onUpdate }: PowersTabProps) {
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
         title={isEditingList 
-          ? (editingPower ? 'Edit List' : 'Add List')
+          ? (editingPower ? 'Edit Group' : 'Add Group')
           : isCompound
             ? (editingPower ? 'Edit Compound Power' : 'Add Compound Power')
             : (editingPower ? 'Edit Power' : 'Add Power')
@@ -1535,14 +1840,14 @@ export function PowersTab({ character, onUpdate }: PowersTabProps) {
             )}
             {isEditingList && (
               <div style={{ color: 'var(--text-secondary)', marginRight: 'auto' }}>
-                List modifiers apply to all powers within
+                Group modifiers apply to all powers within
               </div>
             )}
             <button className="btn btn-secondary" onClick={() => setIsModalOpen(false)}>
               Cancel
             </button>
             <button className="btn btn-primary" onClick={handleSave}>
-              {editingPower ? 'Save Changes' : (isEditingList ? 'Add List' : isCompound ? 'Add Compound Power' : 'Add Power')}
+              {editingPower ? 'Save Changes' : (isEditingList ? 'Add Group' : isCompound ? 'Add Compound Power' : 'Add Power')}
             </button>
           </div>
         }
@@ -1570,6 +1875,32 @@ export function PowersTab({ character, onUpdate }: PowersTabProps) {
                 placeholder="Description of this compound power..."
                 rows={2}
               />
+            </div>
+            
+            {/* Affects Primary/Total checkboxes */}
+            <div className="form-group">
+              <label className="form-label">Stat Contribution</label>
+              <div style={{ display: 'flex', gap: '1.5rem' }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
+                  <input
+                    type="checkbox"
+                    checked={formData.affectsPrimary}
+                    onChange={e => setFormData({ ...formData, affectsPrimary: e.target.checked })}
+                  />
+                  Affects Primary Stats
+                </label>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
+                  <input
+                    type="checkbox"
+                    checked={formData.affectsTotal}
+                    onChange={e => setFormData({ ...formData, affectsTotal: e.target.checked })}
+                  />
+                  Affects Total
+                </label>
+              </div>
+              <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '0.25rem' }}>
+                Uncheck &quot;Affects Primary&quot; for independent powers (e.g., container STR) that shouldn&apos;t add to character stats.
+              </div>
             </div>
             
             {/* Sub-Powers List */}
@@ -1600,6 +1931,11 @@ export function PowersTab({ character, onUpdate }: PowersTabProps) {
                 }}>
                   {compoundChildPowers.map((subPower, index) => {
                     const subPowerDef = matchPowerToDefinition(subPower);
+                    const characteristicTypes = new Set(['STR', 'DEX', 'CON', 'INT', 'EGO', 'PRE', 'OCV', 'DCV', 'OMCV', 'DMCV', 'SPD', 'PD', 'ED', 'REC', 'END', 'BODY', 'STUN', 'RUNNING', 'SWIMMING', 'LEAPING']);
+                    const isSubCharPower = characteristicTypes.has(subPower.type);
+                    const subPowerDisplayName = isSubCharPower 
+                      ? `${(subPower.levels ?? 0) >= 0 ? '+' : ''}${subPower.levels ?? 0} ${subPower.type}`
+                      : subPower.name;
                     return (
                       <div 
                         key={subPower.id}
@@ -1614,7 +1950,7 @@ export function PowersTab({ character, onUpdate }: PowersTabProps) {
                       >
                         <div style={{ flex: 1 }}>
                           <div style={{ fontWeight: 500 }}>
-                            {subPower.name}{subPower.alias ? `: ${subPower.alias}` : ''}
+                            {subPowerDisplayName}{!isSubCharPower && subPower.alias ? `: ${subPower.alias}` : ''}
                           </div>
                           <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
                             {subPowerDef?.display || subPower.type} • {subPower.levels} level{subPower.levels !== 1 ? 's' : ''}
@@ -1696,6 +2032,26 @@ export function PowersTab({ character, onUpdate }: PowersTabProps) {
             </div>
             )}
 
+            {/* Option selector - for powers with options like Darkness sense groups */}
+            {selectedPowerDef?.options && selectedPowerDef.options.length > 0 && (
+              <div className="form-group">
+                <label className="form-label">
+                  {selectedPowerDef.xmlId === 'DARKNESS' ? 'Affects Sense Group' : 'Option'}
+                </label>
+                <select
+                  className="form-input"
+                  value={formData.selectedOption}
+                  onChange={e => setFormData({ ...formData, selectedOption: e.target.value })}
+                >
+                  {selectedPowerDef.options.map(opt => (
+                    <option key={opt.xmlId} value={opt.xmlId}>
+                      {opt.display}{opt.lvlCost !== undefined ? ` (${opt.lvlCost} CP/level)` : ''}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+
             {/* List Name - only for list editing */}
             {isEditingList && (
               <div className="form-group">
@@ -1768,7 +2124,7 @@ export function PowersTab({ character, onUpdate }: PowersTabProps) {
             )}
 
             {/* Alias / Description - for custom powers only */}
-            {!isEditingList && !selectedPowerDef && (
+            {!isEditingList && !selectedPowerDef && !isCompound && (
             <div className="form-group">
               <label className="form-label">Description / Alias</label>
               <input
@@ -1781,29 +2137,148 @@ export function PowersTab({ character, onUpdate }: PowersTabProps) {
             </div>
             )}
 
-            {/* Dice/Levels - hide for lists and for powers with fixed base cost (lvlCost === 0) */}
-            {!isEditingList && selectedPowerDef && selectedPowerDef.lvlCost > 0 && (
-            <div className="form-row">
-              <div className="form-group">
-                <label className="form-label">Dice / Levels</label>
-                <input
-                  type="number"
-                  className="form-input"
-                  value={formData.levels}
-                  onChange={e => setFormData({ ...formData, levels: parseInt(e.target.value) || 1 })}
-                  min={selectedPowerDef?.minVal ?? 1}
-                />
-              </div>
-              <div className="form-group">
-                <label className="form-label">Cost per Level</label>
-                <input
-                  type="number"
-                  className="form-input"
-                  value={selectedPowerDef?.lvlCost ?? 5}
-                  disabled
-                />
+            {/* Base Cost - for custom powers only (not compound) */}
+            {!isEditingList && !selectedPowerDef && !isCompound && (
+            <div className="form-group">
+              <label className="form-label">Base Cost (CP)</label>
+              <input
+                type="number"
+                className="form-input"
+                value={formData.customCost}
+                onChange={e => setFormData({ ...formData, customCost: parseInt(e.target.value) || 0 })}
+                min={0}
+              />
+              <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '0.25rem' }}>
+                The base character point cost of this custom power before modifiers
               </div>
             </div>
+            )}
+
+            {/* Dice/Levels - hide for lists and for powers with fixed base cost (lvlCost === 0) */}
+            {!isEditingList && selectedPowerDef && selectedPowerDef.lvlCost > 0 && (
+            <div className="form-group">
+              <label className="form-label">Dice / Levels</label>
+              <input
+                type="number"
+                className="form-input"
+                value={formData.levels}
+                onChange={e => setFormData({ ...formData, levels: parseInt(e.target.value) || 1 })}
+                min={selectedPowerDef?.minVal ?? 1}
+              />
+            </div>
+            )}
+
+            {/* Barrier-specific fields */}
+            {!isEditingList && selectedPowerDef?.xmlId === 'FORCEWALL' && (
+              <div className="form-group">
+                <label className="form-label">Barrier Properties</label>
+                <div style={{ 
+                  display: 'grid', 
+                  gridTemplateColumns: 'repeat(2, 1fr)', 
+                  gap: '0.5rem',
+                  marginTop: '0.5rem',
+                }}>
+                  {/* Dimensions */}
+                  <div>
+                    <label className="form-label" style={{ fontSize: '0.75rem' }}>Length (m)</label>
+                    <input
+                      type="number"
+                      className="form-input"
+                      value={formData.lengthLevels}
+                      onChange={e => setFormData({ ...formData, lengthLevels: parseInt(e.target.value) || 1 })}
+                      min={1}
+                    />
+                  </div>
+                  <div>
+                    <label className="form-label" style={{ fontSize: '0.75rem' }}>Height (m)</label>
+                    <input
+                      type="number"
+                      className="form-input"
+                      value={formData.heightLevels}
+                      onChange={e => setFormData({ ...formData, heightLevels: parseInt(e.target.value) || 1 })}
+                      min={1}
+                    />
+                  </div>
+                  <div>
+                    <label className="form-label" style={{ fontSize: '0.75rem' }}>Thickness (m)</label>
+                    <input
+                      type="number"
+                      step="0.5"
+                      className="form-input"
+                      value={formData.widthLevels}
+                      onChange={e => setFormData({ ...formData, widthLevels: parseFloat(e.target.value) || 0.5 })}
+                      min={0.5}
+                    />
+                  </div>
+                  <div>
+                    <label className="form-label" style={{ fontSize: '0.75rem' }}>BODY</label>
+                    <input
+                      type="number"
+                      className="form-input"
+                      value={formData.bodyLevels}
+                      onChange={e => setFormData({ ...formData, bodyLevels: parseInt(e.target.value) || 0 })}
+                      min={0}
+                    />
+                  </div>
+                </div>
+                <div style={{ 
+                  display: 'grid', 
+                  gridTemplateColumns: 'repeat(4, 1fr)', 
+                  gap: '0.5rem',
+                  marginTop: '0.75rem',
+                }}>
+                  <div>
+                    <label className="form-label" style={{ fontSize: '0.75rem' }}>rPD</label>
+                    <input
+                      type="number"
+                      className="form-input"
+                      value={formData.pdLevels}
+                      onChange={e => setFormData({ ...formData, pdLevels: parseInt(e.target.value) || 0 })}
+                      min={0}
+                    />
+                  </div>
+                  <div>
+                    <label className="form-label" style={{ fontSize: '0.75rem' }}>rED</label>
+                    <input
+                      type="number"
+                      className="form-input"
+                      value={formData.edLevels}
+                      onChange={e => setFormData({ ...formData, edLevels: parseInt(e.target.value) || 0 })}
+                      min={0}
+                    />
+                  </div>
+                  <div>
+                    <label className="form-label" style={{ fontSize: '0.75rem' }}>rMD</label>
+                    <input
+                      type="number"
+                      className="form-input"
+                      value={formData.mdLevels}
+                      onChange={e => setFormData({ ...formData, mdLevels: parseInt(e.target.value) || 0 })}
+                      min={0}
+                    />
+                  </div>
+                  <div>
+                    <label className="form-label" style={{ fontSize: '0.75rem' }}>rPowD</label>
+                    <input
+                      type="number"
+                      className="form-input"
+                      value={formData.powdLevels}
+                      onChange={e => setFormData({ ...formData, powdLevels: parseInt(e.target.value) || 0 })}
+                      min={0}
+                    />
+                  </div>
+                </div>
+                <div style={{ 
+                  fontSize: '0.75rem', 
+                  color: 'var(--text-secondary)', 
+                  marginTop: '0.5rem',
+                  padding: '0.5rem',
+                  backgroundColor: 'var(--bg-tertiary)',
+                  borderRadius: '4px',
+                }}>
+                  Base: 3 CP for 1m×1m×0.5m wall | +1 CP/m length | +1 CP/m height | +1 CP/0.5m thickness | +1 CP/BODY | +3 CP/2 DEF
+                </div>
+              </div>
             )}
 
             {/* Power Properties - hide for lists */}
@@ -1838,6 +2313,32 @@ export function PowersTab({ character, onUpdate }: PowersTabProps) {
                 rows={3}
               />
             </div>
+            
+            {/* Affects Primary/Total checkboxes */}
+            <div className="form-group">
+              <label className="form-label">Stat Contribution</label>
+              <div style={{ display: 'flex', gap: '1.5rem' }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
+                  <input
+                    type="checkbox"
+                    checked={formData.affectsPrimary}
+                    onChange={e => setFormData({ ...formData, affectsPrimary: e.target.checked })}
+                  />
+                  Affects Primary Stats
+                </label>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
+                  <input
+                    type="checkbox"
+                    checked={formData.affectsTotal}
+                    onChange={e => setFormData({ ...formData, affectsTotal: e.target.checked })}
+                  />
+                  Affects Total
+                </label>
+              </div>
+              <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '0.25rem' }}>
+                Uncheck &quot;Affects Primary&quot; for independent powers (e.g., container STR) that shouldn&apos;t add to character stats.
+              </div>
+            </div>
           </div>
 
           <div>
@@ -1845,7 +2346,7 @@ export function PowersTab({ character, onUpdate }: PowersTabProps) {
             {inheritedModifiers.length > 0 && (
               <div className="form-group">
                 <label className="form-label" style={{ color: 'var(--warning-color)' }}>
-                  📁 Inherited from List (read-only)
+                  Inherited from Group (read-only)
                 </label>
                 <div style={{ 
                   display: 'flex', 
@@ -1870,7 +2371,7 @@ export function PowersTab({ character, onUpdate }: PowersTabProps) {
                         {mod.name} ({formatModifierValue(mod.value)})
                       </span>
                       <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
-                        From List
+                        From Group
                       </span>
                     </div>
                   ))}
@@ -1882,7 +2383,7 @@ export function PowersTab({ character, onUpdate }: PowersTabProps) {
             <div className="form-group">
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <label className="form-label">
-                  {isEditingList ? 'List Modifiers (apply to all powers in list)' : 'Modifiers'}
+                  {isEditingList ? 'Group Modifiers (apply to all powers in group)' : 'Modifiers'}
                 </label>
                 <button 
                   className="btn btn-sm btn-secondary"
@@ -1919,6 +2420,7 @@ export function PowersTab({ character, onUpdate }: PowersTabProps) {
                     .map((mod, index) => {
                       const realIndex = formData.selectedModifiers.indexOf(mod);
                       const modDef = ADVANTAGES[mod.xmlId];
+                      const isAoe = mod.xmlId === 'AOE';
                       return (
                         <div 
                           key={`${mod.xmlId}-${index}`}
@@ -1930,12 +2432,40 @@ export function PowersTab({ character, onUpdate }: PowersTabProps) {
                             backgroundColor: 'rgba(0, 200, 0, 0.1)',
                             borderRadius: '4px',
                             border: '1px solid rgba(0, 200, 0, 0.3)',
+                            flexWrap: isAoe ? 'wrap' : 'nowrap',
                           }}
                         >
-                          <span style={{ flex: 1 }}>
-                            {mod.name} ({formatModifierValue(mod.value)})
+                          <span style={{ flex: isAoe ? '1 0 100%' : 1 }}>
+                            {formatModifierDisplay(mod)} ({formatModifierValue(mod.value)})
                           </span>
-                          {modDef?.hasLevels && (
+                          {/* AOE-specific controls */}
+                          {isAoe && (
+                            <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flex: 1 }}>
+                              <select
+                                className="form-input"
+                                value={mod.optionId || 'RADIUS'}
+                                onChange={e => updateAoeModifier(realIndex, e.target.value, mod.levels || 4)}
+                                style={{ width: '100px' }}
+                              >
+                                <option value="RADIUS">Radius</option>
+                                <option value="CONE">Cone</option>
+                                <option value="LINE">Line</option>
+                                <option value="SURFACE">Surface</option>
+                              </select>
+                              <input
+                                type="number"
+                                value={mod.levels || 4}
+                                onChange={e => updateAoeModifier(realIndex, mod.optionId || 'RADIUS', parseInt(e.target.value) || 4)}
+                                min={1}
+                                style={{ width: '60px' }}
+                                className="form-input"
+                                title="Area size in meters"
+                              />
+                              <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>m</span>
+                            </div>
+                          )}
+                          {/* Regular level input for other modifiers */}
+                          {!isAoe && modDef?.hasLevels && (
                             <input
                               type="number"
                               value={mod.levels ?? 1}
@@ -2122,7 +2652,7 @@ export function PowersTab({ character, onUpdate }: PowersTabProps) {
                   return totalAdv > 0 ? (
                     <div style={{ color: 'green' }}>
                       Advantages: +{totalAdv.toFixed(2)}
-                      {inheritedAdv > 0 && <span style={{ color: 'var(--text-secondary)' }}> (includes +{inheritedAdv.toFixed(2)} from list)</span>}
+                      {inheritedAdv > 0 && <span style={{ color: 'var(--text-secondary)' }}> (includes +{inheritedAdv.toFixed(2)} from group)</span>}
                     </div>
                   ) : null;
                 })()}
@@ -2133,7 +2663,7 @@ export function PowersTab({ character, onUpdate }: PowersTabProps) {
                   return totalLim < 0 ? (
                     <div style={{ color: 'red' }}>
                       Limitations: {totalLim.toFixed(2)}
-                      {inheritedLim < 0 && <span style={{ color: 'var(--text-secondary)' }}> (includes {inheritedLim.toFixed(2)} from list)</span>}
+                      {inheritedLim < 0 && <span style={{ color: 'var(--text-secondary)' }}> (includes {inheritedLim.toFixed(2)} from group)</span>}
                     </div>
                   ) : null;
                 })()}
@@ -2237,26 +2767,15 @@ export function PowersTab({ character, onUpdate }: PowersTabProps) {
 
             {/* Hide Dice/Levels for fixed-cost powers (lvlCost === 0) */}
             {subPowerDef && subPowerDef.lvlCost > 0 && (
-            <div className="form-row">
-              <div className="form-group">
-                <label className="form-label">Dice / Levels</label>
-                <input
-                  type="number"
-                  className="form-input"
-                  value={subPowerFormData.levels}
-                  onChange={e => setSubPowerFormData({ ...subPowerFormData, levels: parseInt(e.target.value) || 1 })}
-                  min={1}
-                />
-              </div>
-              <div className="form-group">
-                <label className="form-label">Cost per Level</label>
-                <input
-                  type="number"
-                  className="form-input"
-                  value={subPowerDef?.lvlCost ?? 0}
-                  disabled
-                />
-              </div>
+            <div className="form-group">
+              <label className="form-label">Dice / Levels</label>
+              <input
+                type="number"
+                className="form-input"
+                value={subPowerFormData.levels}
+                onChange={e => setSubPowerFormData({ ...subPowerFormData, levels: parseInt(e.target.value) || 1 })}
+                min={1}
+              />
             </div>
             )}
 

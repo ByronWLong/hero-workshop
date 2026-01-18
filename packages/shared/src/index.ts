@@ -18,6 +18,8 @@ export {
   MENTAL_POWERS, 
   ADJUSTMENT_POWERS, 
   SPECIAL_POWERS, 
+  CHARACTERISTIC_POWERS,
+  SKILL_LEVEL_POWERS,
   ALL_POWERS,
   getPowerDefinition,
   getPowersByType,

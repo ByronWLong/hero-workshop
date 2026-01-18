@@ -32,8 +32,8 @@ export interface PowerAdder {
 export interface PowerOption {
   xmlId: string;
   display: string;
-  baseCost: number;
-  lvlCost?: number;
+  baseCost?: number;   // Optional base cost for the option
+  lvlCost?: number;    // Optional per-level cost for the option
   lvlVal?: number;
 }
 
@@ -1159,7 +1159,7 @@ export const SENSORY_POWERS: Record<string, PowerDefinition> = {
     display: 'Darkness',
     description: 'Darkness creates an area where one or more Sense Groups cannot perceive.',
     baseCost: 0,
-    lvlCost: 5, // Per 1m radius for Sight Group
+    lvlCost: 5, // Default to Sight Group (most common)
     lvlVal: 1,
     levelStart: 1,
     minVal: 1,
@@ -1169,6 +1169,15 @@ export const SENSORY_POWERS: Record<string, PowerDefinition> = {
     types: ['STANDARD', 'ATTACK', 'SENSEAFFECTING'],
     usesEnd: true,
     visible: true,
+    options: [
+      { xmlId: 'SIGHTGROUP', display: 'Sight Group', lvlCost: 5 },
+      { xmlId: 'HEARINGGROUP', display: 'Hearing Group', lvlCost: 3 },
+      { xmlId: 'SMELLGROUP', display: 'Smell/Taste Group', lvlCost: 3 },
+      { xmlId: 'TOUCHGROUP', display: 'Touch Group', lvlCost: 3 },
+      { xmlId: 'MENTALAWARENESS', display: 'Mental Awareness', lvlCost: 3 },
+      { xmlId: 'RADIOSENSE', display: 'Radio Sense', lvlCost: 3 },
+      { xmlId: 'SPATIALGROUP', display: 'Spatial Awareness', lvlCost: 3 },
+    ],
     adders: [
       { xmlId: 'ALTERABLEORIGIN', display: 'Alterable Origin Point', baseCost: 5, exclusive: true },
     ],
@@ -1566,6 +1575,397 @@ export const SPECIAL_POWERS: Record<string, PowerDefinition> = {
 };
 
 // ============================================================================
+// Characteristic Powers (buying characteristics with advantages/limitations)
+// These are used in equipment, powers frameworks, etc.
+// ============================================================================
+
+export const CHARACTERISTIC_POWERS: Record<string, PowerDefinition> = {
+  // Primary Characteristics
+  STR: {
+    xmlId: 'STR',
+    display: '+STR',
+    abbreviation: 'STR',
+    description: 'Increases the character\'s Strength characteristic.',
+    baseCost: 0,
+    lvlCost: 1,
+    lvlVal: 1,
+    levelStart: 1,
+    minVal: 1,
+    duration: 'PERSISTENT',
+    range: 'SELF',
+    target: 'SELFONLY',
+    types: ['STANDARD'],
+    usesEnd: false,
+  },
+  DEX: {
+    xmlId: 'DEX',
+    display: '+DEX',
+    abbreviation: 'DEX',
+    description: 'Increases the character\'s Dexterity characteristic.',
+    baseCost: 0,
+    lvlCost: 2,
+    lvlVal: 1,
+    levelStart: 1,
+    minVal: 1,
+    duration: 'PERSISTENT',
+    range: 'SELF',
+    target: 'SELFONLY',
+    types: ['STANDARD'],
+    usesEnd: false,
+  },
+  CON: {
+    xmlId: 'CON',
+    display: '+CON',
+    abbreviation: 'CON',
+    description: 'Increases the character\'s Constitution characteristic.',
+    baseCost: 0,
+    lvlCost: 2,
+    lvlVal: 1,
+    levelStart: 1,
+    minVal: 1,
+    duration: 'PERSISTENT',
+    range: 'SELF',
+    target: 'SELFONLY',
+    types: ['STANDARD'],
+    usesEnd: false,
+  },
+  INT: {
+    xmlId: 'INT',
+    display: '+INT',
+    abbreviation: 'INT',
+    description: 'Increases the character\'s Intelligence characteristic.',
+    baseCost: 0,
+    lvlCost: 1,
+    lvlVal: 1,
+    levelStart: 1,
+    minVal: 1,
+    duration: 'PERSISTENT',
+    range: 'SELF',
+    target: 'SELFONLY',
+    types: ['STANDARD'],
+    usesEnd: false,
+  },
+  EGO: {
+    xmlId: 'EGO',
+    display: '+EGO',
+    abbreviation: 'EGO',
+    description: 'Increases the character\'s Ego characteristic.',
+    baseCost: 0,
+    lvlCost: 1,
+    lvlVal: 1,
+    levelStart: 1,
+    minVal: 1,
+    duration: 'PERSISTENT',
+    range: 'SELF',
+    target: 'SELFONLY',
+    types: ['STANDARD'],
+    usesEnd: false,
+  },
+  PRE: {
+    xmlId: 'PRE',
+    display: '+PRE',
+    abbreviation: 'PRE',
+    description: 'Increases the character\'s Presence characteristic.',
+    baseCost: 0,
+    lvlCost: 1,
+    lvlVal: 1,
+    levelStart: 1,
+    minVal: 1,
+    duration: 'PERSISTENT',
+    range: 'SELF',
+    target: 'SELFONLY',
+    types: ['STANDARD'],
+    usesEnd: false,
+  },
+
+  // Combat Values
+  OCV: {
+    xmlId: 'OCV',
+    display: '+OCV',
+    abbreviation: 'OCV',
+    description: 'Increases the character\'s Offensive Combat Value.',
+    baseCost: 0,
+    lvlCost: 5,
+    lvlVal: 1,
+    levelStart: 1,
+    minVal: 1,
+    duration: 'PERSISTENT',
+    range: 'SELF',
+    target: 'SELFONLY',
+    types: ['STANDARD'],
+    usesEnd: false,
+  },
+  DCV: {
+    xmlId: 'DCV',
+    display: '+DCV',
+    abbreviation: 'DCV',
+    description: 'Increases the character\'s Defensive Combat Value.',
+    baseCost: 0,
+    lvlCost: 5,
+    lvlVal: 1,
+    levelStart: 1,
+    minVal: 1,
+    duration: 'PERSISTENT',
+    range: 'SELF',
+    target: 'SELFONLY',
+    types: ['STANDARD'],
+    usesEnd: false,
+  },
+  OMCV: {
+    xmlId: 'OMCV',
+    display: '+OMCV',
+    abbreviation: 'OMCV',
+    description: 'Increases the character\'s Offensive Mental Combat Value.',
+    baseCost: 0,
+    lvlCost: 3,
+    lvlVal: 1,
+    levelStart: 1,
+    minVal: 1,
+    duration: 'PERSISTENT',
+    range: 'SELF',
+    target: 'SELFONLY',
+    types: ['STANDARD'],
+    usesEnd: false,
+  },
+  DMCV: {
+    xmlId: 'DMCV',
+    display: '+DMCV',
+    abbreviation: 'DMCV',
+    description: 'Increases the character\'s Defensive Mental Combat Value.',
+    baseCost: 0,
+    lvlCost: 3,
+    lvlVal: 1,
+    levelStart: 1,
+    minVal: 1,
+    duration: 'PERSISTENT',
+    range: 'SELF',
+    target: 'SELFONLY',
+    types: ['STANDARD'],
+    usesEnd: false,
+  },
+
+  // Secondary Characteristics
+  SPD: {
+    xmlId: 'SPD',
+    display: '+SPD',
+    abbreviation: 'SPD',
+    description: 'Increases the character\'s Speed characteristic.',
+    baseCost: 0,
+    lvlCost: 10,
+    lvlVal: 1,
+    levelStart: 1,
+    minVal: 1,
+    duration: 'PERSISTENT',
+    range: 'SELF',
+    target: 'SELFONLY',
+    types: ['STANDARD'],
+    usesEnd: false,
+  },
+  PD: {
+    xmlId: 'PD',
+    display: '+PD',
+    abbreviation: 'PD',
+    description: 'Increases the character\'s Physical Defense.',
+    baseCost: 0,
+    lvlCost: 1,
+    lvlVal: 1,
+    levelStart: 1,
+    minVal: 1,
+    duration: 'PERSISTENT',
+    range: 'SELF',
+    target: 'SELFONLY',
+    types: ['STANDARD', 'DEFENSE'],
+    usesEnd: false,
+  },
+  ED: {
+    xmlId: 'ED',
+    display: '+ED',
+    abbreviation: 'ED',
+    description: 'Increases the character\'s Energy Defense.',
+    baseCost: 0,
+    lvlCost: 1,
+    lvlVal: 1,
+    levelStart: 1,
+    minVal: 1,
+    duration: 'PERSISTENT',
+    range: 'SELF',
+    target: 'SELFONLY',
+    types: ['STANDARD', 'DEFENSE'],
+    usesEnd: false,
+  },
+  REC: {
+    xmlId: 'REC',
+    display: '+REC',
+    abbreviation: 'REC',
+    description: 'Increases the character\'s Recovery.',
+    baseCost: 0,
+    lvlCost: 1,
+    lvlVal: 1,
+    levelStart: 1,
+    minVal: 1,
+    duration: 'PERSISTENT',
+    range: 'SELF',
+    target: 'SELFONLY',
+    types: ['STANDARD'],
+    usesEnd: false,
+  },
+  END: {
+    xmlId: 'END',
+    display: '+END',
+    abbreviation: 'END',
+    description: 'Increases the character\'s Endurance.',
+    baseCost: 0,
+    lvlCost: 0.2,
+    lvlVal: 1,
+    levelStart: 1,
+    minVal: 1,
+    duration: 'PERSISTENT',
+    range: 'SELF',
+    target: 'SELFONLY',
+    types: ['STANDARD'],
+    usesEnd: false,
+  },
+  BODY: {
+    xmlId: 'BODY',
+    display: '+BODY',
+    abbreviation: 'BODY',
+    description: 'Increases the character\'s Body.',
+    baseCost: 0,
+    lvlCost: 1,
+    lvlVal: 1,
+    levelStart: 1,
+    minVal: 1,
+    duration: 'PERSISTENT',
+    range: 'SELF',
+    target: 'SELFONLY',
+    types: ['STANDARD'],
+    usesEnd: false,
+  },
+  STUN: {
+    xmlId: 'STUN',
+    display: '+STUN',
+    abbreviation: 'STUN',
+    description: 'Increases the character\'s Stun.',
+    baseCost: 0,
+    lvlCost: 0.5,
+    lvlVal: 1,
+    levelStart: 1,
+    minVal: 1,
+    duration: 'PERSISTENT',
+    range: 'SELF',
+    target: 'SELFONLY',
+    types: ['STANDARD'],
+    usesEnd: false,
+  },
+};
+
+// ============================================================================
+// Skill & Combat Level Powers
+// These can be applied with advantages/limitations via equipment, powers, etc.
+// ============================================================================
+
+export const SKILL_LEVEL_POWERS: Record<string, PowerDefinition> = {
+  // Combat Skill Levels
+  COMBAT_LEVELS: {
+    xmlId: 'COMBAT_LEVELS',
+    display: 'Combat Skill Levels',
+    abbreviation: 'CSL',
+    description: 'Adds to OCV and/or DCV with specific attacks or maneuvers.',
+    baseCost: 0,
+    lvlCost: 2,  // Base cost, varies by option
+    lvlVal: 1,
+    levelStart: 1,
+    minVal: 1,
+    duration: 'PERSISTENT',
+    range: 'SELF',
+    target: 'SELFONLY',
+    types: ['STANDARD'],
+    usesEnd: false,
+    options: [
+      { xmlId: 'SINGLE', display: 'with single attack', lvlCost: 2 },
+      { xmlId: 'TIGHT', display: 'with tight group of attacks', lvlCost: 3 },
+      { xmlId: 'HTH', display: 'with all HTH Combat', lvlCost: 5 },
+      { xmlId: 'RANGED', display: 'with all Ranged Combat', lvlCost: 5 },
+      { xmlId: 'ALL', display: 'with all Combat', lvlCost: 8 },
+    ],
+  },
+  
+  // Mental Combat Skill Levels  
+  MENTAL_COMBAT_LEVELS: {
+    xmlId: 'MENTAL_COMBAT_LEVELS',
+    display: 'Mental Combat Skill Levels',
+    abbreviation: 'MCSL',
+    description: 'Adds to OMCV and/or DMCV with mental attacks.',
+    baseCost: 0,
+    lvlCost: 3,  // Base cost, varies by option
+    lvlVal: 1,
+    levelStart: 1,
+    minVal: 1,
+    duration: 'PERSISTENT',
+    range: 'SELF',
+    target: 'SELFONLY',
+    types: ['STANDARD'],
+    usesEnd: false,
+    options: [
+      { xmlId: 'SINGLE', display: 'with single mental power', lvlCost: 3 },
+      { xmlId: 'TIGHT', display: 'with tight group', lvlCost: 5 },
+      { xmlId: 'ALL', display: 'with all Mental Combat', lvlCost: 8 },
+    ],
+  },
+
+  // Skill Levels
+  SKILL_LEVELS: {
+    xmlId: 'SKILL_LEVELS',
+    display: 'Skill Levels',
+    abbreviation: 'SL',
+    description: 'Adds to skill rolls for specific skills or groups of skills.',
+    baseCost: 0,
+    lvlCost: 2,  // Base cost, varies by option
+    lvlVal: 1,
+    levelStart: 1,
+    minVal: 1,
+    duration: 'PERSISTENT',
+    range: 'SELF',
+    target: 'SELFONLY',
+    types: ['STANDARD'],
+    usesEnd: false,
+    options: [
+      { xmlId: 'SINGLE', display: 'with single skill', lvlCost: 2 },
+      { xmlId: 'CHAR', display: 'with 3 related skills (same characteristic)', lvlCost: 2 },
+      { xmlId: 'THREE', display: 'with 3 related skills', lvlCost: 3 },
+      { xmlId: 'TIGHT', display: 'with a tight group of skills', lvlCost: 3 },
+      { xmlId: 'GROUP', display: 'with a broad group of skills', lvlCost: 4 },
+      { xmlId: 'OVERALL', display: 'with all Skills', lvlCost: 6 },
+    ],
+  },
+
+  // Penalty Skill Levels
+  PENALTY_SKILL_LEVELS: {
+    xmlId: 'PENALTY_SKILL_LEVELS',
+    display: 'Penalty Skill Levels',
+    abbreviation: 'PSL',
+    description: 'Offsets specific combat penalties such as range, hit location, or rapid fire.',
+    baseCost: 0,
+    lvlCost: 2,  // Base cost, varies by option
+    lvlVal: 1,
+    levelStart: 1,
+    minVal: 1,
+    duration: 'PERSISTENT',
+    range: 'SELF',
+    target: 'SELFONLY',
+    types: ['STANDARD'],
+    usesEnd: false,
+    options: [
+      { xmlId: 'SINGLE', display: 'vs. one specific penalty with single attack', lvlCost: 1 },
+      { xmlId: 'SINGLEALL', display: 'vs. one specific penalty with all attacks', lvlCost: 2 },
+      { xmlId: 'THREE', display: 'vs. three penalties with single attack', lvlCost: 2 },
+      { xmlId: 'THREEALL', display: 'vs. three penalties with all attacks', lvlCost: 3 },
+      { xmlId: 'ALL', display: 'vs. all penalties with all attacks', lvlCost: 5 },
+    ],
+  },
+};
+
+// ============================================================================
 // Combined Export
 // ============================================================================
 
@@ -1578,6 +1978,8 @@ export const ALL_POWERS: Record<string, PowerDefinition> = {
   ...MENTAL_POWERS,
   ...ADJUSTMENT_POWERS,
   ...SPECIAL_POWERS,
+  ...CHARACTERISTIC_POWERS,
+  ...SKILL_LEVEL_POWERS,
 };
 
 /**
@@ -1596,9 +1998,20 @@ export function getPowersByType(type: PowerType): PowerDefinition[] {
 
 /**
  * Calculate the base cost for a power at a given level
+ * If optionId is provided and the option has lvlCost, use that instead of power.lvlCost
  */
-export function calculatePowerBaseCost(power: PowerDefinition, levels: number): number {
-  return power.baseCost + (power.lvlCost * levels);
+export function calculatePowerBaseCost(power: PowerDefinition, levels: number, optionId?: string): number {
+  let lvlCost = power.lvlCost;
+  
+  // Check if an option is selected that overrides the lvlCost
+  if (optionId && power.options) {
+    const selectedOption = power.options.find(o => o.xmlId === optionId);
+    if (selectedOption && selectedOption.lvlCost !== undefined) {
+      lvlCost = selectedOption.lvlCost;
+    }
+  }
+  
+  return power.baseCost + (lvlCost * levels);
 }
 
 /**

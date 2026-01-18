@@ -1,5 +1,6 @@
 import { useState, useMemo, useCallback, useEffect } from 'react';
 import type { Character, Skill, SkillType, CharacteristicType, Adder, SkillEnhancerType } from '@hero-workshop/shared';
+import { calculateStatModifications, getStatModificationTotal } from '@hero-workshop/shared';
 import { Modal } from './Modal';
 
 // Mapping of skill types to their associated enhancer
@@ -22,17 +23,17 @@ interface SkillsTabProps {
   onUpdate: (character: Character) => void;
 }
 
-const SKILL_TYPES: { value: SkillType; label: string }[] = [
+const SKILL_TYPES: { value: SkillType; label: string; xmlid?: string }[] = [
   { value: 'CHARACTERISTIC_BASED', label: 'Characteristic-Based' },
   { value: 'BACKGROUND', label: 'Background Skill' },
-  { value: 'COMBAT', label: 'Combat Skill' },
+  { value: 'COMBAT', label: 'Combat Skill Levels', xmlid: 'COMBAT_LEVELS' },
+  { value: 'SKILL_LEVELS', label: 'Skill Levels', xmlid: 'SKILL_LEVELS' },
   { value: 'KNOWLEDGE', label: 'Knowledge Skill' },
-  { value: 'LANGUAGE', label: 'Language' },
+  { value: 'LANGUAGE', label: 'Language', xmlid: 'LANGUAGES' },
   { value: 'PROFESSIONAL', label: 'Professional Skill' },
   { value: 'SCIENCE', label: 'Science Skill' },
   { value: 'TRANSPORT_FAMILIARITY', label: 'Transport Familiarity' },
   { value: 'WEAPON_FAMILIARITY', label: 'Weapon Familiarity' },
-  { value: 'SKILL_LEVELS', label: 'Skill Levels' },
   { value: 'GENERAL', label: 'General Skill' },
 ];
 
@@ -134,6 +135,14 @@ export function SkillsTab({ character, onUpdate }: SkillsTabProps) {
     proficiency: false,
     familiarity: false,
     everyman: false,
+    // Skill Levels fields
+    xmlid: '' as string,
+    option: '' as string,
+    optionAlias: '' as string,
+    // Language fields
+    input: '' as string,  // Language name
+    nativeTongue: false,
+    literate: false,
   });
   const [enhancerFormData, setEnhancerFormData] = useState<SkillEnhancerType>('JACK_OF_ALL_TRADES');
   const [groupFormData, setGroupFormData] = useState({
@@ -145,6 +154,9 @@ export function SkillsTab({ character, onUpdate }: SkillsTabProps) {
   const [moveMenuOpenFor, setMoveMenuOpenFor] = useState<string | null>(null);
 
   const skills = useMemo(() => character.skills ?? [], [character.skills]);
+  
+  // Calculate stat modifications from powers and equipment
+  const statModifications = useMemo(() => calculateStatModifications(character), [character]);
 
   // Close move menu when clicking outside
   const handleClickOutside = useCallback((e: MouseEvent) => {
@@ -217,7 +229,10 @@ export function SkillsTab({ character, onUpdate }: SkillsTabProps) {
   const getCharValue = (type: CharacteristicType | 'GENERAL'): number => {
     if (type === 'GENERAL') return 11; // Default for non-characteristic skills
     const char = character.characteristics.find((c) => c.type === type);
-    return char?.totalValue ?? 10;
+    const baseValue = char?.totalValue ?? 10;
+    // Add stat modifications from powers/equipment for effective value
+    const bonus = getStatModificationTotal(statModifications, type);
+    return baseValue + bonus;
   };
 
   // Get skill levels that apply to a skill (from same group)
@@ -497,6 +512,12 @@ export function SkillsTab({ character, onUpdate }: SkillsTabProps) {
       proficiency: false,
       familiarity: false,
       everyman: false,
+      xmlid: '',
+      option: '',
+      optionAlias: '',
+      input: '',
+      nativeTongue: false,
+      literate: false,
     });
     setIsModalOpen(true);
   };
@@ -504,8 +525,22 @@ export function SkillsTab({ character, onUpdate }: SkillsTabProps) {
   const openEditModal = (skill: Skill) => {
     setEditingSkill(skill);
     setSelectedCommonSkill('');
+    
+    // Determine the correct type based on xmlid
+    let effectiveType = skill.type;
+    if (skill.xmlid === 'COMBAT_LEVELS') {
+      effectiveType = 'COMBAT';
+    } else if (skill.xmlid === 'SKILL_LEVELS') {
+      effectiveType = 'SKILL_LEVELS';
+    } else if (skill.xmlid === 'LANGUAGES') {
+      effectiveType = 'LANGUAGE';
+    }
+    
+    // Check if skill has LITERACY adder
+    const hasLiteracy = skill.adders?.some(a => a.xmlId === 'LITERACY' && a.selected !== false) ?? false;
+    
     setFormData({
-      type: skill.type,
+      type: effectiveType,
       name: skill.name,
       alias: skill.alias ?? '',
       notes: skill.notes ?? '',
@@ -515,6 +550,12 @@ export function SkillsTab({ character, onUpdate }: SkillsTabProps) {
       proficiency: skill.proficiency ?? false,
       familiarity: skill.familiarity ?? false,
       everyman: skill.everyman ?? false,
+      xmlid: skill.xmlid ?? '',
+      option: skill.option ?? '',
+      optionAlias: skill.optionAlias ?? '',
+      input: '', // Language name is in the skill.name already for display
+      nativeTongue: skill.nativeTongue ?? false,
+      literate: hasLiteracy,
     });
     setIsModalOpen(true);
   };
@@ -537,10 +578,44 @@ export function SkillsTab({ character, onUpdate }: SkillsTabProps) {
     if (formData.everyman) return 0;
     if (formData.familiarity) return 1;
     if (formData.proficiency) return 2;
+    
+    // Combat Skill Levels - cost based on broadness
+    if (formData.xmlid === 'COMBAT_LEVELS') {
+      const cslCostPerLevel: Record<string, number> = {
+        'SINGLE': 2, 'TIGHT': 3, 'SMALL': 3, 'HTH': 5, 'RANGED': 5, 'BROAD': 5, 'ALL': 8, 'DCV': 8, 'OCV': 8
+      };
+      return formData.levels * (cslCostPerLevel[formData.option] ?? 2);
+    }
+    
+    // Regular Skill Levels - cost based on broadness
+    if (formData.xmlid === 'SKILL_LEVELS') {
+      const slCostPerLevel: Record<string, number> = {
+        'SINGLE': 2, 'CHARACTERISTIC': 2, 'THREE': 3, 'TIGHT': 3, 'GROUP': 4, 'BROAD': 4, 'OVERALL': 6, 'ALL': 6
+      };
+      return formData.levels * (slCostPerLevel[formData.option] ?? 2);
+    }
+    
+    // Languages - cost based on comprehension level + literacy
+    if (formData.xmlid === 'LANGUAGES') {
+      if (formData.nativeTongue) return 0; // Native tongue is free
+      const langCost: Record<string, number> = {
+        'BASIC': 1,      // Basic conversation
+        'FLUENT': 2,     // Fluent conversation
+        'IDIOMATIC': 4,  // Idiomatic, native accent
+        'DIALECTS': 5,   // Imitate dialects
+        'NATIVE': 0,     // Native (alternate way to mark native)
+      };
+      const baseCost = langCost[formData.option] ?? 2;
+      const literacyCost = formData.literate ? 1 : 0;
+      return baseCost + literacyCost;
+    }
+    
     return formData.baseCost + (formData.levels * 2);
   };
 
   const calculateRoll = (): number | null => {
+    // Skill Levels and Languages don't have rolls
+    if (formData.xmlid === 'COMBAT_LEVELS' || formData.xmlid === 'SKILL_LEVELS' || formData.xmlid === 'LANGUAGES') return null;
     if (formData.familiarity) return 8;
     if (formData.proficiency) return null;
     const charValue = getCharValue(formData.characteristic);
@@ -548,8 +623,21 @@ export function SkillsTab({ character, onUpdate }: SkillsTabProps) {
   };
 
   const handleSave = () => {
-    const cost = calculateCost();
+    const baseCost = calculateCost();
     const roll = calculateRoll();
+    
+    // Calculate realCost based on modifiers (limitations reduce cost)
+    let realCost = baseCost;
+    const existingModifiers = editingSkill?.modifiers ?? [];
+    if (existingModifiers.length > 0) {
+      const limitations = existingModifiers
+        .filter(m => (m.value ?? 0) < 0)
+        .reduce((sum, m) => sum + Math.abs(m.value ?? 0), 0);
+      if (limitations > 0) {
+        // HERO rounding: round .5 up
+        realCost = Math.round(baseCost / (1 + limitations));
+      }
+    }
     
     const newSkill: Skill = {
       id: editingSkill?.id ?? generateId(),
@@ -557,8 +645,8 @@ export function SkillsTab({ character, onUpdate }: SkillsTabProps) {
       alias: formData.alias || undefined,
       type: formData.type,
       notes: formData.notes || undefined,
-      baseCost: cost,
-      realCost: cost,
+      baseCost: baseCost,
+      realCost: realCost,
       levels: formData.levels,
       position: editingSkill?.position ?? skills.length,
       characteristic: formData.characteristic,
@@ -566,6 +654,21 @@ export function SkillsTab({ character, onUpdate }: SkillsTabProps) {
       proficiency: formData.proficiency,
       familiarity: formData.familiarity,
       everyman: formData.everyman || undefined,
+      // Preserve skill level fields
+      xmlid: formData.xmlid || editingSkill?.xmlid || undefined,
+      option: formData.option || editingSkill?.option || undefined,
+      optionAlias: formData.optionAlias || undefined,
+      // Language fields
+      nativeTongue: formData.nativeTongue || undefined,
+      // Handle adders - for languages, update LITERACY adder
+      adders: formData.xmlid === 'LANGUAGES' 
+        ? (formData.literate 
+          ? [{ id: generateId(), xmlId: 'LITERACY', name: 'literate', alias: 'literate', baseCost: 1, selected: true }]
+          : undefined)
+        : editingSkill?.adders,
+      // Preserve modifiers and parent
+      modifiers: editingSkill?.modifiers,
+      parentId: editingSkill?.parentId,
     };
 
     let updatedSkills: Skill[];
@@ -593,12 +696,21 @@ export function SkillsTab({ character, onUpdate }: SkillsTabProps) {
     const adderText = formatAdders(skill.adders);
     const availableParents = getAvailableParents(skill);
     
+    // Build display name for Skill Levels (combat or regular)
+    let displayName = skill.name;
+    if (skill.xmlid === 'COMBAT_LEVELS' || skill.xmlid === 'SKILL_LEVELS') {
+      const levels = skill.levels ?? 0;
+      const levelText = levels === 1 ? '+1' : `+${levels}`;
+      const withText = skill.optionAlias || skill.option || (skill.xmlid === 'COMBAT_LEVELS' ? 'Combat' : 'Skills');
+      displayName = `${levelText} ${withText}`;
+    }
+    
     return (
       <tr key={skill.id} className={isChild ? 'child-row' : ''}>
         <td style={{ paddingLeft: isChild ? '2rem' : undefined }}>
           <div style={{ fontWeight: 500 }}>
             {isChild && <span style={{ color: 'var(--text-secondary)', marginRight: '0.25rem' }}>›</span>}
-            {skill.name}
+            {displayName}
             {adderText && (
               <span style={{ fontWeight: 400, color: 'var(--text-secondary)' }}>
                 : {adderText}
@@ -877,21 +989,24 @@ export function SkillsTab({ character, onUpdate }: SkillsTabProps) {
           </div>
         }
       >
-        <div className="form-group">
-          <label className="form-label">Quick Select Common Skill</label>
-          <select
-            className="form-select"
-            value={selectedCommonSkill}
-            onChange={(e) => handleCommonSkillSelect(e.target.value)}
-          >
-            <option value="">-- Select or enter custom below --</option>
-            {COMMON_SKILLS.map((skill) => (
-              <option key={skill.name} value={skill.name}>
-                {skill.name} ({skill.characteristic})
-              </option>
-            ))}
-          </select>
-        </div>
+        {/* Quick select only for regular skills, not skill levels or languages */}
+        {formData.xmlid !== 'COMBAT_LEVELS' && formData.xmlid !== 'SKILL_LEVELS' && formData.xmlid !== 'LANGUAGES' && (
+          <div className="form-group">
+            <label className="form-label">Quick Select Common Skill</label>
+            <select
+              className="form-select"
+              value={selectedCommonSkill}
+              onChange={(e) => handleCommonSkillSelect(e.target.value)}
+            >
+              <option value="">-- Select or enter custom below --</option>
+              {COMMON_SKILLS.map((skill) => (
+                <option key={skill.name} value={skill.name}>
+                  {skill.name} ({skill.characteristic})
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
 
         <div className="form-row">
           <div className="form-group">
@@ -909,7 +1024,21 @@ export function SkillsTab({ character, onUpdate }: SkillsTabProps) {
             <select
               className="form-select"
               value={formData.type}
-              onChange={(e) => setFormData({ ...formData, type: e.target.value as SkillType })}
+              onChange={(e) => {
+                const selectedType = SKILL_TYPES.find(t => t.value === e.target.value);
+                const xmlid = selectedType?.xmlid || '';
+                setFormData({ 
+                  ...formData, 
+                  type: e.target.value as SkillType,
+                  xmlid: xmlid,
+                  option: xmlid === 'COMBAT_LEVELS' ? 'SINGLE' : 
+                          xmlid === 'SKILL_LEVELS' ? 'SINGLE' : 
+                          xmlid === 'LANGUAGES' ? 'FLUENT' : '',
+                  levels: (xmlid === 'COMBAT_LEVELS' || xmlid === 'SKILL_LEVELS') ? 1 : formData.levels,
+                  nativeTongue: false,
+                  literate: false,
+                });
+              }}
             >
               {SKILL_TYPES.map((type) => (
                 <option key={type.value} value={type.value}>
@@ -931,71 +1060,191 @@ export function SkillsTab({ character, onUpdate }: SkillsTabProps) {
           />
         </div>
 
-        <div className="form-row">
-          <div className="form-group">
-            <label className="form-label">Based On</label>
-            <select
-              className="form-select"
-              value={formData.characteristic}
-              onChange={(e) => setFormData({ ...formData, characteristic: e.target.value as CharacteristicType })}
-              disabled={formData.familiarity}
-            >
-              {CHARACTERISTICS.map((char) => (
-                <option key={char} value={char}>
-                  {char} ({getCharValue(char)})
-                </option>
-              ))}
-            </select>
-          </div>
-          <div className="form-group">
-            <label className="form-label">+ Levels</label>
-            <input
-              type="number"
-              className="form-input"
-              value={formData.levels}
-              onChange={(e) => setFormData({ ...formData, levels: parseInt(e.target.value) || 0 })}
-              min={0}
-              disabled={formData.familiarity || formData.proficiency}
-            />
-          </div>
-        </div>
+        {/* Combat Skill Levels / Skill Levels editing */}
+        {(formData.xmlid === 'COMBAT_LEVELS' || formData.xmlid === 'SKILL_LEVELS') && (
+          <>
+            <div className="form-row">
+              <div className="form-group">
+                <label className="form-label">
+                  {formData.xmlid === 'COMBAT_LEVELS' ? 'Broadness' : 'Skill Group'}
+                </label>
+                <select
+                  className="form-select"
+                  value={formData.option}
+                  onChange={(e) => setFormData({ ...formData, option: e.target.value })}
+                >
+                  {formData.xmlid === 'COMBAT_LEVELS' ? (
+                    <>
+                      <option value="SINGLE">Single Attack (2 CP/level)</option>
+                      <option value="TIGHT">Tight Group / 3 Maneuvers (3 CP/level)</option>
+                      <option value="HTH">All HTH Combat (5 CP/level)</option>
+                      <option value="RANGED">All Ranged Combat (5 CP/level)</option>
+                      <option value="ALL">All Combat (8 CP/level)</option>
+                    </>
+                  ) : (
+                    <>
+                      <option value="SINGLE">Single Skill (2 CP/level)</option>
+                      <option value="CHARACTERISTIC">Single Characteristic Roll (2 CP/level)</option>
+                      <option value="THREE">Three Related Skills (3 CP/level)</option>
+                      <option value="GROUP">Broad Group (4 CP/level)</option>
+                      <option value="OVERALL">All Skills w/ Characteristic (6 CP/level)</option>
+                    </>
+                  )}
+                </select>
+              </div>
+              <div className="form-group">
+                <label className="form-label">Levels</label>
+                <input
+                  type="number"
+                  className="form-input"
+                  value={formData.levels}
+                  onChange={(e) => setFormData({ ...formData, levels: parseInt(e.target.value) || 0 })}
+                  min={1}
+                />
+              </div>
+            </div>
+            <div className="form-group">
+              <label className="form-label">Applies To (description)</label>
+              <input
+                type="text"
+                className="form-input"
+                value={formData.optionAlias}
+                onChange={(e) => setFormData({ ...formData, optionAlias: e.target.value })}
+                placeholder={formData.xmlid === 'COMBAT_LEVELS' 
+                  ? 'e.g., "with Claws", "Wizardry", "with All Attacks"'
+                  : 'e.g., "with Stealth", "with INT-based Skills"'}
+              />
+              <small style={{ color: 'var(--text-secondary)', fontSize: '0.75rem' }}>
+                Custom description shown in skill list (e.g., "+3 with Claws")
+              </small>
+            </div>
+          </>
+        )}
 
-        <div className="form-group" style={{ display: 'flex', gap: '1.5rem' }}>
-          <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
-            <input
-              type="checkbox"
-              checked={formData.familiarity}
-              onChange={(e) => setFormData({ 
-                ...formData, 
-                familiarity: e.target.checked,
-                proficiency: false,
-                levels: 0
-              })}
-            />
-            <span>Familiarity (8-, 1 pt)</span>
-          </label>
-          <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
-            <input
-              type="checkbox"
-              checked={formData.proficiency}
-              onChange={(e) => setFormData({ 
-                ...formData, 
-                proficiency: e.target.checked,
-                familiarity: false,
-                levels: 0
-              })}
-            />
-            <span>Proficiency (2 pts)</span>
-          </label>
-          <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
-            <input
-              type="checkbox"
-              checked={formData.everyman}
-              onChange={(e) => setFormData({ ...formData, everyman: e.target.checked })}
-            />
-            <span>Everyman (0 pts)</span>
-          </label>
-        </div>
+        {/* Language editing */}
+        {formData.xmlid === 'LANGUAGES' && (
+          <>
+            <div className="form-row">
+              <div className="form-group" style={{ flex: 2 }}>
+                <label className="form-label">Language Name</label>
+                <input
+                  type="text"
+                  className="form-input"
+                  value={formData.name}
+                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                  placeholder="e.g., Common, Elvish, Skaven"
+                />
+              </div>
+              <div className="form-group" style={{ flex: 1 }}>
+                <label className="form-label">Comprehension</label>
+                <select
+                  className="form-select"
+                  value={formData.option}
+                  onChange={(e) => setFormData({ ...formData, option: e.target.value })}
+                  disabled={formData.nativeTongue}
+                >
+                  <option value="BASIC">Basic (1 CP)</option>
+                  <option value="FLUENT">Fluent (2 CP)</option>
+                  <option value="IDIOMATIC">Idiomatic (4 CP)</option>
+                  <option value="DIALECTS">Imitate Dialects (5 CP)</option>
+                </select>
+              </div>
+            </div>
+            <div className="form-group" style={{ display: 'flex', gap: '1.5rem' }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
+                <input
+                  type="checkbox"
+                  checked={formData.nativeTongue}
+                  onChange={(e) => setFormData({ 
+                    ...formData, 
+                    nativeTongue: e.target.checked,
+                    option: e.target.checked ? 'IDIOMATIC' : formData.option,
+                  })}
+                />
+                <span>Native Tongue (0 pts)</span>
+              </label>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
+                <input
+                  type="checkbox"
+                  checked={formData.literate}
+                  onChange={(e) => setFormData({ ...formData, literate: e.target.checked })}
+                />
+                <span>Literate (+1 pt)</span>
+              </label>
+            </div>
+          </>
+        )}
+
+        {/* Characteristic-based options - hide for skill levels and languages */}
+        {formData.xmlid !== 'COMBAT_LEVELS' && formData.xmlid !== 'SKILL_LEVELS' && formData.xmlid !== 'LANGUAGES' && (
+          <>
+            <div className="form-row">
+              <div className="form-group">
+                <label className="form-label">Based On</label>
+                <select
+                  className="form-select"
+                  value={formData.characteristic}
+                  onChange={(e) => setFormData({ ...formData, characteristic: e.target.value as CharacteristicType })}
+                  disabled={formData.familiarity}
+                >
+                  {CHARACTERISTICS.map((char) => (
+                    <option key={char} value={char}>
+                      {char} ({getCharValue(char)})
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="form-group">
+                <label className="form-label">+ Levels</label>
+                <input
+                  type="number"
+                  className="form-input"
+                  value={formData.levels}
+                  onChange={(e) => setFormData({ ...formData, levels: parseInt(e.target.value) || 0 })}
+                  min={0}
+                  disabled={formData.familiarity || formData.proficiency}
+                />
+              </div>
+            </div>
+
+            <div className="form-group" style={{ display: 'flex', gap: '1.5rem' }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
+                <input
+                  type="checkbox"
+                  checked={formData.familiarity}
+                  onChange={(e) => setFormData({ 
+                    ...formData, 
+                    familiarity: e.target.checked,
+                    proficiency: false,
+                    levels: 0
+                  })}
+                />
+                <span>Familiarity (8-, 1 pt)</span>
+              </label>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
+                <input
+                  type="checkbox"
+                  checked={formData.proficiency}
+                  onChange={(e) => setFormData({ 
+                    ...formData, 
+                    proficiency: e.target.checked,
+                    familiarity: false,
+                    levels: 0
+                  })}
+                />
+                <span>Proficiency (2 pts)</span>
+              </label>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
+                <input
+                  type="checkbox"
+                  checked={formData.everyman}
+                  onChange={(e) => setFormData({ ...formData, everyman: e.target.checked })}
+                />
+                <span>Everyman (0 pts)</span>
+              </label>
+            </div>
+          </>
+        )}
 
         <div className="form-group">
           <label className="form-label">Notes</label>

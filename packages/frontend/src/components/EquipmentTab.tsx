@@ -5,6 +5,7 @@ import {
   getPowerDefinition,
   calculatePowerBaseCost,
   calculateAdderCost,
+  heroRoundCost,
   type PowerDefinition,
 } from '@hero-workshop/shared';
 import {
@@ -29,6 +30,9 @@ const EQUIPMENT_POWER_CATEGORIES: Record<string, PowerDefinition[]> = {
     p.types.includes('DEFENSE') ||
     ['FORCEFIELD', 'KBRESISTANCE', 'DAMAGENEGATION', 'DAMAGEREDUCTION', 'MISSILEDEFLECTION'].includes(p.xmlId)
   ),
+  'Characteristic Boosts': Object.values(ALL_POWERS).filter(p => 
+    ['STR', 'DEX', 'CON', 'INT', 'EGO', 'PRE', 'OCV', 'DCV', 'OMCV', 'DMCV', 'SPD', 'PD', 'ED', 'REC', 'END', 'BODY', 'STUN'].includes(p.xmlId)
+  ),
   'Sensors & Detection': Object.values(ALL_POWERS).filter(p => 
     p.types.includes('SENSORY') ||
     ['ENHANCEDSENSES', 'CLAIRSENTIENCE', 'DETECT'].includes(p.xmlId)
@@ -50,6 +54,12 @@ const POWER_CATEGORIES: Record<string, PowerDefinition[]> = {
   'Adjustment Powers': Object.values(ALL_POWERS).filter((p: PowerDefinition) => p.types.includes('ADJUSTMENT')),
   'Special Powers': Object.values(ALL_POWERS).filter((p: PowerDefinition) => p.types.includes('SPECIAL') && !p.types.includes('ATTACK')),
   'Standard Powers': Object.values(ALL_POWERS).filter((p: PowerDefinition) => p.types.includes('STANDARD') && p.types.length === 1),
+  'Characteristic Powers': Object.values(ALL_POWERS).filter((p: PowerDefinition) => 
+    ['STR', 'DEX', 'CON', 'INT', 'EGO', 'PRE', 'OCV', 'DCV', 'OMCV', 'DMCV', 'SPD', 'PD', 'ED', 'REC', 'END', 'BODY', 'STUN'].includes(p.xmlId)
+  ),
+  'Skill Levels': Object.values(ALL_POWERS).filter((p: PowerDefinition) => 
+    ['COMBAT_LEVELS', 'MENTAL_COMBAT_LEVELS', 'SKILL_LEVELS', 'PENALTY_SKILL_LEVELS'].includes(p.xmlId)
+  ),
 };
 
 // Focus limitations for equipment
@@ -111,6 +121,7 @@ export function EquipmentTab({ character, onUpdate }: EquipmentTabProps) {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingEquipment, setEditingEquipment] = useState<Equipment | null>(null);
   const [isPowerMode, setIsPowerMode] = useState(false);
+  const [isCompoundMode, setIsCompoundMode] = useState(false); // Compound power mode
   
   // Basic equipment form
   const [formData, setFormData] = useState({
@@ -143,6 +154,8 @@ export function EquipmentTab({ character, onUpdate }: EquipmentTabProps) {
     levels: 1,
     selectedModifiers: [] as SelectedModifier[],
     adders: [] as Adder[],
+    affectsPrimary: true,
+    affectsTotal: true,
   });
   const [isEditingSubPowerModifier, setIsEditingSubPowerModifier] = useState(false);
   
@@ -227,6 +240,7 @@ export function EquipmentTab({ character, onUpdate }: EquipmentTabProps) {
   const openAddModal = () => {
     setEditingEquipment(null);
     setIsPowerMode(false);
+    setIsCompoundMode(false);
     setFormData({
       name: '',
       alias: '',
@@ -252,7 +266,11 @@ export function EquipmentTab({ character, onUpdate }: EquipmentTabProps) {
     
     // Check if this equipment has associated power data
     const hasPowerData = item.activeCost !== undefined && item.activeCost > 0;
-    setIsPowerMode(hasPowerData);
+    const hasSubPowers = item.subPowers && item.subPowers.length > 0;
+    const isCompound = hasSubPowers || item.xmlId === 'COMPOUNDPOWER' || item.xmlId === 'MULTIPOWER';
+    
+    setIsPowerMode(hasPowerData && !isCompound);
+    setIsCompoundMode(isCompound);
     
     setFormData({
       name: item.name,
@@ -268,6 +286,10 @@ export function EquipmentTab({ character, onUpdate }: EquipmentTabProps) {
     let powerDef: PowerDefinition | null = null;
     if (item.xmlId) {
        powerDef = getPowerDefinition(item.xmlId) ?? null;
+    }
+    // For compound powers, set a compound power def
+    if (isCompound && !powerDef) {
+      powerDef = getPowerDefinition('COMPOUNDPOWER') ?? null;
     }
     
     let modifiers: SelectedModifier[] = [];
@@ -296,6 +318,59 @@ export function EquipmentTab({ character, onUpdate }: EquipmentTabProps) {
     });
     
     setIsModalOpen(true);
+  };
+
+  /** Convert a single power equipment to a compound power by making the current power a component */
+  const convertToCompound = () => {
+    if (!equipmentPower.powerDef || isCompoundMode) return;
+    
+    // Create a sub-power from the current equipment power
+    const costs = calculatePowerCosts();
+    
+    // Move all modifiers (advantages AND limitations) to the component
+    const modifiers: Modifier[] = equipmentPower.modifiers
+      .map(mod => ({
+        id: mod.xmlId,
+        name: mod.name,
+        alias: mod.optionName,
+        value: mod.value,
+        isAdvantage: mod.isAdvantage,
+        isLimitation: mod.isLimitation,
+        levels: mod.levels,
+        notes: mod.notes,
+        adders: mod.adders,
+      }));
+    
+    const newSubPower: Power = {
+      id: generateId(),
+      name: equipmentPower.powerDef.display,
+      alias: equipmentPower.name || equipmentPower.powerDef.display,
+      type: equipmentPower.powerDef.xmlId as Power['type'],
+      baseCost: costs.baseCost,
+      activeCost: costs.activeCost,
+      realCost: costs.realCost,
+      levels: equipmentPower.levels,
+      position: 0,
+      endCost: costs.endCost,
+      modifiers: modifiers.length > 0 ? modifiers : undefined,
+      duration: equipmentPower.powerDef.duration,
+      range: equipmentPower.powerDef.range as Power['range'],
+      doesDamage: equipmentPower.powerDef.doesDamage,
+      killing: equipmentPower.powerDef.isKilling,
+    };
+    
+    // Compound wrapper starts with no modifiers - user can add shared limitations later
+    setEquipmentPower({
+      powerDef: getPowerDefinition('COMPOUNDPOWER') ?? null,
+      levels: 0,
+      modifiers: [],
+      name: equipmentPower.name || 'Compound Power',
+      alias: '',
+      subPowers: [newSubPower],
+    });
+    
+    setIsPowerMode(false);
+    setIsCompoundMode(true);
   };
 
   const handlePowerTypeChange = (xmlId: string) => {
@@ -466,6 +541,8 @@ export function EquipmentTab({ character, onUpdate }: EquipmentTabProps) {
       notes: '',
       adders: [],
       selectedModifiers: [],
+      affectsPrimary: true,
+      affectsTotal: true,
     });
     setSubPowerDef(null);
     setEditingSubPower(null);
@@ -499,6 +576,8 @@ export function EquipmentTab({ character, onUpdate }: EquipmentTabProps) {
       notes: power.notes || '',
       adders: power.adders || [],
       selectedModifiers,
+      affectsPrimary: power.affectsPrimary ?? true,
+      affectsTotal: power.affectsTotal ?? true,
     });
     setSubPowerDef(def || null);
     setEditingSubPower(power);
@@ -547,6 +626,8 @@ export function EquipmentTab({ character, onUpdate }: EquipmentTabProps) {
       range: (subPowerDef?.range ?? editingSubPower?.range) as Power['range'],
       doesDamage: subPowerDef?.doesDamage ?? editingSubPower?.doesDamage,
       killing: subPowerDef?.isKilling ?? editingSubPower?.killing,
+      affectsPrimary: subPowerFormData.affectsPrimary,
+      affectsTotal: subPowerFormData.affectsTotal,
     };
 
     let updatedSubPowers = equipmentPower.subPowers ? [...equipmentPower.subPowers] : [];
@@ -609,7 +690,7 @@ export function EquipmentTab({ character, onUpdate }: EquipmentTabProps) {
   const handleSave = () => {
     let newEquipment: Equipment;
     
-    if (isPowerMode && equipmentPower.powerDef) {
+    if ((isPowerMode || isCompoundMode) && equipmentPower.powerDef) {
       const costs = calculatePowerCosts();
       
       const modifiers: Modifier[] = equipmentPower.modifiers.map(mod => ({
@@ -624,14 +705,26 @@ export function EquipmentTab({ character, onUpdate }: EquipmentTabProps) {
         adders: mod.adders,
       }));
       
+      // Calculate total cost for compound powers (sum of all component real costs)
+      let totalBaseCost = costs.baseCost;
+      let totalActiveCost = costs.activeCost;
+      let totalRealCost = costs.realCost;
+      
+      if (isCompoundMode && equipmentPower.subPowers && equipmentPower.subPowers.length > 0) {
+        // For compound powers, sum up all sub-power costs (modifiers are on components, not compound)
+        totalBaseCost = equipmentPower.subPowers.reduce((sum, p) => sum + (p.baseCost || 0), 0);
+        totalActiveCost = equipmentPower.subPowers.reduce((sum, p) => sum + (p.activeCost || 0), 0);
+        totalRealCost = equipmentPower.subPowers.reduce((sum, p) => sum + (p.realCost || 0), 0);
+      }
+      
       newEquipment = {
         id: editingEquipment?.id ?? generateId(),
         name: equipmentPower.name || equipmentPower.powerDef.display,
-        alias: undefined, // Equipment usually uses name for the custom label. Alias is less used or used for description.
+        alias: undefined,
         notes: formData.notes || undefined,
-        baseCost: costs.baseCost,
-        activeCost: costs.activeCost,
-        realCost: costs.realCost,
+        baseCost: totalBaseCost,
+        activeCost: totalActiveCost,
+        realCost: totalRealCost,
         levels: equipmentPower.levels,
         position: editingEquipment?.position ?? equipment.length,
         price: formData.price || undefined,
@@ -640,6 +733,8 @@ export function EquipmentTab({ character, onUpdate }: EquipmentTabProps) {
         endCost: costs.endCost,
         modifiers,
         subPowers: equipmentPower.subPowers,
+        // Store the xmlId to identify this as a compound power
+        xmlId: isCompoundMode ? 'COMPOUNDPOWER' : equipmentPower.powerDef.xmlId,
       };
     } else {
       newEquipment = {
@@ -770,7 +865,8 @@ export function EquipmentTab({ character, onUpdate }: EquipmentTabProps) {
               <th style={{ width: '40px' }}>📦</th>
               <th style={{ textAlign: 'center', width: '50px' }}>END</th>
               <th>Item</th>
-              <th style={{ textAlign: 'right' }}>Cost</th>
+              <th style={{ textAlign: 'right', width: '60px' }}>Active</th>
+              <th style={{ textAlign: 'right', width: '60px' }}>Real</th>
               <th style={{ width: '80px' }}></th>
             </tr>
           </thead>
@@ -821,10 +917,23 @@ export function EquipmentTab({ character, onUpdate }: EquipmentTabProps) {
                       <div style={{ marginTop: '0.5rem', paddingTop: '0.5rem', borderTop: '1px solid var(--border-color)' }}>
                         {item.subPowers.map((sub, idx) => {
                           const subDamage = getAttackDamageDisplay(sub);
+                          const subPowerDef = getPowerDefinition(sub.type);
+                          const powerDisplayName = subPowerDef?.display || sub.type;
+                          // Check if it's a characteristic power
+                          const characteristicTypes = new Set([
+                            'STR', 'DEX', 'CON', 'INT', 'EGO', 'PRE',
+                            'OCV', 'DCV', 'OMCV', 'DMCV',
+                            'SPD', 'PD', 'ED', 'REC', 'END', 'BODY', 'STUN',
+                            'RUNNING', 'SWIMMING', 'LEAPING'
+                          ]);
+                          const isCharPower = characteristicTypes.has(sub.type);
+                          const subDisplayName = isCharPower 
+                            ? `${(sub.levels ?? 0) >= 0 ? '+' : ''}${sub.levels ?? 0} ${sub.type}`
+                            : (sub.name || powerDisplayName);
                           return (
                             <div key={idx} style={{ fontSize: '0.85rem', marginBottom: '0.25rem' }}>
                                <span style={{ color: 'var(--secondary-color)', marginRight: '0.25rem' }}>•</span>
-                               <strong>{sub.name || sub.type}:</strong> {sub.alias}
+                               <strong>{subDisplayName}:</strong> {!isCharPower && sub.alias}
                                {sub.activeCost && <span style={{ color: 'var(--text-secondary)' }}> ({sub.activeCost} AP)</span>}
                                {subDamage && <span style={{ color: 'var(--danger-color)', fontWeight: 600, marginLeft: '0.5rem' }}>{subDamage}</span>}
                                {sub.modifiers && sub.modifiers.length > 0 && (
@@ -837,12 +946,10 @@ export function EquipmentTab({ character, onUpdate }: EquipmentTabProps) {
                     )}
                   </td>
                   <td style={{ textAlign: 'right' }}>
-                    <div>{item.realCost ?? item.baseCost ?? 0}</div>
-                    {item.activeCost && item.activeCost !== item.realCost && (
-                      <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
-                        Active: {item.activeCost}
-                      </div>
-                    )}
+                    {item.activeCost && item.activeCost !== item.realCost ? item.activeCost : ''}
+                  </td>
+                  <td style={{ textAlign: 'right', fontWeight: 600 }}>
+                    {item.realCost ?? item.baseCost ?? 0}
                   </td>
                   <td>
                     <div className="item-actions">
@@ -876,12 +983,21 @@ export function EquipmentTab({ character, onUpdate }: EquipmentTabProps) {
         size="large"
         footer={
           <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end', alignItems: 'center' }}>
-            {isPowerMode && (
+            {isPowerMode && !isCompoundMode && (
               <div style={{ color: 'var(--text-secondary)', marginRight: 'auto', display: 'flex', gap: '1rem' }}>
                 <span>Base: {powerCosts.baseCost}</span>
                 <span>Active: {powerCosts.activeCost}</span>
                 <span style={{ fontWeight: 600 }}>Real: {powerCosts.realCost} pts</span>
                 <span>END: {powerCosts.endCost}</span>
+              </div>
+            )}
+            {isCompoundMode && equipmentPower.subPowers && equipmentPower.subPowers.length > 0 && (
+              <div style={{ color: 'var(--text-secondary)', marginRight: 'auto', display: 'flex', gap: '1rem' }}>
+                <span>Components: {equipmentPower.subPowers.length}</span>
+                <span>Active: {equipmentPower.subPowers.reduce((sum, p) => sum + (p.activeCost || 0), 0)}</span>
+                <span style={{ fontWeight: 600 }}>
+                  Real: {equipmentPower.subPowers.reduce((sum, p) => sum + (p.realCost || 0), 0)} pts
+                </span>
               </div>
             )}
             <button className="btn btn-secondary" onClick={() => setIsModalOpen(false)}>
@@ -894,22 +1010,53 @@ export function EquipmentTab({ character, onUpdate }: EquipmentTabProps) {
         }
       >
         {/* Mode Toggle */}
-        <div style={{ marginBottom: '1rem', display: 'flex', gap: '0.5rem' }}>
+        <div style={{ marginBottom: '1rem', display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
           <button
-            className={`btn ${!isPowerMode ? 'btn-primary' : 'btn-secondary'}`}
-            onClick={() => setIsPowerMode(false)}
+            className={`btn ${!isPowerMode && !isCompoundMode ? 'btn-primary' : 'btn-secondary'}`}
+            onClick={() => { setIsPowerMode(false); setIsCompoundMode(false); }}
           >
             Simple Item
           </button>
           <button
-            className={`btn ${isPowerMode ? 'btn-primary' : 'btn-secondary'}`}
-            onClick={() => setIsPowerMode(true)}
+            className={`btn ${isPowerMode && !isCompoundMode ? 'btn-primary' : 'btn-secondary'}`}
+            onClick={() => { setIsPowerMode(true); setIsCompoundMode(false); }}
           >
-            Power-Based Equipment
+            Power-Based
           </button>
+          <button
+            className={`btn ${isCompoundMode ? 'btn-primary' : 'btn-secondary'}`}
+            onClick={() => { 
+              setIsPowerMode(true); 
+              setIsCompoundMode(true);
+              // Set up compound power if not already
+              if (!equipmentPower.powerDef || equipmentPower.powerDef.xmlId !== 'COMPOUNDPOWER') {
+                const compoundDef = getPowerDefinition('COMPOUNDPOWER');
+                if (compoundDef) {
+                  setEquipmentPower({
+                    ...equipmentPower,
+                    powerDef: compoundDef,
+                    subPowers: equipmentPower.subPowers || [],
+                  });
+                }
+              }
+            }}
+          >
+            Compound Power
+          </button>
+          {/* Convert to Compound button - only show for single power equipment */}
+          {isPowerMode && !isCompoundMode && equipmentPower.powerDef && equipmentPower.powerDef.xmlId !== 'COMPOUNDPOWER' && (
+            <button
+              className="btn btn-secondary"
+              style={{ marginLeft: 'auto' }}
+              onClick={convertToCompound}
+              title="Convert this power to a compound power with the current power as the first component"
+            >
+              Convert to Compound
+            </button>
+          )}
         </div>
 
-        {!isPowerMode ? (
+        {!isPowerMode && !isCompoundMode ? (
           // Simple Equipment Form
           <div>
             <div className="form-group">
@@ -992,6 +1139,202 @@ export function EquipmentTab({ character, onUpdate }: EquipmentTabProps) {
                 placeholder="Description, special properties, etc."
                 rows={3}
               />
+            </div>
+          </div>
+        ) : isCompoundMode ? (
+          // Compound Power Equipment Form
+          <div>
+            {/* Compound Properties at Top */}
+            <div style={{ 
+              padding: '1rem', 
+              backgroundColor: 'var(--background-secondary)', 
+              borderRadius: '8px',
+              marginBottom: '1rem',
+            }}>
+              <h4 style={{ margin: '0 0 1rem 0', color: 'var(--text-primary)' }}>
+                Compound Power Properties
+              </h4>
+              
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                <div className="form-group" style={{ marginBottom: 0 }}>
+                  <label className="form-label">Item Name</label>
+                  <input
+                    type="text"
+                    className="form-input"
+                    value={equipmentPower.name}
+                    onChange={e => setEquipmentPower({ ...equipmentPower, name: e.target.value })}
+                    placeholder="e.g., Magic Sword, Power Gauntlet"
+                  />
+                </div>
+                
+                <div style={{ display: 'flex', gap: '1rem' }}>
+                  <div className="form-group" style={{ marginBottom: 0, flex: 1 }}>
+                    <label className="form-label">Weight (kg)</label>
+                    <input
+                      type="number"
+                      className="form-input"
+                      value={formData.weight}
+                      onChange={(e) => setFormData({ ...formData, weight: parseFloat(e.target.value) || 0 })}
+                      min={0}
+                      step={0.1}
+                    />
+                  </div>
+                  <div className="form-group" style={{ marginBottom: 0 }}>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', marginTop: '1.75rem' }}>
+                      <input
+                        type="checkbox"
+                        checked={formData.carried}
+                        onChange={(e) => setFormData({ ...formData, carried: e.target.checked })}
+                      />
+                      <span>Carried</span>
+                    </label>
+                  </div>
+                </div>
+              </div>
+              
+              <div className="form-group" style={{ marginTop: '1rem', marginBottom: 0 }}>
+                <label className="form-label">Notes</label>
+                <textarea
+                  className="form-textarea"
+                  value={formData.notes}
+                  onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+                  placeholder="Description, special properties, etc."
+                  rows={2}
+                />
+              </div>
+            </div>
+            
+            {/* Components Section */}
+            <div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
+                <h4 style={{ margin: 0, color: 'var(--text-primary)' }}>
+                  Component Powers ({equipmentPower.subPowers?.length || 0})
+                </h4>
+                <button 
+                  className="btn btn-sm btn-primary"
+                  onClick={openAddSubPowerModal}
+                >
+                  + Add Component
+                </button>
+              </div>
+              
+              {(!equipmentPower.subPowers || equipmentPower.subPowers.length === 0) ? (
+                <div style={{ 
+                  padding: '2rem', 
+                  textAlign: 'center', 
+                  color: 'var(--text-secondary)',
+                  border: '2px dashed var(--border-color)',
+                  borderRadius: '8px',
+                  backgroundColor: 'var(--background-secondary)',
+                }}>
+                  <div style={{ fontSize: '1.5rem', marginBottom: '0.5rem' }}>📦</div>
+                  <div>No component powers yet</div>
+                  <div style={{ fontSize: '0.875rem', marginTop: '0.25rem' }}>
+                    Add powers like attacks, defenses, or movement to this item
+                  </div>
+                </div>
+              ) : (
+                <div style={{ 
+                  border: '1px solid var(--border-color)',
+                  borderRadius: '8px',
+                  overflow: 'hidden',
+                }}>
+                  {equipmentPower.subPowers.map((sub, idx) => {
+                    const characteristicTypes = new Set(['STR', 'DEX', 'CON', 'INT', 'EGO', 'PRE', 'OCV', 'DCV', 'OMCV', 'DMCV', 'SPD', 'PD', 'ED', 'REC', 'END', 'BODY', 'STUN', 'RUNNING', 'SWIMMING', 'LEAPING']);
+                    const isCharPower = characteristicTypes.has(sub.type);
+                    const subDisplayName = isCharPower 
+                      ? `${(sub.levels ?? 0) >= 0 ? '+' : ''}${sub.levels ?? 0} ${sub.type}` 
+                      : (sub.alias || sub.name || getPowerDefinition(sub.type)?.display || sub.type);
+                    return (
+                    <div 
+                      key={sub.id}
+                      style={{ 
+                        display: 'flex', 
+                        alignItems: 'center', 
+                        gap: '0.75rem',
+                        padding: '0.75rem 1rem',
+                        backgroundColor: idx % 2 === 0 ? 'var(--background-primary)' : 'var(--background-secondary)',
+                        borderBottom: idx < equipmentPower.subPowers!.length - 1 ? '1px solid var(--border-color)' : 'none',
+                      }}
+                    >
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontWeight: 500 }}>
+                          {subDisplayName}
+                          {!isCharPower && <span style={{ 
+                            marginLeft: '0.5rem', 
+                            fontSize: '0.75rem', 
+                            color: 'var(--text-secondary)',
+                            fontWeight: 'normal',
+                          }}>
+                            ({getPowerDefinition(sub.type)?.display || sub.type})
+                          </span>}
+                        </div>
+                        <div style={{ 
+                          display: 'flex', 
+                          gap: '1rem', 
+                          fontSize: '0.75rem', 
+                          color: 'var(--text-secondary)',
+                          marginTop: '0.25rem',
+                        }}>
+                          <span>Active: {sub.activeCost || 0}</span>
+                          <span>Real: {sub.realCost || 0}</span>
+                          {sub.effectDice && <span>Dmg: {sub.effectDice}</span>}
+                        </div>
+                        {sub.modifiers && sub.modifiers.length > 0 && (
+                          <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>
+                            {sub.modifiers.map(m => m.name).join(', ')}
+                          </div>
+                        )}
+                      </div>
+                      <div style={{ display: 'flex', gap: '0.25rem' }}>
+                        <button 
+                          className="btn btn-sm btn-secondary"
+                          onClick={() => openEditSubPowerModal(sub)}
+                          title="Edit"
+                        >
+                          ✏️
+                        </button>
+                        <button 
+                          className="btn btn-sm btn-secondary"
+                          onClick={() => deleteSubPower(sub.id)}
+                          title="Delete"
+                          style={{ color: 'var(--danger-color)' }}
+                        >
+                          🗑️
+                        </button>
+                      </div>
+                    </div>
+                  );})}
+                </div>
+              )}
+              
+              {/* Cost Summary */}
+              {equipmentPower.subPowers && equipmentPower.subPowers.length > 0 && (
+                <div style={{ 
+                  marginTop: '1rem',
+                  padding: '0.75rem', 
+                  backgroundColor: 'var(--background-secondary)',
+                  borderRadius: '4px',
+                  fontFamily: 'monospace',
+                  fontSize: '0.875rem',
+                }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span>Total Active Cost:</span>
+                    <span>{equipmentPower.subPowers.reduce((sum, p) => sum + (p.activeCost || 0), 0)}</span>
+                  </div>
+                  <div style={{ 
+                    display: 'flex', 
+                    justifyContent: 'space-between', 
+                    borderTop: '1px solid var(--border-color)', 
+                    marginTop: '0.25rem', 
+                    paddingTop: '0.25rem',
+                    fontWeight: 600,
+                  }}>
+                    <span>Total Real Cost:</span>
+                    <span>{equipmentPower.subPowers.reduce((sum, p) => sum + (p.realCost || 0), 0)}</span>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         ) : (
@@ -1292,6 +1635,11 @@ export function EquipmentTab({ character, onUpdate }: EquipmentTabProps) {
                       backgroundColor: 'var(--background-secondary)'
                     }}>
                       {equipmentPower.subPowers.map((sub, idx) => {
+                        const characteristicTypes = new Set(['STR', 'DEX', 'CON', 'INT', 'EGO', 'PRE', 'OCV', 'DCV', 'OMCV', 'DMCV', 'SPD', 'PD', 'ED', 'REC', 'END', 'BODY', 'STUN', 'RUNNING', 'SWIMMING', 'LEAPING']);
+                        const isCharPower = characteristicTypes.has(sub.type);
+                        const subDisplayName = isCharPower 
+                          ? `${(sub.levels ?? 0) >= 0 ? '+' : ''}${sub.levels ?? 0} ${sub.type}` 
+                          : (sub.alias || sub.name || getPowerDefinition(sub.type)?.display || sub.type);
                         return (
                           <div key={sub.id || idx} style={{ 
                             fontSize: '0.85rem', 
@@ -1304,14 +1652,17 @@ export function EquipmentTab({ character, onUpdate }: EquipmentTabProps) {
                           }}>
                              <div style={{ flex: 1 }}>
                                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                                 <strong>{sub.alias || sub.name}</strong>
+                                 <strong>{subDisplayName}</strong>
                                  <span>{sub.realCost} pts</span>
                                </div>
-                               <div style={{ display: 'flex', gap: '0.5rem', fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+                               {!isCharPower && <div style={{ display: 'flex', gap: '0.5rem', fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
                                    <span>{sub.name}</span>
                                    {(sub.levels || sub.effectDice) && <span>• {sub.levels ? `${sub.levels}d6` : sub.effectDice}</span>}
                                    <span>• Act: {sub.activeCost}</span>
-                               </div>
+                               </div>}
+                               {isCharPower && <div style={{ display: 'flex', gap: '0.5rem', fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+                                   <span>Act: {sub.activeCost}</span>
+                               </div>}
                                {sub.modifiers && sub.modifiers.length > 0 && (
                                  <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
                                    {sub.modifiers.map(m => m.name).join(', ')}
@@ -1386,7 +1737,7 @@ export function EquipmentTab({ character, onUpdate }: EquipmentTabProps) {
               {subPowerDef && (
                 <>
                   <span>Base: {calculatePowerBaseCost(subPowerDef, subPowerFormData.levels)}</span>
-                  <span>Active: {Math.floor(calculatePowerBaseCost(subPowerDef, subPowerFormData.levels) * (1 + subPowerFormData.selectedModifiers.filter(m => m.isAdvantage).reduce((s, m) => s + m.value, 0)))}</span>
+                  <span>Active: {heroRoundCost(calculatePowerBaseCost(subPowerDef, subPowerFormData.levels) * (1 + subPowerFormData.selectedModifiers.filter(m => m.isAdvantage).reduce((s, m) => s + m.value, 0)))}</span>
                 </>
               )}
             </div>
@@ -1492,6 +1843,32 @@ export function EquipmentTab({ character, onUpdate }: EquipmentTabProps) {
                 placeholder="Special effects, descriptions..."
                 rows={2}
               />
+            </div>
+            
+            {/* Affects Primary/Total checkboxes */}
+            <div className="form-group">
+              <label className="form-label">Stat Contribution</label>
+              <div style={{ display: 'flex', gap: '1.5rem' }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
+                  <input
+                    type="checkbox"
+                    checked={subPowerFormData.affectsPrimary}
+                    onChange={e => setSubPowerFormData({ ...subPowerFormData, affectsPrimary: e.target.checked })}
+                  />
+                  Affects Primary Stats
+                </label>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
+                  <input
+                    type="checkbox"
+                    checked={subPowerFormData.affectsTotal}
+                    onChange={e => setSubPowerFormData({ ...subPowerFormData, affectsTotal: e.target.checked })}
+                  />
+                  Affects Total
+                </label>
+              </div>
+              <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '0.25rem' }}>
+                Uncheck &quot;Affects Primary&quot; for independent powers (e.g., container STR) that shouldn&apos;t add to character stats.
+              </div>
             </div>
           </div>
 

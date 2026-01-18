@@ -191,6 +191,21 @@ export interface Power extends GenericObjectBase {
   framework?: PowerFramework;
   parentId?: string;
   isContainer?: boolean;  // True for LIST elements that group other powers
+  option?: string;        // Selected option xmlId (e.g., 'HEARINGGROUP' for Darkness)
+  optionAlias?: string;   // Display name for the selected option
+  /** Whether this power contributes to the character's primary stats (default true) */
+  affectsPrimary?: boolean;
+  /** Whether this power contributes to the character's total stats (default true) */
+  affectsTotal?: boolean;
+  // Barrier-specific fields
+  pdLevels?: number;      // Physical Defense levels
+  edLevels?: number;      // Energy Defense levels
+  mdLevels?: number;      // Mental Defense levels
+  powdLevels?: number;    // Power Defense levels
+  bodyLevels?: number;    // Body levels
+  lengthLevels?: number;  // Length in meters
+  heightLevels?: number;  // Height in meters
+  widthLevels?: number;   // Thickness in half-meters (0.5m increments)
 }
 
 export type PowerType = 
@@ -205,7 +220,7 @@ export type PowerType =
   | 'MIND_LINK' | 'MIND_SCAN' | 'MULTIFORM' | 'POWER_DEFENSE' | 'REGENERATION'
   | 'RESISTANT_PROTECTION' | 'RUNNING' | 'SHAPE_SHIFT' | 'SHRINKING' | 'STRETCHING'
   | 'SUMMON' | 'SWIMMING' | 'SWINGING' | 'TELEKINESIS' | 'TELEPATHY' | 'TELEPORTATION'
-  | 'TRANSFORM' | 'TUNNELING' | 'LIST' | 'COMPOUNDPOWER' | 'GENERIC';
+  | 'TRANSFORM' | 'TUNNELING' | 'FORCEWALL' | 'LIST' | 'COMPOUNDPOWER' | 'GENERIC';
 
 export type PowerRange = 'SELF' | 'NO_RANGE' | 'STANDARD' | 'LIMITED' | 'LINE_OF_SIGHT';
 export type PowerDuration = 'INSTANT' | 'CONSTANT' | 'PERSISTENT' | 'INHERENT';
@@ -239,6 +254,7 @@ export type DisadvantageType =
 
 export interface Perk extends GenericObjectBase {
   type: PerkType;
+  isGroup?: boolean; // True if this is a LIST container for other perks
 }
 
 export type PerkType =
@@ -253,6 +269,7 @@ export type PerkType =
 export interface Talent extends GenericObjectBase {
   type: TalentType;
   characteristic?: CharacteristicType;
+  isGroup?: boolean; // True if this is a LIST container for other talents
 }
 
 export type TalentType =
@@ -270,13 +287,18 @@ export type TalentType =
 export interface MartialManeuver extends GenericObjectBase {
   ocv: number;
   dcv: number;
+  phase?: string; // Phase timing: "1/2", "1", "0", etc.
+  dc?: number; // Damage Class
   damage?: string;
   effect?: string;
   weaponElements?: WeaponElement[];
+  isGroup?: boolean; // True if this is a LIST container (martial arts style)
+  isWeaponElement?: boolean; // True if this is a WEAPON_ELEMENT entry
 }
 
 export interface WeaponElement extends GenericObjectBase {
   weaponType: string;
+  category?: string; // COMMONMELEE, UNCOMMONMELEE, RANGED, etc.
 }
 
 // ============================================================================
@@ -300,6 +322,7 @@ export interface Equipment extends GenericObjectBase {
 
 export interface Modifier {
   id: string;
+  xmlId?: string;        // The modifier type (e.g., 'AOE', 'ARMORPIERCING')
   name: string;
   alias?: string;
   value: number;
@@ -325,6 +348,8 @@ export interface Adder {
   notes?: string;
   optionAlias?: string;
   includeInBase?: boolean;
+  selected?: boolean; // True if this adder is selected (for weapon elements, etc.)
+  adders?: Adder[];   // Nested adders (for category/weapon hierarchy)
 }
 
 // ============================================================================

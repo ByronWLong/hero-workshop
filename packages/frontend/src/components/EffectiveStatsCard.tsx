@@ -1,165 +1,9 @@
 import { useMemo } from 'react';
 import type { Character } from '@hero-workshop/shared';
+import { calculateStatModifications } from '@hero-workshop/shared';
 
 interface EffectiveStatsCardProps {
   character: Character;
-}
-
-interface StatModification {
-  source: string;
-  stat: string;
-  amount: number;
-  active: boolean;
-}
-
-/**
- * Calculate modifications to characteristics from powers and equipment
- */
-function calculateStatModifications(character: Character): StatModification[] {
-  const modifications: StatModification[] = [];
-  
-  // Process powers
-  const powers = character.powers ?? [];
-  for (const power of powers) {
-    const levels = power.levels ?? 1;
-    const powerName = power.alias || power.name;
-    const powerType = power.type ?? '';
-    
-    // Density Increase adds STR, PD, ED, mass
-    if (powerType === 'DENSITY_INCREASE' || power.name.toLowerCase().includes('density increase')) {
-      modifications.push(
-        { source: powerName, stat: 'STR', amount: levels * 5, active: true },
-        { source: powerName, stat: 'PD', amount: levels, active: true },
-        { source: powerName, stat: 'ED', amount: levels, active: true },
-        { source: powerName, stat: 'Mass', amount: levels * 100, active: true }, // Rough kg per level
-      );
-    }
-    
-    // Growth adds STR, CON, PD, ED, BODY, STUN, but reduces DCV/OCV, KB
-    if (powerType === 'GROWTH' || power.name.toLowerCase().includes('growth')) {
-      // Each level = +5 STR, +1 PD, +1 ED, +1 BODY, +2 STUN, -2m KB
-      // At certain thresholds: size categories change
-      modifications.push(
-        { source: powerName, stat: 'STR', amount: levels * 5, active: true },
-        { source: powerName, stat: 'CON', amount: levels, active: true },
-        { source: powerName, stat: 'PD', amount: levels, active: true },
-        { source: powerName, stat: 'ED', amount: levels, active: true },
-        { source: powerName, stat: 'BODY', amount: levels, active: true },
-        { source: powerName, stat: 'STUN', amount: levels * 2, active: true },
-      );
-      if (levels >= 6) {
-        modifications.push({ source: powerName, stat: 'DCV', amount: -1, active: true });
-      }
-      if (levels >= 12) {
-        modifications.push({ source: powerName, stat: 'DCV', amount: -1, active: true });
-      }
-    }
-    
-    // Shrinking reduces perception of character
-    if (powerType === 'SHRINKING' || power.name.toLowerCase().includes('shrinking')) {
-      modifications.push(
-        { source: powerName, stat: 'DCV', amount: Math.floor(levels / 3), active: true },
-        { source: powerName, stat: 'Perception', amount: -levels * 2, active: true },
-      );
-    }
-    
-    // Resistant Protection / Forcefield
-    if (powerType === 'RESISTANT_PROTECTION' || 
-        power.name.toLowerCase().includes('resistant protection') ||
-        power.name.toLowerCase().includes('forcefield') ||
-        power.name.toLowerCase().includes('force field')) {
-      // Typically split between PD and ED - we'll show total
-      modifications.push(
-        { source: powerName, stat: 'rPD', amount: levels, active: true },
-        { source: powerName, stat: 'rED', amount: levels, active: true },
-      );
-    }
-    
-    // Armor
-    if (powerType === 'ARMOR' || power.name.toLowerCase().includes('armor')) {
-      modifications.push(
-        { source: powerName, stat: 'rPD', amount: levels, active: true },
-        { source: powerName, stat: 'rED', amount: levels, active: true },
-      );
-    }
-    
-    // Flash Defense
-    if (powerType === 'FLASH_DEFENSE' || power.name.toLowerCase().includes('flash defense')) {
-      modifications.push(
-        { source: powerName, stat: 'Flash Def', amount: levels, active: true },
-      );
-    }
-    
-    // Mental Defense
-    if (powerType === 'MENTAL_DEFENSE' || power.name.toLowerCase().includes('mental defense')) {
-      modifications.push(
-        { source: powerName, stat: 'Mental Def', amount: levels, active: true },
-      );
-    }
-    
-    // Power Defense
-    if (powerType === 'POWER_DEFENSE' || power.name.toLowerCase().includes('power defense')) {
-      modifications.push(
-        { source: powerName, stat: 'Power Def', amount: levels, active: true },
-      );
-    }
-    
-    // KB Resistance
-    if (powerType === 'KNOCKBACK_RESISTANCE' || power.name.toLowerCase().includes('knockback resist')) {
-      modifications.push(
-        { source: powerName, stat: 'KB Resist', amount: levels, active: true },
-      );
-    }
-    
-    // Movement powers
-    if (powerType === 'FLIGHT' || power.name.toLowerCase().includes('flight')) {
-      modifications.push(
-        { source: powerName, stat: 'Flight', amount: levels, active: true },
-      );
-    }
-    if (powerType === 'RUNNING' || power.name.toLowerCase() === 'running') {
-      modifications.push(
-        { source: powerName, stat: 'Running', amount: levels, active: true },
-      );
-    }
-    if (powerType === 'SWIMMING' || power.name.toLowerCase() === 'swimming') {
-      modifications.push(
-        { source: powerName, stat: 'Swimming', amount: levels, active: true },
-      );
-    }
-    if (powerType === 'LEAPING' || power.name.toLowerCase() === 'leaping') {
-      modifications.push(
-        { source: powerName, stat: 'Leaping', amount: levels, active: true },
-      );
-    }
-    if (powerType === 'TELEPORTATION' || power.name.toLowerCase().includes('teleport')) {
-      modifications.push(
-        { source: powerName, stat: 'Teleport', amount: levels, active: true },
-      );
-    }
-  }
-  
-  // Process equipment (for carried equipment with powers)
-  const equipment = character.equipment ?? [];
-  for (const item of equipment) {
-    if (!item.carried) continue;
-    if (!item.activeCost || item.activeCost === 0) continue;
-    
-    const itemName = item.alias || item.name;
-    const levels = item.levels ?? 1;
-    
-    // Check for defensive equipment
-    if (item.name.toLowerCase().includes('armor') || 
-        item.name.toLowerCase().includes('protection') ||
-        item.name.toLowerCase().includes('shield')) {
-      modifications.push(
-        { source: `⚔️ ${itemName}`, stat: 'rPD', amount: levels, active: true },
-        { source: `⚔️ ${itemName}`, stat: 'rED', amount: levels, active: true },
-      );
-    }
-  }
-  
-  return modifications;
 }
 
 /**
@@ -268,9 +112,6 @@ export function EffectiveStatsCard({ character }: EffectiveStatsCardProps) {
     <div className="card">
       <h3 className="card-title" style={{ marginBottom: '1rem' }}>
         ⚡ Effective Stats
-        <span style={{ fontSize: '0.75rem', fontWeight: 'normal', color: 'var(--text-secondary)', marginLeft: '0.5rem' }}>
-          (with active powers)
-        </span>
       </h3>
       
       <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
@@ -280,7 +121,7 @@ export function EffectiveStatsCard({ character }: EffectiveStatsCardProps) {
             Combat
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '0.5rem' }}>
-            {['STR', 'DEX', 'CON', 'SPD'].map(stat => {
+            {['STR', 'DEX', 'CON', 'INT', 'EGO', 'PRE', 'SPD', 'REC', 'END', 'BODY', 'STUN'].map(stat => {
               const data = effectiveStats[stat];
               if (!data || data.bonus === 0) return null;
               return (
@@ -327,13 +168,88 @@ export function EffectiveStatsCard({ character }: EffectiveStatsCardProps) {
           </div>
         )}
         
-        {/* Defenses */}
+        {/* Defenses - Combined PD/rPD and ED/rED display */}
         <div>
           <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginBottom: '0.5rem', fontWeight: 600 }}>
             Defenses
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.5rem' }}>
-            {['PD', 'ED', 'rPD', 'rED', 'Mental Def', 'Power Def'].map(stat => {
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '0.5rem' }}>
+            {/* PD Combined */}
+            {(() => {
+              const pdData = effectiveStats['PD'];
+              const rpdData = effectiveStats['rPD'];
+              const basePd = pdData?.base ?? getBaseCharacteristic(character, 'PD');
+              const bonusPd = pdData?.bonus ?? 0;
+              const totalPd = basePd + bonusPd;
+              const rpdBonus = rpdData?.total ?? 0;
+              const combinedTotal = totalPd + rpdBonus;
+              
+              if (bonusPd === 0 && rpdBonus === 0) return null;
+              
+              const sources = [...(pdData?.sources ?? []), ...(rpdData?.sources ?? [])];
+              
+              return (
+                <div 
+                  style={{ 
+                    textAlign: 'center', 
+                    padding: '0.75rem',
+                    backgroundColor: 'rgba(0, 100, 200, 0.1)',
+                    borderRadius: '4px',
+                    border: '1px solid rgba(0, 100, 200, 0.3)',
+                  }}
+                  title={sources.join('\n')}
+                >
+                  <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginBottom: '0.25rem' }}>PD</div>
+                  <div style={{ fontWeight: 600, fontSize: '1.25rem' }}>
+                    {totalPd}/{combinedTotal}
+                  </div>
+                  <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+                    ({rpdBonus > 0 ? `${rpdBonus}` : '0'} rPD)
+                  </div>
+                </div>
+              );
+            })()}
+            
+            {/* ED Combined */}
+            {(() => {
+              const edData = effectiveStats['ED'];
+              const redData = effectiveStats['rED'];
+              const baseEd = edData?.base ?? getBaseCharacteristic(character, 'ED');
+              const bonusEd = edData?.bonus ?? 0;
+              const totalEd = baseEd + bonusEd;
+              const redBonus = redData?.total ?? 0;
+              const combinedTotal = totalEd + redBonus;
+              
+              if (bonusEd === 0 && redBonus === 0) return null;
+              
+              const sources = [...(edData?.sources ?? []), ...(redData?.sources ?? [])];
+              
+              return (
+                <div 
+                  style={{ 
+                    textAlign: 'center', 
+                    padding: '0.75rem',
+                    backgroundColor: 'rgba(0, 100, 200, 0.1)',
+                    borderRadius: '4px',
+                    border: '1px solid rgba(0, 100, 200, 0.3)',
+                  }}
+                  title={sources.join('\n')}
+                >
+                  <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginBottom: '0.25rem' }}>ED</div>
+                  <div style={{ fontWeight: 600, fontSize: '1.25rem' }}>
+                    {totalEd}/{combinedTotal}
+                  </div>
+                  <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+                    ({redBonus > 0 ? `${redBonus}` : '0'} rED)
+                  </div>
+                </div>
+              );
+            })()}
+          </div>
+          
+          {/* Other Defenses */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.5rem', marginTop: '0.5rem' }}>
+            {['Mental Def', 'Power Def', 'Flash Def', 'KB Resist'].map(stat => {
               const data = effectiveStats[stat];
               if (!data || data.total === 0) return null;
               return (
@@ -342,9 +258,8 @@ export function EffectiveStatsCard({ character }: EffectiveStatsCardProps) {
                   style={{ 
                     textAlign: 'center', 
                     padding: '0.5rem',
-                    backgroundColor: stat.startsWith('r') ? 'rgba(0, 100, 200, 0.1)' : 'var(--background-secondary)',
+                    backgroundColor: 'var(--background-secondary)',
                     borderRadius: '4px',
-                    border: stat.startsWith('r') ? '1px solid rgba(0, 100, 200, 0.3)' : 'none',
                   }}
                   title={data.sources.join('\n')}
                 >

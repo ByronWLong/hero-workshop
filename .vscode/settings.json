@@ -6,6 +6,11 @@
         "/^node --version && npm --version$/": {
             "approve": true,
             "matchCommandLine": true
+        },
+        "pnpm": true,
+        "/^cd \"e:\\\\Hero Designer\\\\Hero Designer 6\\\\hero-workshop\" ; node -e \"const fs = require\\('fs'\\); const xml = fs\\.readFileSync\\('samples/SkralkSkekMal\\.hdc', 'utf16le'\\); const lines = xml\\.split\\('\\\\n'\\); for\\(let i=895; i<920; i\\+\\+\\) console\\.log\\(i\\+': '\\+lines\\[i\\]\\);\"$/": {
+            "approve": true,
+            "matchCommandLine": true
         }
     }
 }

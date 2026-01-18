@@ -155,23 +155,23 @@ export function InfoTab({ character, onUpdate }: InfoTabProps) {
         <h3 className="section-title">👤 Physical Description</h3>
         <div className="info-grid info-grid-physical">
           <div className="info-field">
-            <label className="form-label">Height (inches)</label>
+            <label className="form-label">Height (cm)</label>
             <input
               type="number"
               className="form-input"
               value={info.height ?? ''}
               onChange={(e) => updateInfo('height', e.target.value ? parseInt(e.target.value, 10) : undefined)}
-              placeholder="72"
+              placeholder="180"
             />
           </div>
           <div className="info-field">
-            <label className="form-label">Weight (lbs)</label>
+            <label className="form-label">Weight (kg)</label>
             <input
               type="number"
               className="form-input"
               value={info.weight ?? ''}
               onChange={(e) => updateInfo('weight', e.target.value ? parseInt(e.target.value, 10) : undefined)}
-              placeholder="180"
+              placeholder="80"
             />
           </div>
           <div className="info-field">
