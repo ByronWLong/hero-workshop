@@ -1,9 +1,10 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useCharacterList, useCreateCharacter } from '../hooks/useCharacter';
 import { LoadingSpinner } from '../components/LoadingSpinner';
 import { Modal } from '../components/Modal';
-import type { Character } from '@hero-workshop/shared';
+import type { Character, DriveFile } from '@hero-workshop/shared';
+import { api } from '../services/api';
 
 // Default characteristics for a new 6th edition character
 const DEFAULT_CHARACTERISTICS = [
@@ -63,7 +64,7 @@ function createDefaultCharacter(name: string, playerName: string, templateId: st
 
 export function CharacterListPage() {
   const navigate = useNavigate();
-  const { data, isLoading, error } = useCharacterList();
+  const { data, isLoading, error, refetch } = useCharacterList();
   const createCharacter = useCreateCharacter();
   
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -71,6 +72,199 @@ export function CharacterListPage() {
   const [playerName, setPlayerName] = useState('');
   const [selectedTemplate, setSelectedTemplate] = useState('builtIn.Heroic6E.hdt');
   const [createError, setCreateError] = useState<string | null>(null);
+  
+  // Filter states
+  const [ownershipFilter, setOwnershipFilter] = useState<'all' | 'mine' | 'shared'>('all');
+  const [selectedTags, setSelectedTags] = useState<string[]>([]);
+  const [searchQuery, setSearchQuery] = useState('');
+  
+  // Tag management modal
+  const [isTagModalOpen, setIsTagModalOpen] = useState(false);
+  const [tagEditFile, setTagEditFile] = useState<DriveFile | null>(null);
+  const [editingTags, setEditingTags] = useState<string[]>([]);
+  const [newTagInput, setNewTagInput] = useState('');
+  
+  // Share modal state
+  const [isShareModalOpen, setIsShareModalOpen] = useState(false);
+  const [shareFile, setShareFile] = useState<DriveFile | null>(null);
+  const [shareEmail, setShareEmail] = useState('');
+  const [shareRole, setShareRole] = useState<'reader' | 'writer'>('reader');
+  const [shareNotify, setShareNotify] = useState(true);
+  const [shareError, setShareError] = useState<string | null>(null);
+  const [shareSuccess, setShareSuccess] = useState<string | null>(null);
+  const [isSharing, setIsSharing] = useState(false);
+  const [permissions, setPermissions] = useState<Array<{ id: string; type: string; role: string; emailAddress?: string; displayName?: string }>>([]);
+  const [loadingPermissions, setLoadingPermissions] = useState(false);
+  const [knownEmails, setKnownEmails] = useState<Set<string>>(new Set());
+
+  // Helper to parse tags from description
+  const parseTags = (description?: string): string[] => {
+    if (!description) return [];
+    try {
+      const parsed = JSON.parse(description);
+      return parsed.tags ?? [];
+    } catch {
+      return [];
+    }
+  };
+
+  // Get all unique tags from all files
+  const allTags = useMemo(() => {
+    const files = data?.files ?? [];
+    const tagSet = new Set<string>();
+    files.forEach(file => {
+      parseTags(file.description).forEach(tag => tagSet.add(tag));
+    });
+    return Array.from(tagSet).sort();
+  }, [data?.files]);
+
+  // Filter files based on current filters
+  const filteredFiles = useMemo(() => {
+    let files = data?.files ?? [];
+    
+    // Filter by ownership
+    if (ownershipFilter === 'mine') {
+      files = files.filter(f => f.ownedByMe);
+    } else if (ownershipFilter === 'shared') {
+      files = files.filter(f => !f.ownedByMe);
+    }
+    
+    // Filter by search query
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase();
+      files = files.filter(f => f.name.toLowerCase().includes(query));
+    }
+    
+    // Filter by selected tags
+    if (selectedTags.length > 0) {
+      files = files.filter(f => {
+        const fileTags = parseTags(f.description);
+        return selectedTags.every(tag => fileTags.includes(tag));
+      });
+    }
+    
+    return files;
+  }, [data?.files, ownershipFilter, searchQuery, selectedTags]);
+
+  // Open tag editor
+  const openTagEditor = (file: DriveFile, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setTagEditFile(file);
+    setEditingTags(parseTags(file.description));
+    setNewTagInput('');
+    setIsTagModalOpen(true);
+  };
+
+  // Save tags
+  const handleSaveTags = async () => {
+    if (!tagEditFile) return;
+    try {
+      await api.patch(`/characters/${tagEditFile.id}/tags`, { tags: editingTags });
+      setIsTagModalOpen(false);
+      refetch();
+    } catch (err) {
+      console.error('Failed to save tags:', err);
+    }
+  };
+
+  // Add a new tag
+  const addTag = () => {
+    const tag = newTagInput.trim();
+    if (tag && !editingTags.includes(tag)) {
+      setEditingTags([...editingTags, tag]);
+      setNewTagInput('');
+    }
+  };
+
+  // Remove a tag
+  const removeTag = (tag: string) => {
+    setEditingTags(editingTags.filter(t => t !== tag));
+  };
+
+  // Toggle tag filter
+  const toggleTagFilter = (tag: string) => {
+    if (selectedTags.includes(tag)) {
+      setSelectedTags(selectedTags.filter(t => t !== tag));
+    } else {
+      setSelectedTags([...selectedTags, tag]);
+    }
+  };
+
+  // Open share modal
+  const openShareModal = async (file: DriveFile, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setShareFile(file);
+    setShareEmail('');
+    setShareRole('reader');
+    setShareNotify(true);
+    setShareError(null);
+    setShareSuccess(null);
+    setIsShareModalOpen(true);
+    
+    // Load current permissions
+    setLoadingPermissions(true);
+    try {
+      const response = await api.get<{ success: boolean; data: { permissions: Array<{ id: string; type: string; role: string; emailAddress?: string; displayName?: string }> } }>(`/characters/${file.id}/permissions`);
+      const perms = response.data?.permissions ?? [];
+      setPermissions(perms);
+      
+      // Add emails to known emails for suggestions
+      const newEmails = new Set(knownEmails);
+      perms.forEach(p => {
+        if (p.emailAddress && p.type === 'user' && p.role !== 'owner') {
+          newEmails.add(p.emailAddress);
+        }
+      });
+      setKnownEmails(newEmails);
+    } catch (err) {
+      console.error('Failed to load permissions:', err);
+      setPermissions([]);
+    } finally {
+      setLoadingPermissions(false);
+    }
+  };
+
+  // Handle sharing
+  const handleShare = async () => {
+    if (!shareFile || !shareEmail.trim()) return;
+    
+    setIsSharing(true);
+    setShareError(null);
+    setShareSuccess(null);
+    
+    try {
+      await api.post(`/characters/${shareFile.id}/share`, {
+        email: shareEmail.trim(),
+        role: shareRole,
+        sendNotification: shareNotify,
+      });
+      setShareSuccess(`Shared with ${shareEmail.trim()}`);
+      
+      // Add to known emails
+      setKnownEmails(prev => new Set([...prev, shareEmail.trim()]));
+      setShareEmail('');
+      
+      // Refresh permissions
+      const response = await api.get<{ success: boolean; data: { permissions: Array<{ id: string; type: string; role: string; emailAddress?: string; displayName?: string }> } }>(`/characters/${shareFile.id}/permissions`);
+      setPermissions(response.data?.permissions ?? []);
+    } catch (err) {
+      setShareError(err instanceof Error ? err.message : 'Failed to share character');
+    } finally {
+      setIsSharing(false);
+    }
+  };
+
+  // Remove a permission
+  const handleRemovePermission = async (permissionId: string) => {
+    if (!shareFile) return;
+    
+    try {
+      await api.delete(`/characters/${shareFile.id}/permissions/${permissionId}`);
+      setPermissions(permissions.filter(p => p.id !== permissionId));
+    } catch (err) {
+      console.error('Failed to remove permission:', err);
+    }
+  };
 
   const handleNewCharacter = () => {
     setCharacterName('');
@@ -133,6 +327,100 @@ export function CharacterListPage() {
         </button>
       </div>
 
+      {/* Filter Controls */}
+      <div style={{ 
+        marginBottom: '1.5rem', 
+        padding: '1rem', 
+        backgroundColor: 'var(--surface)', 
+        borderRadius: '8px',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '0.75rem'
+      }}>
+        {/* Search and ownership filter row */}
+        <div style={{ display: 'flex', gap: '1rem', alignItems: 'center', flexWrap: 'wrap' }}>
+          <input
+            type="text"
+            placeholder="Search characters..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            style={{
+              flex: '1',
+              minWidth: '200px',
+              padding: '0.5rem 0.75rem',
+              borderRadius: '4px',
+              border: '1px solid var(--color-border)',
+              backgroundColor: 'var(--background)',
+              color: 'var(--text-primary)',
+            }}
+          />
+          <select
+            value={ownershipFilter}
+            onChange={(e) => setOwnershipFilter(e.target.value as 'all' | 'mine' | 'shared')}
+            style={{
+              padding: '0.5rem 0.75rem',
+              borderRadius: '4px',
+              border: '1px solid var(--color-border)',
+              backgroundColor: 'var(--background)',
+              color: 'var(--text-primary)',
+            }}
+          >
+            <option value="all">All Characters</option>
+            <option value="mine">My Characters</option>
+            <option value="shared">Shared with Me</option>
+          </select>
+          <button
+            onClick={() => {
+              setOwnershipFilter('all');
+              setSearchQuery('');
+              setSelectedTags([]);
+            }}
+            style={{
+              padding: '0.25rem 0.5rem',
+              borderRadius: '4px',
+              border: 'none',
+              backgroundColor: 'var(--surface-light)',
+              color: 'var(--text-secondary)',
+              cursor: (ownershipFilter !== 'all' || searchQuery || selectedTags.length > 0) ? 'pointer' : 'default',
+              fontSize: '0.875rem',
+              visibility: (ownershipFilter !== 'all' || searchQuery || selectedTags.length > 0) ? 'visible' : 'hidden',
+            }}
+          >
+            Clear filters
+          </button>
+        </div>
+
+        {/* Tag filters */}
+        {allTags.length > 0 && (
+          <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
+            <span style={{ color: 'var(--text-secondary)', fontSize: '0.875rem' }}>Tags:</span>
+            {allTags.map(tag => (
+              <button
+                key={tag}
+                onClick={() => toggleTagFilter(tag)}
+                style={{
+                  padding: '0.25rem 0.5rem',
+                  borderRadius: '12px',
+                  border: selectedTags.includes(tag) ? '1px solid var(--primary-color)' : '1px solid var(--color-border)',
+                  backgroundColor: selectedTags.includes(tag) ? 'var(--primary-color)' : 'transparent',
+                  color: selectedTags.includes(tag) ? 'white' : 'var(--text-primary)',
+                  cursor: 'pointer',
+                  fontSize: '0.75rem',
+                  transition: 'all 0.2s',
+                }}
+              >
+                {tag}
+              </button>
+            ))}
+          </div>
+        )}
+        
+        {/* Results count */}
+        <div style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>
+          Showing {filteredFiles.length} of {files.length} characters
+        </div>
+      </div>
+
       {files.length === 0 ? (
         <div className="empty-state">
           <div className="empty-state-icon">🦸</div>
@@ -146,31 +434,366 @@ export function CharacterListPage() {
             Create Character
           </button>
         </div>
+      ) : filteredFiles.length === 0 ? (
+        <div className="empty-state">
+          <div className="empty-state-icon">🔍</div>
+          <div className="empty-state-title">No Matching Characters</div>
+          <p>Try adjusting your filters</p>
+        </div>
       ) : (
         <div className="character-grid">
-          {files.map((file) => (
-            <div
-              key={file.id}
-              className="character-card"
-              onClick={() => navigate(`/characters/${file.id}`)}
-            >
-              <div className="character-name">
-                {file.name.replace('.hdc', '')}
-              </div>
-              <div className="character-player">
-                Last modified: {new Date(file.modifiedTime).toLocaleDateString()}
-              </div>
-              <div className="character-stats">
-                {file.size && (
-                  <span className="character-stat">
-                    📄 {Math.round(parseInt(file.size) / 1024)} KB
-                  </span>
+          {filteredFiles.map((file) => {
+            const fileTags = parseTags(file.description);
+            return (
+              <div
+                key={file.id}
+                className="character-card"
+                onClick={() => navigate(`/characters/${file.id}`)}
+              >
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                  <div className="character-name">
+                    {file.name.replace('.hdc', '')}
+                  </div>
+                  <div style={{ display: 'flex', gap: '0.25rem' }}>
+                    {file.ownedByMe && (
+                      <button
+                        onClick={(e) => openShareModal(file, e)}
+                        style={{
+                          padding: '0.25rem',
+                          border: 'none',
+                          background: 'transparent',
+                          cursor: 'pointer',
+                          fontSize: '1rem',
+                          opacity: 0.6,
+                        }}
+                        title="Share"
+                      >
+                        🔗
+                      </button>
+                    )}
+                    <button
+                      onClick={(e) => openTagEditor(file, e)}
+                      style={{
+                        padding: '0.25rem',
+                        border: 'none',
+                        background: 'transparent',
+                        cursor: 'pointer',
+                        fontSize: '1rem',
+                        opacity: 0.6,
+                      }}
+                      title="Edit tags"
+                    >
+                      🏷️
+                    </button>
+                  </div>
+                </div>
+                <div className="character-player">
+                  Last modified: {new Date(file.modifiedTime).toLocaleDateString()}
+                  {file.ownedByMe === false && <span style={{ marginLeft: '0.5rem', color: 'var(--text-secondary)' }}>(shared)</span>}
+                </div>
+                {fileTags.length > 0 && (
+                  <div style={{ display: 'flex', gap: '0.25rem', flexWrap: 'wrap', marginTop: '0.5rem' }}>
+                    {fileTags.map(tag => (
+                      <span
+                        key={tag}
+                        style={{
+                          padding: '0.125rem 0.375rem',
+                          borderRadius: '8px',
+                          backgroundColor: 'var(--surface-light)',
+                          fontSize: '0.7rem',
+                          color: 'var(--text-secondary)',
+                        }}
+                      >
+                        {tag}
+                      </span>
+                    ))}
+                  </div>
                 )}
+                <div className="character-stats">
+                  {file.size && (
+                    <span className="character-stat">
+                      📄 {Math.round(parseInt(file.size) / 1024)} KB
+                    </span>
+                  )}
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
+
+      {/* Tag Editor Modal */}
+      <Modal
+        isOpen={isTagModalOpen}
+        onClose={() => setIsTagModalOpen(false)}
+        title={`Edit Tags - ${tagEditFile?.name.replace('.hdc', '') ?? ''}`}
+        size="small"
+        footer={
+          <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end' }}>
+            <button className="btn btn-secondary" onClick={() => setIsTagModalOpen(false)}>
+              Cancel
+            </button>
+            <button className="btn btn-primary" onClick={handleSaveTags}>
+              Save Tags
+            </button>
+          </div>
+        }
+      >
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+          {/* Current tags */}
+          <div>
+            <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500 }}>Current Tags</label>
+            {editingTags.length === 0 ? (
+              <div style={{ color: 'var(--text-secondary)', fontStyle: 'italic' }}>No tags yet</div>
+            ) : (
+              <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                {editingTags.map(tag => (
+                  <span
+                    key={tag}
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '0.25rem',
+                      padding: '0.25rem 0.5rem',
+                      borderRadius: '12px',
+                      backgroundColor: 'var(--primary-color)',
+                      color: 'white',
+                      fontSize: '0.875rem',
+                    }}
+                  >
+                    {tag}
+                    <button
+                      onClick={() => removeTag(tag)}
+                      style={{
+                        border: 'none',
+                        background: 'transparent',
+                        color: 'white',
+                        cursor: 'pointer',
+                        padding: '0',
+                        fontSize: '1rem',
+                        lineHeight: 1,
+                      }}
+                    >
+                      ×
+                    </button>
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
+          
+          {/* Add new tag */}
+          <div>
+            <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500 }}>Add Tag</label>
+            <div style={{ display: 'flex', gap: '0.5rem' }}>
+              <input
+                type="text"
+                value={newTagInput}
+                onChange={(e) => setNewTagInput(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && addTag()}
+                placeholder="Enter tag name"
+                style={{
+                  flex: 1,
+                  padding: '0.5rem',
+                  borderRadius: '4px',
+                  border: '1px solid var(--color-border)',
+                }}
+              />
+              <button className="btn btn-secondary" onClick={addTag} disabled={!newTagInput.trim()}>
+                Add
+              </button>
+            </div>
+          </div>
+          
+          {/* Suggested tags from other files */}
+          {allTags.filter(t => !editingTags.includes(t)).length > 0 && (
+            <div>
+              <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500, color: 'var(--text-secondary)' }}>
+                Existing Tags
+              </label>
+              <div style={{ display: 'flex', gap: '0.25rem', flexWrap: 'wrap' }}>
+                {allTags.filter(t => !editingTags.includes(t)).map(tag => (
+                  <button
+                    key={tag}
+                    onClick={() => setEditingTags([...editingTags, tag])}
+                    style={{
+                      padding: '0.25rem 0.5rem',
+                      borderRadius: '12px',
+                      border: '1px dashed var(--color-border)',
+                      backgroundColor: 'transparent',
+                      color: 'var(--text-secondary)',
+                      cursor: 'pointer',
+                      fontSize: '0.75rem',
+                    }}
+                  >
+                    + {tag}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      </Modal>
+
+      {/* Share Modal */}
+      <Modal
+        isOpen={isShareModalOpen}
+        onClose={() => setIsShareModalOpen(false)}
+        title={`Share - ${shareFile?.name.replace('.hdc', '') ?? ''}`}
+        size="small"
+        footer={
+          <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end' }}>
+            <button className="btn btn-secondary" onClick={() => setIsShareModalOpen(false)}>
+              Done
+            </button>
+          </div>
+        }
+      >
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+          {/* Share form */}
+          <div>
+            <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500 }}>Share with</label>
+            <div style={{ display: 'flex', gap: '0.5rem' }}>
+              <input
+                type="email"
+                value={shareEmail}
+                onChange={(e) => setShareEmail(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && handleShare()}
+                placeholder="Enter email address"
+                style={{
+                  flex: 1,
+                  padding: '0.5rem',
+                  borderRadius: '4px',
+                  border: '1px solid var(--color-border)',
+                }}
+              />
+              <select
+                value={shareRole}
+                onChange={(e) => setShareRole(e.target.value as 'reader' | 'writer')}
+                style={{
+                  padding: '0.5rem',
+                  borderRadius: '4px',
+                  border: '1px solid var(--color-border)',
+                }}
+              >
+                <option value="reader">Viewer</option>
+                <option value="writer">Editor</option>
+              </select>
+              <button 
+                className="btn btn-primary" 
+                onClick={handleShare} 
+                disabled={!shareEmail.trim() || isSharing}
+              >
+                {isSharing ? '...' : 'Share'}
+              </button>
+            </div>
+          </div>
+          
+          {/* Email suggestions */}
+          {(() => {
+            const currentPermsEmails = new Set(permissions.map(p => p.emailAddress).filter(Boolean));
+            const suggestions = Array.from(knownEmails).filter(email => 
+              !currentPermsEmails.has(email) && 
+              email.toLowerCase().includes(shareEmail.toLowerCase())
+            );
+            if (suggestions.length === 0 || !shareEmail.trim()) return null;
+            return (
+              <div style={{ display: 'flex', gap: '0.25rem', flexWrap: 'wrap' }}>
+                <span style={{ color: 'var(--text-secondary)', fontSize: '0.875rem' }}>Suggestions:</span>
+                {suggestions.slice(0, 5).map(email => (
+                  <button
+                    key={email}
+                    onClick={() => setShareEmail(email)}
+                    style={{
+                      padding: '0.25rem 0.5rem',
+                      borderRadius: '12px',
+                      border: '1px dashed var(--color-border)',
+                      backgroundColor: 'transparent',
+                      color: 'var(--text-primary)',
+                      cursor: 'pointer',
+                      fontSize: '0.75rem',
+                    }}
+                  >
+                    {email}
+                  </button>
+                ))}
+              </div>
+            );
+          })()}
+          
+          {/* Notify checkbox */}
+          <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
+            <input
+              type="checkbox"
+              checked={shareNotify}
+              onChange={(e) => setShareNotify(e.target.checked)}
+              style={{ width: '16px', height: '16px' }}
+            />
+            <span>Notify people via email</span>
+          </label>
+          
+          {/* Error/Success messages */}
+          {shareError && (
+            <div style={{ color: 'var(--color-error)', padding: '0.5rem', backgroundColor: 'rgba(239, 68, 68, 0.1)', borderRadius: '4px' }}>
+              {shareError}
+            </div>
+          )}
+          {shareSuccess && (
+            <div style={{ color: 'var(--color-success, #22c55e)', padding: '0.5rem', backgroundColor: 'rgba(34, 197, 94, 0.1)', borderRadius: '4px' }}>
+              {shareSuccess}
+            </div>
+          )}
+          
+          {/* Current permissions */}
+          <div>
+            <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500 }}>People with access</label>
+            {loadingPermissions ? (
+              <div style={{ color: 'var(--text-secondary)', fontStyle: 'italic' }}>Loading...</div>
+            ) : permissions.length === 0 ? (
+              <div style={{ color: 'var(--text-secondary)', fontStyle: 'italic' }}>Only you have access</div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                {permissions.map(perm => (
+                  <div
+                    key={perm.id}
+                    style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      padding: '0.5rem',
+                      backgroundColor: 'var(--surface-light)',
+                      borderRadius: '4px',
+                    }}
+                  >
+                    <div>
+                      <div style={{ fontWeight: 500 }}>{perm.displayName ?? perm.emailAddress ?? perm.type}</div>
+                      <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+                        {perm.role === 'owner' ? 'Owner' : perm.role === 'writer' ? 'Editor' : 'Viewer'}
+                      </div>
+                    </div>
+                    {perm.role !== 'owner' && perm.type === 'user' && (
+                      <button
+                        onClick={() => handleRemovePermission(perm.id)}
+                        style={{
+                          border: 'none',
+                          background: 'transparent',
+                          cursor: 'pointer',
+                          fontSize: '1.25rem',
+                          color: 'var(--text-secondary)',
+                          padding: '0.25rem',
+                        }}
+                        title="Remove access"
+                      >
+                        ×
+                      </button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      </Modal>
 
       <Modal
         isOpen={isModalOpen}

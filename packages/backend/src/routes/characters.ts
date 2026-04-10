@@ -25,7 +25,7 @@ charactersRouter.get('/', async (req, res, next) => {
 
     const response = await drive.files.list({
       q: "fileExtension='hdc' and trashed=false",
-      fields: 'files(id, name, modifiedTime, size, webViewLink)',
+      fields: 'files(id, name, modifiedTime, size, webViewLink, ownedByMe, description)',
       orderBy: 'modifiedTime desc',
       pageSize: 100,
     });
@@ -41,6 +41,8 @@ charactersRouter.get('/', async (req, res, next) => {
         modifiedTime: f.modifiedTime ?? '',
         size: f.size ?? undefined,
         webViewLink: f.webViewLink ?? undefined,
+        ownedByMe: f.ownedByMe ?? false,
+        description: f.description ?? undefined,
       })),
     };
 
@@ -227,6 +229,122 @@ charactersRouter.delete('/:fileId', async (req, res, next) => {
       requestBody: {
         trashed: true,
       },
+    });
+
+    res.json({ success: true });
+  } catch (error) {
+    next(error);
+  }
+});
+
+/**
+ * PATCH /api/characters/:fileId/tags
+ * Update tags for a character file (stored in description field)
+ */
+charactersRouter.patch('/:fileId/tags', async (req, res, next) => {
+  try {
+    const { fileId } = req.params;
+    const { tags } = req.body as { tags: string[] };
+    const oauth2Client = getAuthenticatedClient(req);
+    const drive = google.drive({ version: 'v3', auth: oauth2Client });
+
+    // Store tags as JSON in the description field
+    const description = JSON.stringify({ tags: tags ?? [] });
+
+    await drive.files.update({
+      fileId: fileId ?? '',
+      requestBody: {
+        description,
+      },
+      fields: 'id, description',
+    });
+
+    res.json({ success: true, data: { tags } });
+  } catch (error) {
+    next(error);
+  }
+});
+
+/**
+ * POST /api/characters/:fileId/share
+ * Share a character file with another user via Google Drive
+ */
+charactersRouter.post('/:fileId/share', async (req, res, next) => {
+  try {
+    const { fileId } = req.params;
+    const { email, role = 'reader', sendNotification = true } = req.body as {
+      email: string;
+      role?: 'reader' | 'writer' | 'commenter';
+      sendNotification?: boolean;
+    };
+
+    if (!email || typeof email !== 'string') {
+      res.status(400).json({ success: false, error: 'Email address is required' });
+      return;
+    }
+
+    const oauth2Client = getAuthenticatedClient(req);
+    const drive = google.drive({ version: 'v3', auth: oauth2Client });
+
+    // Create permission for the user
+    await drive.permissions.create({
+      fileId: fileId ?? '',
+      sendNotificationEmail: sendNotification,
+      requestBody: {
+        type: 'user',
+        role: role,
+        emailAddress: email,
+      },
+    });
+
+    res.json({ success: true, data: { email, role } });
+  } catch (error) {
+    next(error);
+  }
+});
+
+/**
+ * GET /api/characters/:fileId/permissions
+ * List all permissions for a character file
+ */
+charactersRouter.get('/:fileId/permissions', async (req, res, next) => {
+  try {
+    const { fileId } = req.params;
+    const oauth2Client = getAuthenticatedClient(req);
+    const drive = google.drive({ version: 'v3', auth: oauth2Client });
+
+    const response = await drive.permissions.list({
+      fileId: fileId ?? '',
+      fields: 'permissions(id, type, role, emailAddress, displayName)',
+    });
+
+    const permissions = (response.data.permissions ?? []).map(p => ({
+      id: p.id ?? '',
+      type: p.type ?? '',
+      role: p.role ?? '',
+      emailAddress: p.emailAddress ?? undefined,
+      displayName: p.displayName ?? undefined,
+    }));
+
+    res.json({ success: true, data: { permissions } });
+  } catch (error) {
+    next(error);
+  }
+});
+
+/**
+ * DELETE /api/characters/:fileId/permissions/:permissionId
+ * Remove a permission from a character file
+ */
+charactersRouter.delete('/:fileId/permissions/:permissionId', async (req, res, next) => {
+  try {
+    const { fileId, permissionId } = req.params;
+    const oauth2Client = getAuthenticatedClient(req);
+    const drive = google.drive({ version: 'v3', auth: oauth2Client });
+
+    await drive.permissions.delete({
+      fileId: fileId ?? '',
+      permissionId: permissionId ?? '',
     });
 
     res.json({ success: true });

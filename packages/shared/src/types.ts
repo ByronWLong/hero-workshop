@@ -431,6 +431,8 @@ export interface DriveFile {
   size?: string;
   parents?: string[];
   webViewLink?: string;
+  ownedByMe?: boolean;
+  description?: string;  // Used to store tags as JSON
 }
 
 export interface DriveFileList {
