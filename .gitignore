@@ -1,5 +1,7 @@
 # Dependencies
 node_modules/
+package-lock.json
+packages/shared/tsconfig.tsbuildinfo
 
 # Build outputs
 dist/
@@ -43,3 +45,4 @@ samples/
 # Java
 java
 java/
+
