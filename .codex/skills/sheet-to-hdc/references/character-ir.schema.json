@@ -1,0 +1,112 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://hero-workshop.local/schema/character-ir.json",
+  "title": "Sheet to HDC Character IR",
+  "type": "object",
+  "additionalProperties": true,
+  "properties": {
+    "version": { "type": "string", "default": "6.0" },
+    "source": { "type": "string" },
+    "warnings": { "type": "array", "items": { "type": "string" } },
+    "basicConfiguration": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "basePoints": { "type": "number" },
+        "disadPoints": { "type": "number" },
+        "experience": { "type": "number" },
+        "exportTemplate": { "type": "string" }
+      }
+    },
+    "characterInfo": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "characterName": { "type": "string" },
+        "alternateIdentities": { "type": "string" },
+        "playerName": { "type": "string" },
+        "height": { "type": "number", "description": "Centimeters unless heightUnit is in." },
+        "heightUnit": { "enum": ["cm", "in"] },
+        "weight": { "type": "number", "description": "Kilograms unless weightUnit is lb." },
+        "weightUnit": { "enum": ["kg", "lb"] },
+        "hairColor": { "type": "string" },
+        "eyeColor": { "type": "string" },
+        "campaignName": { "type": "string" },
+        "genre": { "type": "string" },
+        "gm": { "type": "string" },
+        "background": { "type": "string" },
+        "personality": { "type": "string" },
+        "quote": { "type": "string" },
+        "tactics": { "type": "string" },
+        "campaignUse": { "type": "string" },
+        "appearance": { "type": "string" },
+        "notes1": { "type": "string" },
+        "notes2": { "type": "string" },
+        "notes3": { "type": "string" },
+        "notes4": { "type": "string" },
+        "notes5": { "type": "string" }
+      }
+    },
+    "characteristics": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": { "type": "number" }
+        },
+        {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["type"],
+            "additionalProperties": true,
+            "properties": {
+              "type": { "type": "string" },
+              "value": { "type": "number" },
+              "totalValue": { "type": "number" },
+              "levels": { "type": "number" },
+              "notes": { "type": "string" },
+              "sourceRefs": { "type": "array", "items": { "type": "string" } }
+            }
+          }
+        }
+      ]
+    },
+    "skills": { "$ref": "#/$defs/items" },
+    "perks": { "$ref": "#/$defs/items" },
+    "talents": { "$ref": "#/$defs/items" },
+    "martialArts": { "$ref": "#/$defs/items" },
+    "powers": { "$ref": "#/$defs/items" },
+    "disadvantages": { "$ref": "#/$defs/items" },
+    "complications": { "$ref": "#/$defs/items" },
+    "equipment": { "$ref": "#/$defs/items" }
+  },
+  "$defs": {
+    "items": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": true,
+        "properties": {
+          "id": { "type": "string" },
+          "xmlId": { "type": "string" },
+          "name": { "type": "string" },
+          "alias": { "type": "string" },
+          "input": { "type": "string" },
+          "position": { "type": "number" },
+          "levels": { "type": "number" },
+          "baseCost": { "type": "number" },
+          "lvlCost": { "type": "number" },
+          "points": { "type": "number" },
+          "roll": { "type": "number" },
+          "option": { "type": "string" },
+          "optionAlias": { "type": "string" },
+          "parentId": { "type": "string" },
+          "notes": { "type": "string" },
+          "sourceRefs": { "type": "array", "items": { "type": "string" } },
+          "modifiers": { "$ref": "#/$defs/items" },
+          "adders": { "$ref": "#/$defs/items" }
+        }
+      }
+    }
+  }
+}
