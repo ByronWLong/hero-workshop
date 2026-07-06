@@ -4,6 +4,24 @@ import { readFileSync, writeFileSync } from 'node:fs';
 
 const [, , inputPath, outputPath, gridPath] = process.argv;
 
+const COMBAT_FOCUS_GROUPS = new Map([
+  ['sword', ['sword', 'swords', 'greatsword', 'broadsword', 'longsword', 'shortsword', 'blade', 'blades', 'saber', 'sabre', 'rapier', 'katana']],
+  ['knife', ['knife', 'knives', 'dagger', 'daggers', 'dirk', 'dirks', 'stiletto', 'stilettos']],
+  ['axe', ['axe', 'axes', 'ax', 'hatchet', 'hatchets']],
+  ['spear', ['spear', 'spears', 'pike', 'pikes', 'lance', 'lances', 'javelin', 'javelins']],
+  ['staff', ['staff', 'staves', 'quarterstaff']],
+  ['club', ['club', 'clubs', 'mace', 'maces', 'hammer', 'hammers', 'maul', 'mauls', 'flail', 'flails']],
+  ['bow', ['bow', 'bows', 'longbow', 'shortbow']],
+  ['crossbow', ['crossbow', 'crossbows']],
+  ['whip', ['whip', 'whips']],
+  ['shield', ['shield', 'shields', 'buckler', 'bucklers']],
+  ['claw', ['claw', 'claws', 'talon', 'talons']],
+  ['bite', ['bite', 'bites', 'fang', 'fangs']],
+  ['grab', ['grab', 'grabs', 'grapple', 'grapples', 'hold', 'holds']],
+  ['tendril', ['tendril', 'tendrils', 'tentacle', 'tentacles']],
+  ['strike', ['strike', 'strikes', 'punch', 'punches', 'kick', 'kicks']],
+]);
+
 if (!inputPath || !outputPath) {
   console.error('Usage: node refine-ir-for-hdc.mjs <input-ir.json> <output-ir.json> [sheet-grid.json]');
   process.exit(2);
@@ -46,9 +64,10 @@ for (const item of asArray(refined.powers)) {
   }
 }
 refined.powers = applyPowerGroupAdjustments(applyCampaignFreeAdjustments(groupPowersForDisplay(remainingPowers)));
-refined.equipment = applyCampaignFreeAdjustments(refineEquipmentItems(asArray(refined.equipment)));
+refined.equipment = applyCampaignFreeAdjustments(refineEquipmentItems(recoverEquipmentFromGrid(asArray(refined.equipment), grid)));
 refined.perks = applyCampaignFreeAdjustments(refined.perks);
 refined.talents = applyCampaignFreeAdjustments(refined.talents);
+refined.skills = bindCombatSkillLevels(refined.skills, refined.powers, refined.equipment, refined.martialArts);
 refined.perks = renumberPositions(refined.perks);
 refined.talents = renumberPositions(refined.talents);
 refined.skills = renumberPositions(refined.skills);
@@ -369,7 +388,33 @@ function normalizedSkillInput(item) {
   return name;
 }
 
+function isListItem(item) {
+  return item?.tag === 'LIST' || item?.isGroup || String(item?.xmlId ?? '').trim().toUpperCase() === 'LIST';
+}
+
+function sanitizeExistingLists(items) {
+  const seenListKeys = new Set();
+  return items
+    .map((item, index) => ({ ...item, position: numberValue(item.position) ?? index }))
+    .filter((item) => {
+      if (!isListItem(item)) {
+        return true;
+      }
+      const key = `${item.id ?? ''}::${item.alias ?? ''}`;
+      if (seenListKeys.has(key)) {
+        return false;
+      }
+      seenListKeys.add(key);
+      return true;
+    })
+    .sort((left, right) => left.position - right.position);
+}
+
 function groupPowersForDisplay(items) {
+  if (items.some(isListItem)) {
+    return sanitizeExistingLists(items);
+  }
+
   const powers = items
     .map((item, index) => ({ ...item, position: numberValue(item.position) ?? index }))
     .sort((left, right) => left.position - right.position);
@@ -448,6 +493,25 @@ function refineEquipmentItems(items) {
     return items;
   }
 
+  if (items.some((item) => isListItem(item) && item.alias === 'Equipment')) {
+    const scaffoldItems = items.filter((item) => isListItem(item) || item.parentId);
+    const rawItems = items.filter((item) => !isListItem(item) && !item.parentId);
+    const sanitized = sanitizeExistingLists(scaffoldItems);
+    const equipmentList = sanitized.find((item) => isListItem(item) && item.alias === 'Equipment');
+    const parentId = equipmentList?.id ?? 'equipment-group-main';
+    const existingNames = new Set(sanitized.map((item) => lower(item.name ?? item.alias)));
+    const appended = [...sanitized];
+
+    for (const item of rawItems) {
+      if (existingNames.has(lower(item.name ?? item.alias))) {
+        continue;
+      }
+      appended.push(refineEquipmentItem(item, appended.length, parentId));
+      existingNames.add(lower(item.name ?? item.alias));
+    }
+    return appended;
+  }
+
   const listId = 'equipment-group-main';
   const refinedItems = [{
     id: listId,
@@ -465,6 +529,72 @@ function refineEquipmentItems(items) {
     refinedItems.push(refineEquipmentItem(item, index, listId));
   }
   return refinedItems;
+}
+
+function recoverEquipmentFromGrid(items, grid) {
+  if (!grid) {
+    return items;
+  }
+
+  const gearSheet = asArray(grid.sheets).find((sheet) => /^Gear$/i.test(sheet.name));
+  if (!gearSheet) {
+    return items;
+  }
+
+  const existingNames = new Set(items.map((item) => lower(item.name ?? item.alias)));
+  const rows = new Map();
+
+  for (const cell of asArray(gearSheet.cells)) {
+    const row = rows.get(cell.row) ?? {};
+    row[cell.columnName] = String(cell.value ?? '').trim();
+    rows.set(cell.row, row);
+  }
+
+  const orderedRows = [...rows.keys()].sort((left, right) => left - right);
+  const recovered = [];
+
+  for (let index = 0; index < orderedRows.length; index += 1) {
+    const rowNumber = orderedRows[index];
+    const row = rows.get(rowNumber) ?? {};
+    const itemName = String(row.A ?? '').trim();
+    const slot = String(row.E ?? '').trim();
+    if (!itemName || !/weapon\s*#\d+/i.test(slot)) {
+      continue;
+    }
+    if (existingNames.has(lower(itemName))) {
+      continue;
+    }
+
+    const detailLines = [];
+    let endRow = rowNumber;
+    for (let nextIndex = index + 1; nextIndex < orderedRows.length; nextIndex += 1) {
+      const nextRowNumber = orderedRows[nextIndex];
+      const nextRow = rows.get(nextRowNumber) ?? {};
+      if (String(nextRow.A ?? '').trim()) {
+        break;
+      }
+      const detail = String(nextRow.B ?? '').trim();
+      if (detail) {
+        detailLines.push(detail);
+        endRow = nextRowNumber;
+      }
+    }
+
+    if (detailLines.length === 0) {
+      continue;
+    }
+
+    recovered.push({
+      name: itemName,
+      alias: itemName,
+      carried: true,
+      notes: `Imported gear: ${detailLines.join(' | ')} | Slot: ${slot}`,
+      sourceRefs: [`Gear!A${rowNumber}:E${endRow}`],
+    });
+    existingNames.add(lower(itemName));
+  }
+
+  return [...items, ...recovered];
 }
 
 function refineEquipmentItem(item, index, parentId) {
@@ -500,6 +630,8 @@ function refineEquipmentItem(item, index, parentId) {
     });
   }
 
+  const affectsPrimary = children.some((child) => isCharacteristicChild(child));
+
   return {
     ...item,
     id: item.id ?? `equipment-${index + 1}`,
@@ -508,6 +640,11 @@ function refineEquipmentItem(item, index, parentId) {
     isContainer: true,
     baseCost: 0,
     levels: 0,
+    price: item.price ?? 0,
+    weight: item.weight ?? 0,
+    carried: item.carried ?? true,
+    affectsPrimary,
+    affectsTotal: true,
     subPowers: children.map((child, childIndex) => ({
       position: child.position ?? childIndex,
       ...child,
@@ -520,6 +657,16 @@ function gearEffectText(item) {
     .replace(/^Imported gear:\s*/i, '')
     .replace(/\|\s*Source:.*$/i, '')
     .trim();
+}
+
+function isCharacteristicChild(child) {
+  const xmlId = String(child?.xmlId ?? child?.type ?? child?.tag ?? '').trim().toUpperCase();
+  return new Set([
+    'STR', 'DEX', 'CON', 'INT', 'EGO', 'PRE',
+    'OCV', 'DCV', 'OMCV', 'DMCV',
+    'SPD', 'PD', 'ED', 'REC', 'END', 'BODY', 'STUN',
+    'RUNNING', 'SWIMMING', 'LEAPING',
+  ]).has(xmlId);
 }
 
 function parseCharacteristicChildren(text) {
@@ -668,7 +815,195 @@ function parseWeaponChildren(item, text) {
       }] : undefined,
     });
   }
+  const hka = text.match(/\b(\d+)D6HKA(?:\s*\[(\d+)D6(?:\+(\d+))?\])?/i);
+  if (hka) {
+    children.push({
+      id: `${slug(item.name)}-hka`,
+      xmlId: 'HKA',
+      name: item.name,
+      alias: 'Hand-To-Hand Killing Attack',
+      input: 'PD',
+      levels: Number(hka[1]),
+      baseCost: 0,
+      useStandardEffect: false,
+      affectsPrimary: false,
+      affectsTotal: true,
+      adders: hka[3] ? [{
+        id: `${slug(item.name)}-plus-one-pip`,
+        xmlId: 'PLUSONEPIP',
+        alias: '+1 pip',
+        baseCost: Number(hka[3]) * 5,
+      }] : undefined,
+    });
+  }
   return children;
+}
+
+function bindCombatSkillLevels(skills, powers, equipment, martialArts) {
+  const attackTargets = collectCombatSkillTargets(powers, equipment, martialArts);
+  return asArray(skills).map((skill) => bindCombatSkillLevel(skill, attackTargets));
+}
+
+function collectCombatSkillTargets(powers, equipment, martialArts) {
+  const candidates = [];
+
+  function pushCandidate(item, source = '', parentName = '') {
+    if (!item || item.tag === 'LIST') {
+      return;
+    }
+    const name = String(item.name ?? item.alias ?? '').trim();
+    if (!name) {
+      return;
+    }
+    const haystack = lower(`${item.name ?? ''} ${item.alias ?? ''} ${item.notes ?? ''} ${source} ${parentName}`);
+    candidates.push({
+      name,
+      haystack,
+      source,
+      isContainer: item.isContainer === true || String(item.xmlId ?? '').toUpperCase() === 'COMPOUNDPOWER',
+      focuses: extractCombatFocuses(haystack),
+    });
+    for (const child of asArray(item.subPowers)) {
+      pushCandidate(child, source, `${parentName} ${name}`.trim());
+    }
+  }
+
+  for (const item of asArray(powers)) {
+    pushCandidate(item, 'power');
+  }
+  for (const item of asArray(equipment)) {
+    pushCandidate(item, 'equipment');
+  }
+  for (const item of asArray(martialArts)) {
+    pushCandidate(item, 'martial');
+  }
+
+  return dedupeChildren(candidates, (candidate) => lower(candidate.name));
+}
+
+function bindCombatSkillLevel(skill, attackTargets) {
+  if (String(skill?.xmlId ?? '').toUpperCase() !== 'COMBAT_LEVELS') {
+    return skill;
+  }
+  if (!['SINGLE', 'TIGHT', 'BROAD'].includes(String(skill.optionId ?? '').toUpperCase())) {
+    return skill;
+  }
+
+  const targetName = inferCombatSkillTargetName(skill, attackTargets);
+  if (!targetName) {
+    return skill;
+  }
+
+  const adders = [...asArray(skill.adders)];
+  const alreadyLinked = adders.some((adder) =>
+    String(adder.xmlId ?? '').toUpperCase() === 'ADDER'
+    && lower(adder.alias ?? adder.name) === lower(targetName),
+  );
+  if (!alreadyLinked) {
+    adders.push({
+      id: `${slug(skill.name ?? skill.alias ?? 'csl')}-link`,
+      xmlId: 'ADDER',
+      alias: targetName,
+      baseCost: 0,
+      selected: true,
+      includeInBase: false,
+      displayInString: false,
+      required: false,
+      private: false,
+      showAlias: false,
+    });
+  }
+
+  const existingOptionAlias = String(skill.optionAlias ?? '');
+  return {
+    ...skill,
+    optionAlias: isGenericCombatOptionAlias(existingOptionAlias) ? `with ${targetName}` : existingOptionAlias,
+    adders,
+  };
+}
+
+function inferCombatSkillTargetName(skill, attackTargets) {
+  const text = lower(`${skill.name ?? ''} ${skill.alias ?? ''} ${skill.input ?? ''} ${skill.notes ?? ''}`);
+  const focuses = extractCombatFocuses(text);
+  if (focuses.length === 0 || focuses.length > 1) {
+    return undefined;
+  }
+
+  const matches = attackTargets
+    .map((candidate) => ({
+      ...candidate,
+      score: scoreCombatSkillTarget(candidate, focuses[0]),
+    }))
+    .filter((candidate) => candidate.score > 0)
+    .sort((left, right) => right.score - left.score || left.name.localeCompare(right.name));
+
+  if (matches.length === 0) {
+    return undefined;
+  }
+
+  const [best, secondBest] = matches;
+  if (best.score < 8) {
+    return undefined;
+  }
+  if (secondBest && secondBest.score >= best.score - 1) {
+    return undefined;
+  }
+
+  return best.name;
+}
+
+function extractCombatFocuses(text) {
+  const normalized = lower(text)
+    .replace(/\bw\.\s*p\.\b/g, 'weapon proficiency')
+    .replace(/\bw\//g, 'with ')
+    .replace(/[^a-z0-9]+/g, ' ');
+  const focuses = [];
+  for (const [focus, terms] of COMBAT_FOCUS_GROUPS.entries()) {
+    if (terms.some((term) => normalized.match(new RegExp(`\\b${term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i')))) {
+      focuses.push(focus);
+    }
+  }
+  return focuses;
+}
+
+function scoreCombatSkillTarget(candidate, focus) {
+  const terms = COMBAT_FOCUS_GROUPS.get(focus) ?? [focus];
+  const name = lower(candidate.name);
+  let score = 0;
+
+  if (candidate.focuses.includes(focus)) {
+    score += 6;
+  }
+
+  for (const term of terms) {
+    const exactWord = new RegExp(`\\b${term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i');
+    if (name.match(exactWord)) {
+      score += 6;
+    } else if (candidate.haystack.match(exactWord)) {
+      score += 2;
+    }
+  }
+
+  if (isWeaponFocus(focus) && candidate.source === 'equipment') {
+    score += 3;
+  }
+  if (['grab', 'tendril', 'claw', 'bite', 'strike'].includes(focus) && candidate.source === 'martial') {
+    score += 3;
+  }
+  if (candidate.isContainer) {
+    score += 1;
+  }
+
+  return score;
+}
+
+function isWeaponFocus(focus) {
+  return ['sword', 'knife', 'axe', 'spear', 'staff', 'club', 'bow', 'crossbow', 'whip', 'shield'].includes(focus);
+}
+
+function isGenericCombatOptionAlias(value) {
+  const normalized = lower(value);
+  return !normalized || normalized === 'with any single attack' || normalized === 'combat' || normalized === 'with any attack';
 }
 
 function hasComplexResidualEffect(name, text) {
@@ -1216,12 +1551,12 @@ function decoratePromotedPower(item) {
     modifiers.push({
       id: `${slug(item.name ?? item.alias ?? 'power')}-skill-roll`,
       xmlId: 'REQUIRESASKILLROLL',
-      alias: 'Requires A Skill Roll',
+      alias: 'Requires A Roll',
       baseCost: -0.5,
       option: 'SKILL',
       optionId: 'SKILL',
-      optionAlias: 'Skill roll',
-      input: 'Earth Magic Casting',
+      optionAlias: 'Earth Magic Casting',
+      comments: '',
       isLimitation: true,
     });
   }

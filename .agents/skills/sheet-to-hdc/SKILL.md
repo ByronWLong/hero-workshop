@@ -1,6 +1,6 @@
 ---
 name: sheet-to-hdc
-description: Construct and iterate Hero Designer-compatible .hdc files from arbitrary spreadsheet, cell-grid, or Hero Designer HTML export evidence for HERO System characters. Use when Codex needs to semantically analyze Excel/CSV/sheet data, infer HERO System characteristics, skills, powers, complications, equipment, modifiers, adders, and point costs, produce or validate a desktop Hero Designer .hdc XML file, or compare a regenerated Hero Designer HTML export against the source IR to tune missing items.
+description: Construct and iterate Hero Designer-compatible .hdc files from arbitrary spreadsheet, cell-grid, or Hero Designer HTML export evidence for HERO System characters. Use when an agent needs to semantically analyze Excel/CSV/sheet data, infer HERO System characteristics, skills, powers, complications, equipment, modifiers, adders, and point costs, produce or validate a desktop Hero Designer .hdc XML file, or compare a regenerated Hero Designer HTML export against the source IR to tune missing items.
 ---
 
 # Sheet to HDC
@@ -36,7 +36,7 @@ Convert an arbitrary HERO System character sheet into a compatible Hero Designer
 
 ## Conversion Commands
 
-From the repo root:
+From the workspace root:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File .codex\skills\sheet-to-hdc\scripts\extract-workbook-grid.ps1 -InputPath ".\character.xlsx" -OutputPath ".\sheet-grid.json"
@@ -45,6 +45,8 @@ node .codex\skills\sheet-to-hdc\scripts\build-hdc-from-ir.mjs .\character.refine
 node .codex\skills\sheet-to-hdc\scripts\validate-hdc.mjs .\character.hdc
 node .codex\skills\sheet-to-hdc\scripts\compare-hero-designer-export.mjs .\character.refined.ir.json .\character.html .\hd-export-compare.json
 ```
+
+If the runtime cannot execute PowerShell or Node directly, invoke equivalent local commands that run the same scripts in the same order.
 
 ## Semantic Rules
 
@@ -64,4 +66,4 @@ node .codex\skills\sheet-to-hdc\scripts\compare-hero-designer-export.mjs .\chara
 
 ## Output Standard
 
-Return the generated `.hdc`, the IR file if useful for auditability, and validation warnings. If a sheet field cannot be mapped with confidence, make the generated file loadable and document the ambiguity rather than fabricating exact HERO mechanics.
+Return the generated `.hdc`, the IR file if useful for auditability, and validation warnings. If a sheet field cannot be mapped with confidence, make the generated file loadable and document the ambiguity rather than fabricating exact HERO mechanics. Prefer instructions and outputs that are portable across agent runtimes rather than assuming a Codex-specific interface.

@@ -10,7 +10,7 @@ if (!inputPath) {
   process.exit(2);
 }
 
-const xml = readFileSync(inputPath, 'utf8');
+const xml = readTextFile(inputPath);
 const parser = new XMLParser({
   ignoreAttributes: false,
   attributeNamePrefix: '@_',
@@ -108,6 +108,25 @@ if (!root) {
 
 if (errors.length > 0) {
   process.exit(1);
+}
+
+function readTextFile(path) {
+  const buffer = readFileSync(path);
+  if (buffer.length >= 2) {
+    if (buffer[0] === 0xff && buffer[1] === 0xfe) {
+      return buffer.toString('utf16le').replace(/^\uFEFF/, '');
+    }
+    if (buffer[0] === 0xfe && buffer[1] === 0xff) {
+      return swap16(buffer.subarray(2)).toString('utf16le').replace(/^\uFEFF/, '');
+    }
+  }
+  return buffer.toString('utf8').replace(/^\uFEFF/, '');
+}
+
+function swap16(buffer) {
+  const clone = Buffer.from(buffer);
+  clone.swap16();
+  return clone;
 }
 
 function asArray(value) {

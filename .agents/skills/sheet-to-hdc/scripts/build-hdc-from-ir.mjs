@@ -215,6 +215,46 @@ const KNOWN_TALENT_XML_IDS = new Set([
   'UNIVERSAL_TRANSLATOR',
 ]);
 
+const MARTIAL_MANEUVER_DEFAULTS = new Map([
+  ['Block', { phase: '1/2', ocv: '+0', dcv: '+0', dc: 0, effect: 'Block, Abort', baseCost: 4, addStr: false, useWeapon: false }],
+  ['Disarm', { phase: '1/2', ocv: '-2', dcv: '+0', dc: 0, effect: 'Disarm, STR vs STR', baseCost: 4, addStr: true, useWeapon: false }],
+  ['Dodge', { phase: '1/2', ocv: '--', dcv: '+3', dc: 0, effect: 'Dodge All Attacks, Abort', baseCost: 4, addStr: false, useWeapon: false }],
+  ['Escape', { phase: '1/2', ocv: '+0', dcv: '+0', dc: 0, effect: '+15 STR vs. Grabs', baseCost: 4, addStr: true, useWeapon: false }],
+  ['Fast Strike', { phase: '1/2', ocv: '+2', dcv: '+0', dc: 2, effect: '[NORMALDC] Strike', baseCost: 4, addStr: true, useWeapon: true, weaponEffect: 'Weapon [WEAPONDC] Strike' }],
+  ['Flying Dodge', { phase: '1/2', ocv: '--', dcv: '+4', dc: 0, effect: 'Dodge All Attacks, Abort; FMove', baseCost: 5, addStr: false, useWeapon: false }],
+  ['Flying Grab', { phase: '1/2', ocv: '-2', dcv: '-1', dc: 0, effect: 'Grab Two Limbs, [STRDC] for holding on; FMove', baseCost: 4, addStr: true, useWeapon: false }],
+  ['Grab', { phase: '1/2', ocv: '-1', dcv: '-2', dc: 0, effect: 'Grab Two Limbs, [STRDC] for holding on', baseCost: 3, addStr: true, useWeapon: false }],
+  ['Kick', { phase: '1/2', ocv: '-2', dcv: '+1', dc: 4, effect: '[NORMALDC] Strike', baseCost: 5, addStr: true, useWeapon: true, weaponEffect: 'Weapon [WEAPONDC] Strike' }],
+  ['Killing Strike', { phase: '1/2', ocv: '-2', dcv: '+0', dc: 0, effect: '[NORMALDC] HKA', baseCost: 4, addStr: true, useWeapon: true, weaponEffect: 'Weapon [WEAPONDC] HKA' }],
+  ['Legsweep', { phase: '1/2', ocv: '+2', dcv: '-1', dc: 1, effect: '[NORMALDC] Strike, Target Falls', baseCost: 3, addStr: true, useWeapon: true, weaponEffect: 'Weapon [WEAPONDC] Strike, Target Falls' }],
+  ['Martial Throw', { phase: '1/2', ocv: '+0', dcv: '+2', dc: 2, effect: '[NORMALDC] Strike, Target Falls', baseCost: 3, addStr: true, useWeapon: true, weaponEffect: 'Weapon [WEAPONDC] Strike, Target Falls' }],
+  ['Nerve Strike', { phase: '1/2', ocv: '-1', dcv: '+1', dc: 2, effect: '2d6 NND', baseCost: 4, addStr: false, useWeapon: false }],
+  ['Offensive Strike', { phase: '1/2', ocv: '-2', dcv: '+1', dc: 4, effect: '[NORMALDC] Strike', baseCost: 5, addStr: true, useWeapon: true, weaponEffect: 'Weapon [WEAPONDC] Strike' }],
+  ['Passing Strike', { phase: '1/2', ocv: '+1', dcv: '+0', dc: 2, effect: '[NORMALDC] Strike, FMove', baseCost: 5, addStr: true, useWeapon: true, weaponEffect: 'Weapon [WEAPONDC] Strike, FMove' }],
+  ['Sacrifice Throw', { phase: '1/2', ocv: '+2', dcv: '+1', dc: 0, effect: '[NORMALDC] Strike, Both Fall', baseCost: 3, addStr: true, useWeapon: false }],
+  ['Strike', { phase: '1/2', ocv: '+0', dcv: '+2', dc: 2, effect: '[NORMALDC] Strike', baseCost: 4, addStr: true, useWeapon: true, weaponEffect: 'Weapon [WEAPONDC] Strike' }],
+]);
+
+const MARTIAL_MANEUVER_ALIASES = new Map([
+  ['block', 'Block'],
+  ['disarm', 'Disarm'],
+  ['dodge', 'Dodge'],
+  ['escape', 'Escape'],
+  ['fast strike', 'Fast Strike'],
+  ['flying dodge', 'Flying Dodge'],
+  ['flying grab', 'Flying Grab'],
+  ['grab', 'Grab'],
+  ['kick', 'Kick'],
+  ['killing strike', 'Killing Strike'],
+  ['legsweep', 'Legsweep'],
+  ['martial throw', 'Martial Throw'],
+  ['nerve strike', 'Nerve Strike'],
+  ['offensive strike', 'Offensive Strike'],
+  ['passing strike', 'Passing Strike'],
+  ['sacrifice throw', 'Sacrifice Throw'],
+  ['strike', 'Strike'],
+]);
+
 function esc(value) {
   return String(value)
     .replaceAll('&', '&amp;')
@@ -229,8 +269,9 @@ function isPresent(value) {
 }
 
 function attrString(attrs) {
+  const allowEmpty = new Set(['NAME', 'INPUT', 'COMMENTS']);
   return Object.entries(attrs)
-    .filter(([key, value]) => value === '' ? key === 'NAME' : isPresent(value))
+    .filter(([key, value]) => value === '' ? allowEmpty.has(key) : isPresent(value))
     .map(([key, value]) => `${key}="${esc(value)}"`)
     .join(' ');
 }
@@ -291,6 +332,8 @@ function numberValue(value, fallback = 0) {
   return Number.isFinite(number) ? number : fallback;
 }
 
+let fallbackGeneratedIdCounter = 0;
+
 function normalizeGenre(value, template) {
   const text = String(value ?? '').trim();
   if (!text) {
@@ -303,9 +346,34 @@ function normalizeGenre(value, template) {
 }
 
 function generatedId(prefix, index) {
-  const safePrefix = prefix.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'item';
-  return `${safePrefix}-${index + 1}`;
+  fallbackGeneratedIdCounter += 1;
+  return String(fallbackGeneratedIdCounter);
 }
+
+function maxNumericIdInNode(node) {
+  let max = 0;
+
+  function visit(value) {
+    if (Array.isArray(value)) {
+      value.forEach(visit);
+      return;
+    }
+    if (!value || typeof value !== 'object') {
+      return;
+    }
+    if (isPresent(value.id)) {
+      max = Math.max(max, numberValue(value.id, 0));
+    }
+    for (const child of Object.values(value)) {
+      visit(child);
+    }
+  }
+
+  visit(node);
+  return max;
+}
+
+fallbackGeneratedIdCounter = Math.max(Date.now(), maxNumericIdInNode(ir));
 
 function toXmlId(value, fallback = 'GENERIC') {
   if (!isPresent(value)) {
@@ -367,6 +435,48 @@ function inferPowerXmlId(item) {
     }
   }
   return 'GENERIC';
+}
+
+function resolveMartialManeuver(item) {
+  const candidates = [
+    item.display,
+    item.maneuver,
+    item.maneuverType,
+    item.alias,
+    item.input,
+  ].map(lowerKey).filter(Boolean);
+  const notes = lowerKey(item.notes);
+
+  for (const candidate of candidates) {
+    if (MARTIAL_MANEUVER_ALIASES.has(candidate)) {
+      const canonical = MARTIAL_MANEUVER_ALIASES.get(candidate);
+      if (canonical === 'Grab' && notes.includes('fmove')) {
+        return { baseName: 'Flying Grab', defaults: MARTIAL_MANEUVER_DEFAULTS.get('Flying Grab'), recognized: true };
+      }
+      return { baseName: canonical, defaults: MARTIAL_MANEUVER_DEFAULTS.get(canonical), recognized: true };
+    }
+  }
+
+  if (notes.includes('fmove') && candidates.includes('grab')) {
+    return { baseName: 'Flying Grab', defaults: MARTIAL_MANEUVER_DEFAULTS.get('Flying Grab'), recognized: true };
+  }
+
+  return { baseName: 'Maneuver', defaults: undefined, recognized: false };
+}
+
+function maneuverDetailText(item, resolved) {
+  const parts = [];
+  const alias = String(item.alias ?? '').trim();
+  if (alias && lowerKey(alias) !== lowerKey(resolved.baseName)) {
+    parts.push(alias);
+  }
+  if (isPresent(item.effect)) {
+    parts.push(String(item.effect));
+  }
+  if (isPresent(item.notes)) {
+    parts.push(String(item.notes));
+  }
+  return parts.join(': ');
 }
 
 const CHARACTERISTIC_TAGS = new Set(CHARACTERISTICS.map(([type]) => type));
@@ -444,49 +554,61 @@ function noteWithSource(item) {
 
 function childrenForItem(item) {
   const children = [];
-  for (const modifier of asArray(item.modifiers)) {
+  for (const [modifierIndex, modifier] of asArray(item.modifiers).entries()) {
     const value = numberValue(modifier.value ?? modifier.baseCost, 0);
     const xmlId = toXmlId(modifier.xmlId ?? modifier.xmlID ?? modifier.xmlid ?? modifier.name, 'MODIFIER');
+    const canonicalAlias = xmlId === 'REQUIRESASKILLROLL'
+      ? 'Requires A Roll'
+      : (modifier.alias ?? modifier.name);
+    const canonicalInput = xmlId === 'REQUIRESASKILLROLL'
+      ? undefined
+      : modifier.input;
+    const canonicalOptionAlias = xmlId === 'REQUIRESASKILLROLL'
+      ? (modifier.comments ?? modifier.input ?? (modifier.optionAlias && modifier.optionAlias !== 'Skill roll' ? modifier.optionAlias : 'Skill roll'))
+      : modifier.optionAlias;
+    const canonicalComments = xmlId === 'REQUIRESASKILLROLL'
+      ? ''
+      : modifier.comments;
     children.push(xml('MODIFIER', hdcDefaults({
-      ID: modifier.id,
+      ID: modifier.id ?? generatedId('modifier', modifierIndex),
       XMLID: xmlId,
       NAME: modifier.name ?? '',
-      ALIAS: modifier.alias ?? modifier.name,
+      ALIAS: canonicalAlias,
       POSITION: modifier.position ?? -1,
       BASECOST: value,
-      LEVELS: modifier.levels,
+      LEVELS: modifier.levels ?? 0,
       OPTION: modifier.option,
       OPTIONID: modifier.optionId,
-      OPTION_ALIAS: modifier.optionAlias,
-      INPUT: modifier.input,
-      COMMENTS: modifier.comments,
+      OPTION_ALIAS: canonicalOptionAlias,
+      INPUT: canonicalInput,
+      COMMENTS: canonicalComments,
       ISLIMITATION: yesNo(modifier.isLimitation ?? value < 0),
       PRIVATE: 'No',
       FORCEALLOW: yesNo(modifier.forceAllow, 'No'),
     }), [notesElement(modifier)]));
   }
-  for (const adder of asArray(item.adders)) {
+  for (const [adderIndex, adder] of asArray(item.adders).entries()) {
     const xmlId = toXmlId(adder.xmlId ?? adder.xmlID ?? adder.xmlid ?? adder.name, 'GENERIC_OBJECT');
     children.push(xml('ADDER', hdcDefaults({
-      ID: adder.id,
+      ID: adder.id ?? generatedId('adder', adderIndex),
       XMLID: xmlId,
       NAME: adder.name ?? '',
       ALIAS: adder.alias ?? adder.name,
       POSITION: adder.position ?? -1,
       BASECOST: numberValue(adder.baseCost ?? adder.points, 0),
-      LEVELS: adder.levels,
-      LVLCOST: adder.lvlCost,
+      LEVELS: adder.levels ?? 0,
+      LVLCOST: adder.lvlCost ?? 0,
       LVLVAL: adder.lvlVal,
       OPTION: adder.option,
       OPTIONID: adder.optionId,
       OPTION_ALIAS: adder.optionAlias,
       SELECTED: yesNoUpper(adder.selected ?? true),
       INCLUDEINBASE: yesNo(adder.includeInBase),
-      SHOWALIAS: 'Yes',
-      PRIVATE: 'No',
-      REQUIRED: 'No',
-      DISPLAYINSTRING: 'Yes',
-      GROUP: 'No',
+      SHOWALIAS: yesNo(adder.showAlias, 'Yes'),
+      PRIVATE: yesNo(adder.private, 'No'),
+      REQUIRED: yesNo(adder.required, 'No'),
+      DISPLAYINSTRING: yesNo(adder.displayInString, 'Yes'),
+      GROUP: yesNo(adder.group, 'No'),
     }), [notesElement(adder)]));
   }
   return children;
@@ -591,7 +713,9 @@ function genericElement(tag, idPrefix, item, index) {
     : tag === 'TALENT'
       ? resolveTalentXmlId(item)
       : toXmlId(item.xmlId ?? item.xmlID ?? item.xmlid ?? item.name, tag === 'MANEUVER' ? 'MANEUVER' : 'GENERIC_OBJECT');
-  const maneuverDetail = [item.alias, item.effect, item.notes].filter(isPresent).join(': ');
+  const resolvedManeuver = isManeuver ? resolveMartialManeuver(item) : undefined;
+  const maneuverDefaults = resolvedManeuver?.defaults;
+  const maneuverDetail = isManeuver ? maneuverDetailText(item, resolvedManeuver) : [item.alias, item.effect, item.notes].filter(isPresent).join(': ');
   if (isList) {
     return xml('LIST', hdcDefaults({
       ID: item.id ?? generatedId(idPrefix, index),
@@ -610,13 +734,13 @@ function genericElement(tag, idPrefix, item, index) {
   return xml(isList ? 'LIST' : tag, hdcDefaults({
     ID: item.id ?? generatedId(idPrefix, index),
     XMLID: xmlId,
-    NAME: item.name,
-    ALIAS: isManeuver ? item.name : (item.alias ?? item.name),
+    NAME: isManeuver ? resolvedManeuver.baseName : item.name,
+    ALIAS: isManeuver ? (item.name ?? resolvedManeuver.baseName) : (item.alias ?? item.name),
     INPUT: item.input,
     TEXT: item.text,
     POSITION: item.position ?? index,
     LEVELS: numberValue(item.levels, 0),
-    BASECOST: numberValue(item.baseCost ?? item.points, 0),
+    BASECOST: numberValue(item.baseCost ?? item.points ?? maneuverDefaults?.baseCost, 0),
     ROLL: item.roll,
     NUMBER: tag === 'PERK' ? item.number : undefined,
     BASEPOINTS: tag === 'PERK' ? item.basePoints : undefined,
@@ -624,21 +748,218 @@ function genericElement(tag, idPrefix, item, index) {
     OPTION: item.option,
     OPTION_ALIAS: item.optionAlias,
     PARENTID: item.parentId,
-    CUSTOM: isManeuver ? yesNo(item.custom ?? true) : undefined,
-    CATEGORY: isManeuver ? (item.category ?? 'Hand-To-Hand') : undefined,
-    DISPLAY: isManeuver ? (item.display ?? item.name) : undefined,
-    OCV: isManeuver ? (item.ocv ?? '0') : undefined,
-    DCV: isManeuver ? (item.dcv ?? '0') : undefined,
-    DC: isManeuver ? (item.dc ?? '0') : undefined,
-    PHASE: isManeuver ? (item.phase ?? '1/2') : undefined,
-    EFFECT: isManeuver ? maneuverDetail : undefined,
-    ADDSTR: isManeuver ? yesNo(item.addStr ?? false) : undefined,
+    CUSTOM: isManeuver && !resolvedManeuver.recognized ? yesNo(item.custom ?? true) : undefined,
+    CATEGORY: isManeuver ? (item.category ?? 'Hand To Hand') : undefined,
+    DISPLAY: isManeuver ? (item.display ?? resolvedManeuver.baseName) : undefined,
+    OCV: isManeuver ? (item.ocv ?? maneuverDefaults?.ocv ?? '0') : undefined,
+    DCV: isManeuver ? (item.dcv ?? maneuverDefaults?.dcv ?? '0') : undefined,
+    DC: isManeuver ? (item.dc ?? maneuverDefaults?.dc ?? '0') : undefined,
+    PHASE: isManeuver ? (item.phase ?? maneuverDefaults?.phase ?? '1/2') : undefined,
+    EFFECT: isManeuver ? (maneuverDefaults?.effect ?? maneuverDetail) : undefined,
+    ADDSTR: isManeuver ? yesNo(item.addStr ?? maneuverDefaults?.addStr ?? false) : undefined,
     ACTIVECOST: isManeuver ? (item.activeCost ?? item.baseCost ?? 0) : undefined,
     DAMAGETYPE: isManeuver ? (item.damageType ?? 0) : undefined,
     MAXSTR: isManeuver ? (item.maxStr ?? 0) : undefined,
     STRMULT: isManeuver ? (item.strMultiplier ?? 1) : undefined,
-    USEWEAPON: isManeuver ? yesNo(item.useWeapon ?? false) : undefined,
+    USEWEAPON: isManeuver ? yesNo(item.useWeapon ?? maneuverDefaults?.useWeapon ?? false) : undefined,
+    WEAPONEFFECT: isManeuver ? (item.weaponEffect ?? maneuverDefaults?.weaponEffect) : undefined,
   }), [notesElement(item), ...childrenForItem(item)]);
+}
+
+function inferTransformLvlCost(item) {
+  const text = [item.name, item.alias, item.input, item.notes].filter(isPresent).join(' ').toLowerCase();
+  if (text.includes('severe transform')) {
+    return 15;
+  }
+  if (text.includes('major transform')) {
+    return 10;
+  }
+  return 5;
+}
+
+function inferOptionId(item) {
+  return String(item.optionId ?? item.option ?? '').trim().toUpperCase() || undefined;
+}
+
+function defaultPowerLvlCost(item, xmlId, isCustomPower, isCompound) {
+  if (isPresent(item.lvlCost) || isPresent(item.levelCost)) {
+    return numberValue(item.lvlCost ?? item.levelCost, 0);
+  }
+
+  if (isCompound || isCustomPower) {
+    return 1;
+  }
+
+  const optionId = inferOptionId(item);
+  const lvlCostByXmlId = {
+    CUSTOMPOWER: 1,
+    COMPOUNDPOWER: 1,
+    DARKNESS: {
+      SIGHTGROUP: 5,
+      HEARINGGROUP: 3,
+      SMELLGROUP: 3,
+      TOUCHGROUP: 3,
+      MENTALAWARENESS: 3,
+      RADIOSENSE: 3,
+      SPATIALGROUP: 3,
+      DEFAULT: 5,
+    },
+    DETECT: {
+      SINGLE: 1,
+      CLASS: 1,
+      LARGECLASS: 1,
+      DEFAULT: 1,
+    },
+    ENDURANCERESERVE: 1,
+    ENDURANCERESERVEREC: 1,
+    EXTRALIMBS: 0,
+    FLIGHT: 1,
+    FORCEFIELD: 3,
+    KBRESISTANCE: 1,
+    LIFESUPPORT: 1,
+    MENTALDEFENSE: 1,
+    POWERDEFENSE: 1,
+    REGENERATION: {
+      WEEK: 2,
+      DAY: 4,
+      '6HOURS': 6,
+      '1HOUR': 8,
+      '20MINUTES': 10,
+      '5MINUTES': 12,
+      '1MINUTE': 14,
+      '1TURN': 16,
+      DEFAULT: 2,
+    },
+    RKA: 15,
+    TELEKINESIS: 3,
+    TRANSFORM: 'INFER',
+    TUNNELING: 1,
+  };
+
+  const xmlDefaults = lvlCostByXmlId[String(xmlId).toUpperCase()];
+  if (xmlDefaults === 'INFER') {
+    return inferTransformLvlCost(item);
+  }
+  if (typeof xmlDefaults === 'number') {
+    return xmlDefaults;
+  }
+  if (xmlDefaults && typeof xmlDefaults === 'object') {
+    return xmlDefaults[optionId] ?? xmlDefaults.DEFAULT ?? 0;
+  }
+  return 0;
+}
+
+function defaultPowerFlags(xmlId) {
+  const defaults = {
+    CUSTOMPOWER: { doesBody: false, doesDamage: false, doesKnockback: false, killing: false },
+    COMPOUNDPOWER: { doesBody: false, doesDamage: false, doesKnockback: false, killing: false },
+    DARKNESS: { doesBody: false, doesDamage: false, doesKnockback: false, killing: false },
+    DETECT: { doesBody: false, doesDamage: false, doesKnockback: false, killing: false },
+    ENDURANCERESERVE: { doesBody: false, doesDamage: false, doesKnockback: false, killing: false },
+    ENDURANCERESERVEREC: { doesBody: false, doesDamage: false, doesKnockback: false, killing: false },
+    EXTRALIMBS: { doesBody: false, doesDamage: false, doesKnockback: false, killing: false },
+    FLIGHT: { doesBody: false, doesDamage: false, doesKnockback: false, killing: false },
+    FORCEFIELD: { doesBody: false, doesDamage: false, doesKnockback: false, killing: false },
+    KBRESISTANCE: { doesBody: false, doesDamage: false, doesKnockback: false, killing: false },
+    LIFESUPPORT: { doesBody: false, doesDamage: false, doesKnockback: false, killing: false },
+    MENTALDEFENSE: { doesBody: false, doesDamage: false, doesKnockback: false, killing: false },
+    POWERDEFENSE: { doesBody: false, doesDamage: false, doesKnockback: false, killing: false },
+    REGENERATION: { doesBody: false, doesDamage: false, doesKnockback: false, killing: false },
+    RKA: { doesBody: true, doesDamage: true, doesKnockback: true, killing: true },
+    TELEKINESIS: { doesBody: true, doesDamage: true, doesKnockback: true, killing: false },
+    TRANSFORM: { doesBody: false, doesDamage: true, doesKnockback: false, killing: false },
+    TUNNELING: { doesBody: false, doesDamage: false, doesKnockback: false, killing: false },
+  };
+  return defaults[String(xmlId).toUpperCase()] ?? defaults.CUSTOMPOWER;
+}
+
+function hasExplicitPowerField(item, ...keys) {
+  return keys.some((key) => isPresent(item?.[key]));
+}
+
+function buildPowerAttributes(item, options) {
+  const {
+    index,
+    equipment,
+    isCompound,
+    isCustomPower,
+    powerAlias,
+    baseCost,
+    levels,
+    weight,
+    effectDice,
+    defaultFlags,
+  } = options;
+
+  const attrs = {
+    ID: item.id ?? generatedId(equipment ? 'equipment' : 'power', index),
+    XMLID: isCompound ? 'COMPOUNDPOWER' : resolvePowerXmlId(item),
+    NAME: item.name,
+    ALIAS: powerAlias,
+    INPUT: item.input ?? '',
+    TEXT: item.text,
+    POSITION: item.position ?? index,
+    LEVELS: levels,
+    BASECOST: baseCost,
+    EFFECT_DICE: effectDice,
+    OPTION: item.option,
+    OPTIONID: item.optionId,
+    OPTION_ALIAS: item.optionAlias,
+    PARENTID: item.parentId,
+    AFFECTS_PRIMARY: yesNo(item.affectsPrimary, 'No'),
+    AFFECTS_TOTAL: yesNo(item.affectsTotal, 'Yes'),
+    CARRIED: equipment ? yesNo(item.carried, 'Yes') : undefined,
+    PRICE: equipment ? (item.price ?? 0) : undefined,
+    WEIGHT: equipment ? (weight ?? 0) : undefined,
+    QUANTITY: equipment ? (item.quantity ?? 1) : 1,
+    PDLEVELS: item.pdLevels,
+    EDLEVELS: item.edLevels,
+    MDLEVELS: item.mdLevels,
+    POWDLEVELS: item.powdLevels,
+    ADD_MODIFIERS_TO_BASE: yesNo(item.addModifiersToBase),
+    USESTANDARDEFFECT: yesNo(item.useStandardEffect),
+    ENDCOLUMNOUTPUT: item.endColumnOutput ?? '',
+    USECUSTOMENDCOLUMN: yesNo(item.useCustomEndColumn, 'No'),
+  };
+
+  const shouldEmitGenericPowerFields = isCustomPower;
+  const explicitLvlCost = item.lvlCost ?? item.levelCost;
+  if (shouldEmitGenericPowerFields && isPresent(explicitLvlCost)) {
+    attrs.LVLCOST = explicitLvlCost;
+  }
+
+  if (shouldEmitGenericPowerFields || hasExplicitPowerField(item, 'doesBody')) {
+    attrs.DOESBODY = yesNo(item.doesBody ?? defaultFlags.doesBody, 'No');
+  }
+  if (shouldEmitGenericPowerFields || hasExplicitPowerField(item, 'doesDamage')) {
+    attrs.DOESDAMAGE = yesNo(item.doesDamage ?? defaultFlags.doesDamage, 'No');
+  }
+  if (shouldEmitGenericPowerFields || hasExplicitPowerField(item, 'doesKnockback')) {
+    attrs.DOESKNOCKBACK = yesNo(item.doesKnockback ?? defaultFlags.doesKnockback, 'No');
+  }
+  if (shouldEmitGenericPowerFields || hasExplicitPowerField(item, 'killing')) {
+    attrs.KILLING = yesNo(item.killing ?? defaultFlags.killing, 'No');
+  }
+  if (shouldEmitGenericPowerFields || hasExplicitPowerField(item, 'defense')) {
+    attrs.DEFENSE = item.defense ?? 'NONE';
+  }
+  if (shouldEmitGenericPowerFields || hasExplicitPowerField(item, 'endCost')) {
+    attrs.END = yesNo((item.endCost ?? 0) > 0, 'No');
+  }
+  if (shouldEmitGenericPowerFields || hasExplicitPowerField(item, 'visible')) {
+    attrs.VISIBLE = yesNo(item.visible, 'Yes');
+  }
+  if (shouldEmitGenericPowerFields || hasExplicitPowerField(item, 'range')) {
+    attrs.RANGE = item.range ?? (equipment ? 'NO' : 'SELF');
+  }
+  if (shouldEmitGenericPowerFields || hasExplicitPowerField(item, 'duration')) {
+    attrs.DURATION = item.duration ?? (equipment ? 'INHERENT' : 'INSTANT');
+  }
+  if (shouldEmitGenericPowerFields || hasExplicitPowerField(item, 'target')) {
+    attrs.TARGET = item.target ?? (equipment ? 'N/A' : 'SELFONLY');
+  }
+
+  return attrs;
 }
 
 function powerElement(item, index, equipment = false) {
@@ -673,8 +994,9 @@ function powerElement(item, index, equipment = false) {
     ? numberValue(explicitCost ?? item.baseCost ?? item.activeCost, 0)
     : numberValue(item.baseCost ?? item.activeCost ?? item.points, 0);
   const levels = isCustomPower
-    ? numberValue(item.preserveCustomLevels ? item.levels : baseCost, 0)
+    ? numberValue(item.preserveCustomLevels ? item.levels : 0, 0)
     : numberValue(item.levels ?? inferredLevels, 0);
+  const defaultFlags = defaultPowerFlags(xmlId);
 
   if (isList) {
     return xml('LIST', hdcDefaults({
@@ -692,47 +1014,18 @@ function powerElement(item, index, equipment = false) {
     }), [notesElement(item), ...children]);
   }
 
-  return xml('POWER', hdcDefaults({
-    ID: item.id ?? generatedId(equipment ? 'equipment' : 'power', index),
-    XMLID: isCompound ? 'COMPOUNDPOWER' : resolvePowerXmlId(item),
-    NAME: item.name,
-    ALIAS: powerAlias,
-    INPUT: item.input,
-    TEXT: item.text,
-    POSITION: item.position ?? index,
-    LEVELS: levels,
-    BASECOST: baseCost,
-    LVLCOST: item.lvlCost ?? item.levelCost,
-    EFFECT_DICE: effectDice,
-    OPTION: item.option,
-    OPTIONID: item.optionId,
-    OPTION_ALIAS: item.optionAlias,
-    PARENTID: item.parentId,
-    AFFECTS_PRIMARY: yesNo(item.affectsPrimary, 'No'),
-    AFFECTS_TOTAL: yesNo(item.affectsTotal, 'Yes'),
-    CARRIED: equipment ? yesNo(item.carried, 'Yes') : undefined,
-    PRICE: equipment ? item.price : undefined,
-    WEIGHT: weight,
-    QUANTITY: equipment ? (item.quantity ?? 1) : 1,
-    DOESBODY: yesNo(item.doesBody, 'No'),
-    DOESDAMAGE: yesNo(item.doesDamage, 'No'),
-    DOESKNOCKBACK: yesNo(item.doesKnockback, 'No'),
-    KILLING: yesNo(item.killing, 'No'),
-    DEFENSE: item.defense ?? 'NONE',
-    END: yesNo((item.endCost ?? 0) > 0, 'No'),
-    VISIBLE: yesNo(item.visible, 'Yes'),
-    RANGE: item.range ?? (equipment ? 'NO' : 'SELF'),
-    DURATION: item.duration ?? (equipment ? 'INHERENT' : 'INSTANT'),
-    TARGET: item.target ?? (equipment ? 'N/A' : 'SELFONLY'),
-    PDLEVELS: item.pdLevels,
-    EDLEVELS: item.edLevels,
-    MDLEVELS: item.mdLevels,
-    POWDLEVELS: item.powdLevels,
-    ADD_MODIFIERS_TO_BASE: yesNo(item.addModifiersToBase),
-    USESTANDARDEFFECT: yesNo(item.useStandardEffect),
-    ENDCOLUMNOUTPUT: item.endColumnOutput ?? '',
-    USECUSTOMENDCOLUMN: yesNo(item.useCustomEndColumn, 'No'),
-  }), [notesElement(item), ...children]);
+  return xml('POWER', hdcDefaults(buildPowerAttributes(item, {
+    index,
+    equipment,
+    isCompound,
+    isCustomPower,
+    powerAlias,
+    baseCost,
+    levels,
+    weight,
+    effectDice,
+    defaultFlags,
+  })), [notesElement(item), ...children]);
 }
 
 function canonicalPowerAlias(item, xmlId, isCustomPower, isCompound) {
@@ -745,9 +1038,57 @@ function canonicalPowerAlias(item, xmlId, isCustomPower, isCompound) {
   return CANONICAL_POWER_ALIASES.get(String(xmlId ?? '').toUpperCase()) ?? item.name ?? item.alias ?? item.description;
 }
 
+function defaultDisadAdders(xmlId) {
+  const defaults = {
+    VULNERABILITY: [
+      { xmlId: 'ATTACK', alias: 'The Attack Is', baseCost: 5, option: 'UNCOMMON', optionId: 'UNCOMMON', optionAlias: '(Uncommon', selected: true, includeInBase: true, required: true },
+    ],
+    PSYCHOLOGICALLIMITATION: [
+      { xmlId: 'SITUATION', alias: 'Situation Is', baseCost: 5, option: 'UNCOMMON', optionId: 'UNCOMMON', optionAlias: '(Uncommon', selected: true, includeInBase: true, required: true },
+      { xmlId: 'INTENSITY', alias: 'Intensity Is', baseCost: 0, option: 'MODERATE', optionId: 'MODERATE', optionAlias: 'Moderate', selected: true, includeInBase: true, required: true },
+    ],
+    SUSCEPTIBILITY: [
+      { xmlId: 'DICE', alias: 'Number of Dice', baseCost: 0, option: '1D6', optionId: '1D6', optionAlias: '1d6 damage', selected: true, includeInBase: true, required: true },
+      { xmlId: 'DAMAGE', alias: 'Take Damage Every', baseCost: 0, option: 'INSTANT', optionId: 'INSTANT', optionAlias: 'Instant', selected: true, includeInBase: true, required: true },
+      { xmlId: 'CONDITION', alias: 'Condition Is', baseCost: 5, option: 'UNCOMMON', optionId: 'UNCOMMON', optionAlias: '(Uncommon', selected: true, includeInBase: true, required: true },
+    ],
+    HUNTED: [
+      { xmlId: 'APPEARANCE', alias: 'Appearance', baseCost: 0, option: 'EIGHT', optionId: 'EIGHT', optionAlias: 'Infrequently', selected: true, includeInBase: true, required: true },
+      { xmlId: 'CAPABILITIES', alias: 'Capabilities', baseCost: 5, option: 'LESS', optionId: 'LESS', optionAlias: '(Less Pow', selected: true, includeInBase: true, required: true },
+      { xmlId: 'MOTIVATION', alias: 'Motivation', baseCost: 0, option: 'HARSH', optionId: 'HARSH', optionAlias: 'Harshly Punish', selected: true, includeInBase: true, required: true },
+    ],
+    PHYSICALLIMITATION: [
+      { xmlId: 'OCCURS', alias: 'Limitation Occurs', baseCost: 5, option: 'INFREQUENTLY', optionId: 'INFREQUENTLY', optionAlias: '(Infrequently', selected: true, includeInBase: true, required: true },
+      { xmlId: 'IMPAIRS', alias: 'Limitation Impairs', baseCost: 0, option: 'BARELY', optionId: 'BARELY', optionAlias: 'Barely Impairing', selected: true, includeInBase: true, required: true },
+    ],
+    DISTINCTIVEFEATURES: [
+      { xmlId: 'CONCEALABILITY', alias: 'Concealability', baseCost: 5, option: 'EASILY', optionId: 'EASILY', optionAlias: '(Easily Concealed', selected: true, includeInBase: true, required: true },
+      { xmlId: 'REACTION', alias: 'Reaction', baseCost: 0, option: 'NOTICED', optionId: 'NOTICED', optionAlias: 'Noticed and Recognizable', selected: true, includeInBase: true, required: true },
+      { xmlId: 'SENSING', alias: 'Sensing', baseCost: 0, option: 'COMMON', optionId: 'COMMON', optionAlias: 'Detectable By Commonly-Used Senses', selected: true, includeInBase: true, required: true },
+    ],
+    RIVALRY: [
+      { xmlId: 'SITUATION', alias: 'Rivalry Situation', baseCost: 5, option: 'PROFESSIONAL', optionId: 'PROFESSIONAL', optionAlias: 'Professional', selected: true, includeInBase: true, required: true },
+      { xmlId: 'DESCRIPTION', alias: 'Rivalry Desc.', baseCost: 0, option: 'DEFAULT', optionId: 'DEFAULT', optionAlias: '(', selected: true, includeInBase: true, required: true },
+      { xmlId: 'POWER', alias: 'Rival\'s Power', baseCost: -5, option: 'LESS', optionId: 'LESS', optionAlias: 'Rival is Less Powerful', selected: true, includeInBase: true, required: true },
+      { xmlId: 'FIERCENESS', alias: 'Fierceness of Rivalry', baseCost: 0, option: 'OUTDO', optionId: 'OUTDO', optionAlias: 'Seek to Outdo, Embarrass, or Humiliate Rival', selected: true, includeInBase: true, required: true },
+      { xmlId: 'KNOWLEDGE', alias: 'Knowledge of Rivalry', baseCost: 0, option: 'AWARE', optionId: 'AWARE', optionAlias: 'Rival Aware of Rivalry', selected: true, includeInBase: true, required: true },
+    ],
+    DEPENDENCE: [
+      { xmlId: 'EFFECT', alias: 'Effect', baseCost: 5, option: 'DAMAGE1D6', optionId: 'DAMAGE1D6', optionAlias: 'Takes 1d6 Damage', selected: true, includeInBase: true, required: true },
+      { xmlId: 'SUBSTANCE', alias: 'Dependent Substance Is', baseCost: 5, option: 'VERYCOMMON', optionId: 'VERYCOMMON', optionAlias: '(Very Common', selected: true, includeInBase: true, required: true },
+      { xmlId: 'TIME', alias: 'Time Before Suffering Effects', baseCost: 25, option: 'SEGMENT', optionId: 'SEGMENT', optionAlias: '1 Segment', selected: true, includeInBase: true, required: true },
+    ],
+  };
+  return defaults[xmlId] ? defaults[xmlId].map((adder) => ({ ...adder })) : [];
+}
+
 function disadElement(item, index) {
   const points = Math.abs(numberValue(item.points ?? item.baseCost, 0));
   const xmlId = inferDisadXmlId(item);
+  const disadItem = {
+    ...item,
+    adders: asArray(item.adders).length > 0 ? asArray(item.adders) : defaultDisadAdders(xmlId),
+  };
   return xml('DISAD', hdcDefaults({
     ID: item.id ?? generatedId('disad', index),
     XMLID: xmlId,
@@ -759,7 +1100,7 @@ function disadElement(item, index) {
     BASECOST: item.baseCost ?? (points ? -points : 0),
     OPTION: item.option,
     OPTION_ALIAS: item.optionAlias,
-  }), [notesElement(item), ...childrenForItem(item)]);
+  }), [notesElement(item), ...childrenForItem(disadItem)]);
 }
 
 function assignNumericIds(root) {
@@ -911,10 +1252,10 @@ const body = [
 ];
 
 const document = [
-  '<?xml version="1.0" encoding="UTF-8"?>',
+  '<?xml version="1.0" encoding="UTF-16"?>',
   xml('CHARACTER', { version: ir.version ?? '6.0', TEMPLATE: template }, body),
   '',
-].join('\n');
+].join('\r\n');
 
-writeFileSync(outputPath, document, 'utf8');
+writeFileSync(outputPath, `\uFEFF${document}`, 'utf16le');
 console.log(`Wrote ${outputPath}`);

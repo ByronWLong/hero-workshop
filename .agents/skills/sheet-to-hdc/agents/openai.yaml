@@ -1,0 +1,4 @@
+interface:
+  display_name: "Sheet to HDC"
+  short_description: "Build Hero Designer HDC files from sheets"
+  default_prompt: "Convert this HERO System character sheet into a compatible .hdc file using the bundled sheet-to-hdc workflow and scripts."

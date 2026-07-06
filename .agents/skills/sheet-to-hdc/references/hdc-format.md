@@ -161,6 +161,8 @@ When a sheet uses known prefixes, prefer canonical skill encoding over a custom 
 
 Use `CUSTOMSKILL` for uncertain sheet-derived skills rather than inventing IDs like `TORTURE` or `INVENTOR_SPELL_RESEARCH`. Custom skills support `ROLL` and display reliably when paired with normal skill save attributes (`CHARACTERISTIC`, `FAMILIARITY`, `PROFICIENCY`, `LEVELSONLY`, and generic save attributes).
 
+For `COMBAT_LEVELS`, plain Hero Designer import works with the skill alone, but Foundry can require explicit attack binding for "single attack" CSLs. That binding can be represented with zero-cost child adders such as `ADDER XMLID="ADDER" BASECOST="0" ALIAS="Exact Attack Name"`. In this skill, prefer inferred bindings only when combat focus terms in the skill text, such as `sword`, `knife`, `bow`, `claw`, or `grab`, match one unambiguous generated attack candidate; guessed bindings are worse than leaving the CSL unbound.
+
 ## Modifiers and Adders
 
 Modifiers are child `MODIFIER` elements:
@@ -169,7 +171,9 @@ Modifiers are child `MODIFIER` elements:
 - `ALIAS`: display label
 - `BASECOST`: fractional value, positive for advantages and negative for limitations
 - `ISLIMITATION`: `Yes` when the modifier is a limitation even if other fields are ambiguous
-- `LEVELS`, `OPTION`, `OPTIONID`, `OPTION_ALIAS`, `INPUT`, `NOTES`
+- `LEVELS`, `OPTION`, `OPTIONID`, `OPTION_ALIAS`, `INPUT`, `COMMENTS`, `NOTES`
+
+`REQUIRESASKILLROLL` is a special compatibility case. The UI-accepted shape in local testing is `ALIAS="Requires A Roll"`, `OPTIONID="SKILL"`, `OPTION_ALIAS="<skill name>"`, and an explicit blank `COMMENTS=""`. In local testing, populating `INPUT` with the skill name causes Hero Designer to warn that the skill is undefined and can cause the modifier to be stripped on save.
 
 Adders are child `ADDER` elements:
 
@@ -210,7 +214,11 @@ Avoid invented or near-miss complication IDs. In sample Hero Designer save files
 
 ## Martial Arts
 
-Custom maneuvers use `MANEUVER XMLID="MANEUVER"` with `CUSTOM="Yes"`. Hero Designer's HTML export displays the maneuver alias, so preserve the sheet-facing maneuver name in `ALIAS` and put action labels such as `grab`, `dodge`, or `strike` into `EFFECT` or `NOTES`.
+Custom maneuvers use `MANEUVER XMLID="MANEUVER"` with `CUSTOM="Yes"`. Preserve the sheet-facing maneuver name in `ALIAS`.
+
+When the underlying maneuver type is recognizable, set `NAME` and `DISPLAY` to the canonical maneuver name such as `Dodge`, `Grab`, `Flying Grab`, or `Strike`, and keep the custom sheet name in `ALIAS`. This improves downstream compatibility for consumers that classify martial maneuvers by their base maneuver identity rather than by the custom display name.
+
+Put extra sheet-specific action text into `EFFECT` or `NOTES`.
 
 ## Compatibility Checklist
 
