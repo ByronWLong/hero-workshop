@@ -17,7 +17,9 @@ import type {
   BasicConfiguration,
   Character,
   CharacterInfo,
+  CharacteristicType,
   Characteristic,
+  Rules,
   Disadvantage,
   Equipment,
   MartialManeuver,
@@ -28,6 +30,7 @@ import type {
   Talent,
 } from '../types.js';
 import { getPowerDefinition } from '../powerDefinitions.js';
+import { formatRulesName, parseRulesName } from '../characteristics.js';
 import { getModifierByXmlId } from '../modifierDefinitions.js';
 import {
   SKILL_CATALOG_6E,
@@ -155,9 +158,7 @@ export function applyCharacterChanges(
   reconcileItems(ctx, 'DISADVANTAGES', before.disadvantages, after.disadvantages, DISAD_SPEC);
   reconcileItems(ctx, 'EQUIPMENT', before.equipment ?? [], after.equipment ?? [], EQUIPMENT_SPEC);
   writeImage(ctx, before, after);
-  if (!same(before.rules, after.rules)) {
-    ctx.warn('Campaign rules changes are not saved to the character file.');
-  }
+  writeRules(ctx, before.rules, after.rules);
 
   if (options.foundryCompatible !== false) {
     for (const [el, section] of ctx.touched) {
@@ -396,6 +397,46 @@ function writeCharacteristics(ctx: WriteContext, before: Characteristic[], after
     }
     el.setAttr('LEVELS', hdInt(a.levels));
     ctx.change(`${a.type}: ${b?.levels ?? 0} -> ${a.levels} levels`);
+  }
+}
+
+/**
+ * The character's embedded campaign rules. Maxima and the races they derive from are
+ * per-character in this campaign; other rules come from the campaign file and aren't edited.
+ */
+function writeRules(ctx: WriteContext, b: Rules | undefined, a: Rules | undefined): void {
+  if (same(b, a) || !a) return;
+  let el = ctx.doc.root.name === 'RULES' ? ctx.doc.root : ctx.doc.root.firstElement('RULES');
+
+  const maximaChanged = !same(b?.characteristicMaxima, a.characteristicMaxima);
+  const racesChanged = !same(b?.races, a.races);
+  if ((maximaChanged || racesChanged) && !el) {
+    const beforeImage = ctx.doc.root.firstElement('IMAGE');
+    el = ctx.doc.root.appendElement(createElement('RULES', { name: a.name || 'Campaign' }), beforeImage);
+  }
+
+  if (el && maximaChanged) {
+    const types = new Set([
+      ...Object.keys(b?.characteristicMaxima ?? {}),
+      ...Object.keys(a.characteristicMaxima ?? {}),
+    ]) as Set<CharacteristicType>;
+    for (const type of types) {
+      const next = a.characteristicMaxima?.[type];
+      if (same(b?.characteristicMaxima?.[type], next)) continue;
+      if (next === undefined) el.removeAttr(`${type}_MAX`);
+      else el.setAttr(`${type}_MAX`, String(next));
+    }
+    ctx.change('Updated characteristic maxima');
+  }
+  if (el && racesChanged) {
+    const campaign = parseRulesName(el.getAttr('name') ?? a.name).campaign;
+    el.setAttr('name', formatRulesName(campaign, a.races ?? []));
+    ctx.change(`Races: ${(a.races ?? []).join(', ') || 'none'}`);
+  }
+
+  const otherRules = (rules: Rules) => ({ ...rules, characteristicMaxima: undefined, races: undefined });
+  if (b && !same(otherRules(b), otherRules(a))) {
+    ctx.warn('Campaign rules changes other than characteristic maxima are not saved to the character file.');
   }
 }
 

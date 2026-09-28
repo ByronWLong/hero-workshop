@@ -28,6 +28,7 @@ import type {
 import { generateId, heroRoundCost } from '../utils.js';
 import { getPowerDefinition } from '../powerDefinitions.js';
 import { getModifierByXmlId } from '../modifierDefinitions.js';
+import { CHARACTERISTIC_RULES_6E, characteristicCost, parseRulesName } from '../characteristics.js';
 import { HdcDocument } from './document.js';
 import type { XmlElement } from './xml.js';
 
@@ -74,11 +75,13 @@ export function parseHdcDocument(doc: HdcDocument): Character {
   const imageObj = root.IMAGE as ParserObject | string | undefined;
   const image = imageObj && typeof imageObj === 'object' ? imageObj : undefined;
 
+  const rules = parseRules(section('RULES') ?? root);
+
   return {
     version: getAttr(root, 'version', '6.0'),
     basicConfiguration: parseBasicConfiguration(section('BASIC_CONFIGURATION') ?? section('RULES') ?? {}),
     characterInfo,
-    characteristics: parseCharacteristics(section('CHARACTERISTICS') ?? {}),
+    characteristics: parseCharacteristics(section('CHARACTERISTICS') ?? {}, rules?.characteristicMaxima),
     skills: parseSkillsList(root.SKILLS),
     perks: parsePerksList(root.PERKS),
     talents: parseTalentsList(root.TALENTS),
@@ -93,7 +96,7 @@ export function parseHdcDocument(doc: HdcDocument): Character {
           filePath: getAttr(image, 'FilePath'),
         }
       : undefined,
-    rules: parseRules(section('RULES') ?? root),
+    rules,
   };
 }
 
@@ -169,50 +172,22 @@ function extractTextContent(obj: Record<string, unknown>, key: string): string |
   return undefined;
 }
 
-function parseCharacteristics(obj: Record<string, unknown>): Characteristic[] {
+function parseCharacteristics(obj: Record<string, unknown>, maxima: Rules['characteristicMaxima'] = {}): Characteristic[] {
   const characteristics: Characteristic[] = [];
-  const charTypes: CharacteristicType[] = [
-    'STR', 'DEX', 'CON', 'INT', 'EGO', 'PRE',
-    'OCV', 'DCV', 'OMCV', 'DMCV',
-    'SPD', 'PD', 'ED', 'REC', 'END', 'BODY', 'STUN',
-    'RUNNING', 'SWIMMING', 'LEAPING',
-  ];
-
-  for (const type of charTypes) {
+  for (const type of Object.keys(CHARACTERISTIC_RULES_6E) as CharacteristicType[]) {
     const charData = obj[type];
     if (charData && typeof charData === 'object') {
-      characteristics.push(parseCharacteristic(charData as Record<string, unknown>, type));
+      characteristics.push(parseCharacteristic(charData as Record<string, unknown>, type, maxima[type]));
     }
   }
-
   return characteristics;
 }
 
-function parseCharacteristic(obj: Record<string, unknown>, type: CharacteristicType): Characteristic {
+function parseCharacteristic(obj: Record<string, unknown>, type: CharacteristicType, maximum?: number): Characteristic {
   const levels = getAttrNum(obj, 'LEVELS', 0);
-  
-  // HERO System 6E base values
-  const baseValues: Record<string, number> = {
-    STR: 10, DEX: 10, CON: 10, INT: 10, EGO: 10, PRE: 10,
-    OCV: 3, DCV: 3, OMCV: 3, DMCV: 3,
-    SPD: 2, PD: 2, ED: 2, REC: 4, END: 20, BODY: 10, STUN: 20,
-    RUNNING: 12, SWIMMING: 4, LEAPING: 4,
-  };
-  
-  // HERO System 6E cost per level (CP per +1)
-  const costPerLevel: Record<string, number> = {
-    STR: 1, DEX: 2, CON: 1, INT: 1, EGO: 1, PRE: 1,
-    OCV: 5, DCV: 5, OMCV: 3, DMCV: 3,
-    SPD: 10, PD: 1, ED: 1, REC: 1, END: 0.2, BODY: 1, STUN: 0.5,
-    RUNNING: 1, SWIMMING: 1, LEAPING: 1,  // per 2m, but levels are in 2m increments
-  };
-  
-  const baseValue = baseValues[type] ?? 0;
-  const totalValue = baseValue + levels;
-  const cost = costPerLevel[type] ?? 1;
-  // Negative levels are penalties with 0 cost, not refunds
-  const calculatedCost = levels < 0 ? 0 : Math.ceil(levels * cost);
-  
+  const baseValue = CHARACTERISTIC_RULES_6E[type].base;
+  const cost = characteristicCost(type, levels, maximum);
+
   return {
     id: getAttr(obj, 'ID') || generateId(),
     name: getAttr(obj, 'ALIAS') || getAttr(obj, 'NAME', type),
@@ -221,10 +196,10 @@ function parseCharacteristic(obj: Record<string, unknown>, type: CharacteristicT
     type,
     position: getAttrNum(obj, 'POSITION', 0),
     levels: levels,
-    baseCost: calculatedCost,
-    realCost: calculatedCost,
+    baseCost: cost,
+    realCost: cost,
     baseValue: baseValue,
-    totalValue: totalValue,
+    totalValue: baseValue + levels,
     affectsPrimary: getAttrBool(obj, 'AFFECTS_PRIMARY', true),
     affectsTotal: getAttrBool(obj, 'AFFECTS_TOTAL', true),
     modifiers: parseModifiers(obj),
@@ -1750,6 +1725,17 @@ function calculateAdderCost(adders: Adder[]): number {
   }, 0);
 }
 
+/** Only maxima the file sets: Hero Designer treats a missing <CHAR>_MAX as no limit */
+function parseCharacteristicMaxima(obj: Record<string, unknown>): Rules['characteristicMaxima'] {
+  const maxima: Rules['characteristicMaxima'] = {};
+  for (const type of Object.keys(CHARACTERISTIC_RULES_6E) as CharacteristicType[]) {
+    const raw = getAttr(obj, `${type}_MAX`);
+    const value = Number(raw);
+    if (raw !== '' && Number.isFinite(value)) maxima[type] = value;
+  }
+  return maxima;
+}
+
 function parseRules(obj: Record<string, unknown>): Rules | undefined {
   if (!obj || Object.keys(obj).length === 0) return undefined;
   
@@ -1765,28 +1751,8 @@ function parseRules(obj: Record<string, unknown>): Rules | undefined {
     defenseApMaxResponse: getAttrNum(obj, 'DEFENSEAPMAXRESPONSE', 0),
     disadCategoryMaxValue: getAttrNum(obj, 'DISADCATEGORYMAXVALUE', 75),
     disadCategoryMaxResponse: getAttrNum(obj, 'DISADCATEGORYMAXRESPONSE', 0),
-    characteristicMaxima: {
-      STR: getAttrNum(obj, 'STR_MAX', 60),
-      DEX: getAttrNum(obj, 'DEX_MAX', 40),
-      CON: getAttrNum(obj, 'CON_MAX', 60),
-      INT: getAttrNum(obj, 'INT_MAX', 40),
-      EGO: getAttrNum(obj, 'EGO_MAX', 50),
-      PRE: getAttrNum(obj, 'PRE_MAX', 60),
-      OCV: getAttrNum(obj, 'OCV_MAX', 12),
-      DCV: getAttrNum(obj, 'DCV_MAX', 12),
-      OMCV: getAttrNum(obj, 'OMCV_MAX', 12),
-      DMCV: getAttrNum(obj, 'DMCV_MAX', 12),
-      SPD: getAttrNum(obj, 'SPD_MAX', 6),
-      PD: getAttrNum(obj, 'PD_MAX', 60),
-      ED: getAttrNum(obj, 'ED_MAX', 60),
-      REC: getAttrNum(obj, 'REC_MAX', 30),
-      END: getAttrNum(obj, 'END_MAX', 150),
-      BODY: getAttrNum(obj, 'BODY_MAX', 50),
-      STUN: getAttrNum(obj, 'STUN_MAX', 100),
-      RUNNING: getAttrNum(obj, 'RUNNING_MAX', 60),
-      SWIMMING: getAttrNum(obj, 'SWIMMING_MAX', 60),
-      LEAPING: getAttrNum(obj, 'LEAPING_MAX', 60),
-    },
+    characteristicMaxima: parseCharacteristicMaxima(obj),
+    races: parseRulesName(getAttr(obj, 'name')).races,
     standardEffectAllowed: getAttrBool(obj, 'STANDARDEFFECTALLOWED', true),
     multiplierAllowed: getAttrBool(obj, 'MULTIPLIERALLOWED', false),
     literacyFree: getAttrBool(obj, 'LITERACYFREE', false),

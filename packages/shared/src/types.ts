@@ -371,8 +371,13 @@ export interface Rules {
   disadCategoryMaxValue: number;
   disadCategoryMaxResponse: number;
   
-  // Characteristic maximums
-  characteristicMaxima: Record<CharacteristicType, number>;
+  /**
+   * Characteristic maxima (<CHAR>_MAX). A missing entry means no limit; levels above a
+   * maximum cost double (see characteristics.ts).
+   */
+  characteristicMaxima: Partial<Record<CharacteristicType, number>>;
+  /** Original race(s) the maxima derive from, recorded in the RULES name: "TONS (Skaven/Kitsune)" */
+  races?: string[];
   
   // Options
   standardEffectAllowed: boolean;

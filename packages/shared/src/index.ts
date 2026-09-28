@@ -7,6 +7,7 @@
 // Export types first (these are the primary type definitions)
 export * from './types.js';
 export * from './utils.js';
+export * from './characteristics.js';
 
 // Export power definitions, but rename conflicting types
 export { 
