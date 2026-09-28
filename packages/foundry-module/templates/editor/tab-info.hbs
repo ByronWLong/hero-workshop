@@ -1,0 +1,12 @@
+<section class="tab standard-form {{tab.cssClass}}" data-group="primary" data-tab="info">
+  {{#each tab.fields as |field|}}
+  <div class="form-group {{#if field.multiline}}stacked{{/if}}">
+    <label>{{field.label}}</label>
+    {{#if field.multiline}}
+    <textarea rows="4" data-field="info.{{field.key}}">{{field.value}}</textarea>
+    {{else}}
+    <input type="text" data-field="info.{{field.key}}" value="{{field.value}}">
+    {{/if}}
+  </div>
+  {{/each}}
+</section>

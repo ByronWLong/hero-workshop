@@ -7,7 +7,7 @@
  */
 
 import { HdcDocument, blankHdc, parseXml, type HdcSection } from '@hero-workshop/shared';
-import type { TabId } from '@frontend/components/CharacterEditor';
+import type { TabId } from './tabs';
 import { detectDrift } from './drift';
 import { MODULE_ID, downloadHdc, itemSource, type ActorSession } from './session';
 

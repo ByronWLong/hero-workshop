@@ -6,9 +6,17 @@
  * `game.modules.get('hero-workshop').api`.
  */
 
-import './styles/window.css';
+import './styles/hero-workshop.css';
 import { HdcDocument } from '@hero-workshop/shared';
-import { openEditor, openInspector, openItemEditor, openNewCharacter, openRaceLibrary } from './foundry/applications';
+import {
+  openEditor,
+  openInspector,
+  openItemEditor,
+  openNewCharacter,
+  openRaceLibrary,
+  refreshOpenWindows,
+} from './apps';
+import { preloadTemplates } from './apps/base';
 import { getRaceLibrary, registerRaceSettings } from './races/library';
 import { MODULE_ID, createActorSession } from './sync/session';
 
@@ -42,6 +50,7 @@ Hooks.once('init', () => {
     };
   }
   registerRaceSettings(openRaceLibrary);
+  void preloadTemplates();
 });
 
 // ApplicationV2 fires getHeaderControls<ClassName> for every class in the sheet's hierarchy
@@ -134,4 +143,9 @@ Hooks.on('getItemContextOptions', ((_directory: unknown, options: ContextMenuEnt
       if (item) openItemEditor(item);
     },
   });
+}) as (...args: never[]) => unknown);
+
+// Open editors pick up race library changes
+Hooks.on('updateSetting', ((setting: { key: string }) => {
+  if (setting.key === `${MODULE_ID}.races`) refreshOpenWindows();
 }) as (...args: never[]) => unknown);

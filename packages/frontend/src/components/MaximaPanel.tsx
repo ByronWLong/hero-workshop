@@ -7,13 +7,10 @@
 import { useState } from 'react';
 import {
   MAXIMA_CHARACTERISTICS,
-  characteristicCost,
-  characteristicRulesFor,
+  withMaxima,
   combinedRaceMaxima,
   type Character,
-  type CharacteristicMaxima,
   type RaceDefinition,
-  type Rules,
 } from '@hero-workshop/shared';
 
 interface MaximaPanelProps {
@@ -25,23 +22,8 @@ interface MaximaPanelProps {
   onManageRaces?: () => void;
 }
 
-/** Applies new maxima/races and re-costs characteristics, whose price depends on them */
-export function withMaxima(character: Character, maxima: CharacteristicMaxima, races?: string[]): Character {
-  const rules: Rules = {
-    ...(character.rules ?? ({ name: 'Campaign' } as Rules)),
-    characteristicMaxima: maxima,
-    races: races ?? character.rules?.races,
-  };
-  const templateRules = characteristicRulesFor(character.hdcTemplate);
-  return {
-    ...character,
-    rules,
-    characteristics: character.characteristics.map((c) => {
-      const cost = characteristicCost(c.type, c.levels, maxima[c.type], templateRules[c.type]);
-      return cost === c.realCost ? c : { ...c, baseCost: cost, realCost: cost };
-    }),
-  };
-}
+/** Re-exported for existing imports; the implementation lives in shared */
+export { withMaxima };
 
 export function MaximaPanel({ character, onUpdate, raceLibrary = [], onManageRaces }: MaximaPanelProps) {
   const maxima = character.rules?.characteristicMaxima ?? {};

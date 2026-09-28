@@ -8,7 +8,7 @@
  */
 
 import { HdcDocument, blankHdc, type Character } from '@hero-workshop/shared';
-import type { TabId } from '@frontend/components/CharacterEditor';
+import type { TabId } from './tabs';
 import { detectDrift, type DriftChange, type DriftItemSource } from './drift';
 
 export const MODULE_ID = 'hero-workshop';

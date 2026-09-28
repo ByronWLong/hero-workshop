@@ -1,0 +1,29 @@
+<div class="hw-scroll hw-inspector">
+  <section class="tab standard-form {{tabs.summary.cssClass}}" data-group="primary" data-tab="summary">
+    <header class="hw-header">
+      <h2 class="hw-title">{{name}}</h2>
+      <button type="button" data-action="download"><i class="fa-solid fa-file-arrow-down" inert></i> Download .hdc</button>
+    </header>
+    <p class="hint">
+      {{summary.basePoints}} base points, {{summary.disadPoints}} complication points, {{summary.experience}} experience ·
+      {{summary.spent}} spent
+    </p>
+    <dl class="hw-counts">
+      {{#each counts}}<div><dt>{{label}}</dt><dd>{{count}}</dd></div>{{/each}}
+    </dl>
+  </section>
+
+  <section class="tab {{tabs.check.cssClass}}" data-group="primary" data-tab="check">
+    {{#if issues.length}}
+    <ul class="hw-list">
+      {{#each issues}}<li class="{{#if (eq severity "error")}}hw-bad{{/if}}">{{message}}</li>{{/each}}
+    </ul>
+    {{else}}
+    <p class="hint">No Foundry compatibility problems found.</p>
+    {{/if}}
+  </section>
+
+  <section class="tab {{tabs.xml.cssClass}}" data-group="primary" data-tab="xml">
+    <pre class="hw-xml">{{xml}}</pre>
+  </section>
+</div>

@@ -1147,7 +1147,10 @@ const POWER_SPEC: ItemSpec<Power> = {
 // =============================================================================
 
 const EQUIPMENT_SPEC: ItemSpec<Equipment> = {
-  handled: new Set(['name', 'levels', 'notes', 'price', 'weight', 'carried', 'subPowers']),
+  handled: new Set([
+    'name', 'levels', 'notes', 'price', 'weight', 'carried', 'subPowers',
+    'input', 'option', 'optionAlias', 'affectsPrimary', 'affectsTotal',
+  ]),
   derived: new Set([...POWER_DERIVED, 'alias', 'xmlId']),
   nested: (e) => e.subPowers,
 
@@ -1159,6 +1162,16 @@ const EQUIPMENT_SPEC: ItemSpec<Equipment> = {
     // Weight: kilograms in the model, pounds in the file
     if (!same(b.weight, a.weight)) el.setAttr('WEIGHT', String((a.weight ?? 0) / 0.453592));
     if (!same(b.carried, a.carried)) el.setAttr('CARRIED', yesNo(a.carried ?? true));
+    const bp = b as Equipment & Partial<Power>;
+    const ap = a as Equipment & Partial<Power>;
+    if (!same(bp.input, ap.input) && ap.input) el.setAttr('INPUT', ap.input);
+    if (!same(bp.option, ap.option)) {
+      el.setAttr('OPTION', ap.option ?? '');
+      el.setAttr('OPTIONID', ap.option ?? '');
+    }
+    if (!same(bp.optionAlias, ap.optionAlias)) el.setAttr('OPTION_ALIAS', ap.optionAlias ?? '');
+    if (!same(bp.affectsPrimary, ap.affectsPrimary)) el.setAttr('AFFECTS_PRIMARY', yesNo(ap.affectsPrimary ?? true));
+    if (!same(bp.affectsTotal, ap.affectsTotal)) el.setAttr('AFFECTS_TOTAL', yesNo(ap.affectsTotal ?? true));
   },
 
   create(ctx, e, section) {
@@ -1369,7 +1382,7 @@ function complicationDetail(d: Disadvantage, entry: CatalogEntry | undefined): s
 }
 
 const DISAD_SPEC: ItemSpec<Disadvantage> = {
-  handled: new Set(['name', 'alias', 'notes']),
+  handled: new Set(['name', 'alias', 'notes', 'input']),
   // The editor has no levels field but stamps levels: 1 on save; LEVELS is Unluck's dice
   derived: new Set(['baseCost', 'realCost', 'activeCost', 'points', 'type', 'category', 'levels']),
   update(ctx, el, b, a) {

@@ -1,0 +1,18 @@
+<li class="hw-item {{#if row.isGroup}}hw-item-group{{/if}}" data-item-id="{{row.id}}">
+  <div class="hw-item-row">
+    <div class="hw-item-text">
+      <span class="hw-item-name">{{row.name}}</span>
+      {{#if row.detail}}<span class="hint hw-item-detail">{{row.detail}}</span>{{/if}}
+    </div>
+    <span class="hw-item-cost">{{row.cost}}</span>
+    <span class="hw-item-controls">
+      <a data-action="editItem" data-section="{{section}}" data-item-id="{{row.id}}" data-tooltip="Edit"><i class="fa-solid fa-pen-to-square" inert></i></a>
+      <a data-action="deleteItem" data-section="{{section}}" data-item-id="{{row.id}}" data-tooltip="Delete"><i class="fa-solid fa-trash" inert></i></a>
+    </span>
+  </div>
+  {{#if row.children.length}}
+  <ol class="hw-items hw-children">
+    {{#each row.children as |child|}}{{> "modules/hero-workshop/templates/editor/item-row.hbs" row=child section=../section}}{{/each}}
+  </ol>
+  {{/if}}
+</li>

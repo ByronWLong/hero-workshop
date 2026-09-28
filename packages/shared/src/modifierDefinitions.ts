@@ -1126,7 +1126,7 @@ function modifierFromCatalog(e: CatalogEntry): ModifierDefinition {
   const isLimitation = e.isLimitation ?? (baseCost < 0 || (baseCost === 0 && (e.lvlCost ?? 0) < 0));
   return {
     xmlId: e.xmlId,
-    display: e.display,
+    display: e.display.replace(/\s*\(\[LVL\]\)|\s*\[LVL\]/g, '').trim(),
     abbreviation: e.abbreviation,
     baseCost,
     lvlCost: e.lvlCost,
@@ -1145,7 +1145,7 @@ function modifierFromCatalog(e: CatalogEntry): ModifierDefinition {
     options: e.options?.map((o) => ({ xmlId: o.xmlId, display: o.display, baseCost: o.baseCost ?? 0, lvlVal: o.lvlVal })),
     adders: e.adders?.map((a) => ({
       xmlId: a.xmlId,
-      display: a.display,
+      display: a.display.replace(/\s*\(\[LVL\]\)|\s*\[LVL\]/g, '').trim(),
       baseCost: a.baseCost,
       required: a.required,
       exclusive: a.exclusive,

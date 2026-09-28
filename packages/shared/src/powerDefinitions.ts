@@ -2003,10 +2003,15 @@ for (const entry of POWER_CATALOG_6E) {
   if (!existing.options?.length && fromCatalog.options?.length) existing.options = fromCatalog.options;
 }
 
+/** Hero Designer display names carry a level placeholder ("Reduced Negation ([LVL])") */
+function cleanDisplay(display: string): string {
+  return display.replace(/\s*\(\[LVL\]\)|\s*\[LVL\]/g, '').trim();
+}
+
 function powerFromCatalog(e: CatalogEntry): PowerDefinition {
   return {
     xmlId: e.xmlId,
-    display: e.display,
+    display: cleanDisplay(e.display),
     abbreviation: e.abbreviation,
     description: e.description ?? '',
     inputLabel: e.inputLabel,
@@ -2032,7 +2037,7 @@ function powerFromCatalog(e: CatalogEntry): PowerDefinition {
     warningSign: e.warningSign,
     adders: e.adders?.map((a) => ({
       xmlId: a.xmlId,
-      display: a.display,
+      display: cleanDisplay(a.display),
       baseCost: a.baseCost,
       lvlCost: a.lvlCost,
       lvlVal: a.lvlVal,

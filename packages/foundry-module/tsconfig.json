@@ -3,14 +3,12 @@
   "compilerOptions": {
     "target": "ES2022",
     "lib": ["ES2022", "DOM", "DOM.Iterable"],
-    "jsx": "react-jsx",
     "module": "ESNext",
     "moduleResolution": "bundler",
     "noEmit": true,
     "types": ["vite/client"],
     "paths": {
-      "@hero-workshop/shared": ["../shared/src/index.ts"],
-      "@frontend/*": ["../frontend/src/*"]
+      "@hero-workshop/shared": ["../shared/src/index.ts"]
     }
   },
   "include": ["src", "test", "vite.config.ts"]

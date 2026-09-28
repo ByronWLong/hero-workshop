@@ -1,0 +1,496 @@
+/**
+ * Item forms for the non-power sections (skills, perks, talents, complications, martial
+ * arts): which fields to show, what they cost, and how saving updates the character.
+ *
+ * Saving merges the form into the existing item, so data the form doesn't show (adders,
+ * modifiers, group membership, attributes only the HDC knows about) is kept.
+ */
+
+import type {
+  Character,
+  Disadvantage,
+  MartialManeuver,
+  Perk,
+  Skill,
+  Talent,
+} from '../types.js';
+import {
+  DISADVANTAGE_CATALOG_6E,
+  PERK_CATALOG_6E,
+  TALENT_CATALOG_6E,
+} from '../generated/catalog6e.js';
+import { SKILL_CATALOG_6E } from '../generated/skillCatalog6e.js';
+import { sectionItems, type SectionId } from './lists.js';
+
+export type FormSection = Exclude<SectionId, 'powers' | 'equipment'>;
+export type FormValues = Record<string, string | number | boolean | undefined>;
+
+export interface FieldOption {
+  value: string;
+  label: string;
+  selected?: boolean;
+}
+
+export interface FormField {
+  name: string;
+  label: string;
+  type: 'text' | 'number' | 'select' | 'checkbox' | 'textarea';
+  value: string | number | boolean;
+  options?: FieldOption[];
+  hint?: string;
+}
+
+export interface ItemForm {
+  title: string;
+  fields: FormField[];
+  cost: number;
+  costLabel: string;
+}
+
+const newId = () => `new-${Date.now().toString(36)}${Math.random().toString(36).slice(2, 7)}`;
+const str = (v: unknown) => (v === undefined || v === null ? '' : String(v));
+const num = (v: unknown, fallback = 0) => {
+  const n = Number(v);
+  return Number.isFinite(n) ? n : fallback;
+};
+const bool = (v: unknown) => v === true || v === 'true' || v === 'on';
+const options = (list: { value: string; label: string }[], selected: string) =>
+  list.map((o) => ({ ...o, selected: o.value === selected }));
+
+// =============================================================================
+// Skills
+// =============================================================================
+
+const SKILLS_BY_ID = new Map(SKILL_CATALOG_6E.map((s) => [s.xmlId, s]));
+
+/** Hero Designer's short label for background skills ("KS: Arcana") */
+const BACKGROUND_ALIAS: Record<string, string> = {
+  KNOWLEDGE_SKILL: 'KS',
+  PROFESSIONAL_SKILL: 'PS',
+  SCIENCE_SKILL: 'SS',
+  AREA_KNOWLEDGE: 'AK',
+  CITY_KNOWLEDGE: 'CK',
+  TRANSPORT_FAMILIARITY: 'TF',
+  WEAPON_FAMILIARITY: 'WF',
+};
+
+const COMBAT_LEVEL_OPTIONS = [
+  { value: 'SINGLE', label: 'With a single attack (2/level)', cost: 2 },
+  { value: 'TIGHT', label: 'With a small group of attacks (3/level)', cost: 3 },
+  { value: 'BROAD', label: 'With a large group of attacks (5/level)', cost: 5 },
+  { value: 'HTH', label: 'With HTH combat (5/level)', cost: 5 },
+  { value: 'RANGED', label: 'With ranged combat (5/level)', cost: 5 },
+  { value: 'ALL', label: 'With all attacks (8/level)', cost: 8 },
+];
+
+const SKILL_LEVEL_OPTIONS = [
+  { value: 'CHARACTERISTIC', label: 'With a single skill or characteristic roll (2/level)', cost: 2 },
+  { value: 'THREE', label: 'With three related skills (3/level)', cost: 3 },
+  { value: 'GROUP', label: 'With a group of similar skills (4/level)', cost: 4 },
+  { value: 'ALL', label: 'With all skills (6/level)', cost: 6 },
+];
+
+const LANGUAGE_OPTIONS = [
+  { value: 'BASIC', label: 'Basic conversation (1)', cost: 1 },
+  { value: 'FLUENT', label: 'Fluent conversation (2)', cost: 2 },
+  { value: 'IDIOMATIC', label: 'Completely fluent, with accent (3)', cost: 3 },
+  { value: 'IMITATE', label: 'Imitate dialects (4)', cost: 4 },
+];
+
+function skillValues(skill: Skill | undefined): FormValues {
+  const xmlid = skill?.xmlid ?? 'CUSTOMSKILL';
+  const alias = BACKGROUND_ALIAS[xmlid];
+  const display = SKILLS_BY_ID.get(xmlid)?.display;
+  // Show the user's own name only when it's more than the composed display
+  const composed = alias && skill?.input ? `${alias}: ${skill.input}` : display;
+  return {
+    xmlid,
+    name: skill && skill.name !== composed && skill.name !== alias ? skill.name : '',
+    input: skill?.input ?? '',
+    characteristic: skill?.characteristic ?? '',
+    levels: skill?.levels ?? 0,
+    familiarity: !!skill?.familiarity,
+    proficiency: !!skill?.proficiency,
+    everyman: !!skill?.everyman,
+    option: skill?.option ?? '',
+    nativeTongue: !!skill?.nativeTongue,
+    literate: !!skill?.adders?.some((a) => a.xmlId === 'LITERACY' && a.selected !== false),
+    cost: skill?.baseCost ?? 0,
+    notes: skill?.notes ?? '',
+  };
+}
+
+function skillCost(v: FormValues): number {
+  const xmlid = str(v.xmlid);
+  const levels = num(v.levels);
+  if (bool(v.everyman)) return 0;
+  if (xmlid === 'CUSTOMSKILL') return num(v.cost);
+  if (xmlid === 'COMBAT_LEVELS') return levels * (COMBAT_LEVEL_OPTIONS.find((o) => o.value === v.option)?.cost ?? 2);
+  if (xmlid === 'SKILL_LEVELS') return levels * (SKILL_LEVEL_OPTIONS.find((o) => o.value === v.option)?.cost ?? 2);
+  if (xmlid === 'LANGUAGES') {
+    if (bool(v.nativeTongue)) return 0;
+    return (LANGUAGE_OPTIONS.find((o) => o.value === v.option)?.cost ?? 2) + (bool(v.literate) ? 1 : 0);
+  }
+  const entry = SKILLS_BY_ID.get(xmlid);
+  if (bool(v.familiarity)) return entry?.familiarityCost ?? 1;
+  const choices = entry?.characteristicChoices ?? [];
+  const choice = choices.find((c) => c.characteristic === v.characteristic) ?? choices[0];
+  return Math.ceil((choice?.baseCost ?? entry?.baseCost ?? 3) + levels * (choice?.lvlCost ?? entry?.lvlCost ?? 2));
+}
+
+function skillForm(v: FormValues, isNew: boolean): ItemForm {
+  const xmlid = str(v.xmlid);
+  const entry = SKILLS_BY_ID.get(xmlid);
+  const fields: FormField[] = [
+    {
+      name: 'xmlid',
+      label: 'Skill',
+      type: 'select',
+      value: xmlid,
+      options: options(
+        [
+          ...[...SKILL_CATALOG_6E].sort((a, b) => a.display.localeCompare(b.display)).map((s) => ({ value: s.xmlId, label: s.display })),
+        ],
+        xmlid,
+      ),
+    },
+  ];
+  if (entry?.inputLabel || BACKGROUND_ALIAS[xmlid]) {
+    fields.push({ name: 'input', label: entry?.inputLabel ?? 'Subject', type: 'text', value: str(v.input) });
+  }
+  fields.push({ name: 'name', label: 'Custom name', type: 'text', value: str(v.name), hint: 'Optional; shown before the skill' });
+
+  if (xmlid === 'COMBAT_LEVELS' || xmlid === 'SKILL_LEVELS') {
+    const list = xmlid === 'COMBAT_LEVELS' ? COMBAT_LEVEL_OPTIONS : SKILL_LEVEL_OPTIONS;
+    fields.push({ name: 'option', label: 'Applies to', type: 'select', value: str(v.option), options: options(list, str(v.option) || list[0]!.value) });
+  } else if (xmlid === 'LANGUAGES') {
+    fields.push(
+      { name: 'option', label: 'Fluency', type: 'select', value: str(v.option), options: options(LANGUAGE_OPTIONS, str(v.option) || 'FLUENT') },
+      { name: 'literate', label: 'Literate', type: 'checkbox', value: bool(v.literate) },
+      { name: 'nativeTongue', label: 'Native language', type: 'checkbox', value: bool(v.nativeTongue) },
+    );
+  } else if (entry?.characteristicChoices?.length) {
+    const choices = entry.characteristicChoices.map((c) => ({
+      value: c.characteristic,
+      label: c.characteristic === 'GENERAL' ? 'General (no characteristic)' : c.characteristic,
+    }));
+    if (choices.length > 1) {
+      fields.push({ name: 'characteristic', label: 'Based on', type: 'select', value: str(v.characteristic), options: options(choices, str(v.characteristic) || choices[0]!.value) });
+    }
+  }
+  if (xmlid === 'CUSTOMSKILL') {
+    fields.push({ name: 'cost', label: 'Cost', type: 'number', value: num(v.cost) });
+  }
+  if (xmlid !== 'LANGUAGES') {
+    fields.push({ name: 'levels', label: 'Levels', type: 'number', value: num(v.levels) });
+    if (entry?.familiarityCost !== undefined) {
+      fields.push({ name: 'familiarity', label: 'Familiarity only (8-)', type: 'checkbox', value: bool(v.familiarity) });
+    }
+    fields.push({ name: 'everyman', label: 'Everyman skill', type: 'checkbox', value: bool(v.everyman) });
+  }
+  fields.push({ name: 'notes', label: 'Notes', type: 'textarea', value: str(v.notes) });
+  return { title: isNew ? 'Add skill' : 'Edit skill', fields, cost: skillCost(v), costLabel: 'pts' };
+}
+
+function saveSkill(existing: Skill | undefined, v: FormValues, position: number): Skill {
+  const xmlid = str(v.xmlid);
+  const entry = SKILLS_BY_ID.get(xmlid);
+  const alias = BACKGROUND_ALIAS[xmlid] ?? (xmlid === 'LANGUAGES' ? 'Language' : existing?.alias ?? entry?.display);
+  const input = str(v.input).trim() || undefined;
+  const customName = str(v.name).trim();
+  // Compose the display name the way the HDC parser does, so saving round-trips cleanly
+  const name =
+    customName ||
+    (BACKGROUND_ALIAS[xmlid] && input ? `${alias}: ${input}` : xmlid === 'LANGUAGES' && input ? `Language:  ${input}` : entry?.display ?? 'Skill');
+  const cost = skillCost(v);
+  const option = str(v.option) || undefined;
+  const optionLabel = [...COMBAT_LEVEL_OPTIONS, ...SKILL_LEVEL_OPTIONS, ...LANGUAGE_OPTIONS].find((o) => o.value === option)?.label;
+  const characteristic = (str(v.characteristic) || entry?.characteristicChoices?.[0]?.characteristic) as Skill['characteristic'];
+
+  let adders = existing?.adders;
+  if (xmlid === 'LANGUAGES') {
+    const others = (adders ?? []).filter((a) => a.xmlId !== 'LITERACY');
+    const literacy = (existing?.adders ?? []).find((a) => a.xmlId === 'LITERACY') ?? {
+      id: newId(), xmlId: 'LITERACY', name: 'literate', alias: 'literate', baseCost: 1, selected: true,
+    };
+    adders = bool(v.literate) ? [...others, literacy] : others;
+  }
+
+  return {
+    ...(existing ?? { id: newId(), type: 'GENERAL', position }),
+    name,
+    alias,
+    xmlid,
+    input,
+    characteristic,
+    levels: xmlid === 'LANGUAGES' ? 0 : num(v.levels),
+    familiarity: bool(v.familiarity),
+    proficiency: bool(v.proficiency),
+    everyman: bool(v.everyman) || undefined,
+    option,
+    optionAlias: option ? optionLabel?.replace(/ \(.*\)$/, '') : existing?.optionAlias,
+    nativeTongue: bool(v.nativeTongue) || undefined,
+    notes: str(v.notes) || undefined,
+    baseCost: cost,
+    realCost: existing?.modifiers?.length ? existing.realCost : cost,
+    adders,
+  } as Skill;
+}
+
+// =============================================================================
+// Perks, talents, complications, maneuvers
+// =============================================================================
+
+/** Editor perk types (as the web editor names them) with their Hero Designer entries */
+const PERK_TYPES: { value: Perk['type']; xmlId: string }[] = [
+  { value: 'ANONYMITY', xmlId: 'ANONYMITY' },
+  { value: 'COMPUTER_LINK', xmlId: 'COMPUTER_LINK' },
+  { value: 'CONTACT', xmlId: 'CONTACT' },
+  { value: 'DEEP_COVER', xmlId: 'DEEP_COVER' },
+  { value: 'FAVOR', xmlId: 'FAVOR' },
+  { value: 'FOLLOWER', xmlId: 'FOLLOWER' },
+  { value: 'FRINGE_BENEFIT', xmlId: 'FRINGE_BENEFIT' },
+  { value: 'MONEY', xmlId: 'MONEY' },
+  { value: 'REPUTATION', xmlId: 'REPUTATION' },
+  { value: 'VEHICLE_BASE', xmlId: 'VEHICLE_BASE' },
+  { value: 'GENERIC', xmlId: 'CUSTOMPERK' },
+];
+const PERK_LABELS = new Map(PERK_CATALOG_6E.map((p) => [p.xmlId, p.display]));
+const perkLabel = (type: string) => PERK_LABELS.get(PERK_TYPES.find((p) => p.value === type)?.xmlId ?? '') ?? type;
+
+const TALENT_TYPES: { value: Talent['type']; xmlId: string; perLevel?: boolean }[] = [
+  { value: 'ABSOLUTE_RANGE_SENSE', xmlId: 'ABSOLUTE_RANGE_SENSE' },
+  { value: 'ABSOLUTE_TIME_SENSE', xmlId: 'ABSOLUTE_TIME_SENSE' },
+  { value: 'AMBIDEXTERITY', xmlId: 'AMBIDEXTERITY' },
+  { value: 'BUMP_OF_DIRECTION', xmlId: 'BUMP_OF_DIRECTION' },
+  { value: 'COMBAT_LUCK', xmlId: 'COMBAT_LUCK', perLevel: true },
+  { value: 'DANGER_SENSE', xmlId: 'DANGER_SENSE' },
+  { value: 'DOUBLE_JOINTED', xmlId: 'DOUBLE_JOINTED' },
+  { value: 'EIDETIC_MEMORY', xmlId: 'EIDETIC_MEMORY' },
+  { value: 'ENVIRONMENTAL_MOVEMENT', xmlId: 'ENVIRONMENTAL_MOVEMENT' },
+  { value: 'LIGHTNING_CALCULATOR', xmlId: 'LIGHTNING_CALCULATOR' },
+  { value: 'LIGHTNING_REFLEXES', xmlId: 'LIGHTNING_REFLEXES_ALL', perLevel: true },
+  { value: 'LIGHTSLEEP', xmlId: 'LIGHTSLEEP' },
+  { value: 'OFF_HAND_DEFENSE', xmlId: 'OFFHANDDEFENSE' },
+  { value: 'PERFECT_PITCH', xmlId: 'PERFECT_PITCH' },
+  { value: 'RESISTANCE', xmlId: 'RESISTANCE', perLevel: true },
+  { value: 'SIMULATE_DEATH', xmlId: 'SIMULATE_DEATH' },
+  { value: 'SPEED_READING', xmlId: 'SPEED_READING', perLevel: true },
+  { value: 'STRIKING_APPEARANCE', xmlId: 'STRIKING_APPEARANCE', perLevel: true },
+  { value: 'UNIVERSAL_TRANSLATOR', xmlId: 'UNIVERSAL_TRANSLATOR' },
+  { value: 'GENERIC', xmlId: 'CUSTOMTALENT' },
+];
+const TALENTS_BY_ID = new Map(TALENT_CATALOG_6E.map((t) => [t.xmlId, t]));
+const talentEntry = (type: string) => TALENTS_BY_ID.get(TALENT_TYPES.find((t) => t.value === type)?.xmlId ?? '');
+
+const DISAD_TYPES: { value: Disadvantage['type']; xmlId: string }[] = [
+  { value: 'ACCIDENTAL_CHANGE', xmlId: 'ACCIDENTALCHANGE' },
+  { value: 'DEPENDENCE', xmlId: 'DEPENDENCE' },
+  { value: 'DEPENDENT_NPC', xmlId: 'DEPENDENTNPC' },
+  { value: 'DISTINCTIVE_FEATURES', xmlId: 'DISTINCTIVEFEATURES' },
+  { value: 'ENRAGED', xmlId: 'ENRAGED' },
+  { value: 'HUNTED', xmlId: 'HUNTED' },
+  { value: 'NEGATIVE_REPUTATION', xmlId: 'REPUTATION' },
+  { value: 'PHYSICAL_COMPLICATION', xmlId: 'PHYSICALLIMITATION' },
+  { value: 'PSYCHOLOGICAL_COMPLICATION', xmlId: 'PSYCHOLOGICALLIMITATION' },
+  { value: 'RIVALRY', xmlId: 'RIVALRY' },
+  { value: 'SOCIAL_COMPLICATION', xmlId: 'SOCIALLIMITATION' },
+  { value: 'SUSCEPTIBILITY', xmlId: 'SUSCEPTIBILITY' },
+  { value: 'UNLUCK', xmlId: 'UNLUCK' },
+  { value: 'VULNERABILITY', xmlId: 'VULNERABILITY' },
+  { value: 'GENERIC', xmlId: 'GENERICDISADVANTAGE' },
+];
+const DISAD_LABELS = new Map(DISADVANTAGE_CATALOG_6E.map((d) => [d.xmlId, d.display]));
+const disadLabel = (type: string) => DISAD_LABELS.get(DISAD_TYPES.find((d) => d.value === type)?.xmlId ?? '') ?? type;
+/** Parsed complications carry the HD XMLID as their type; map it back to the editor type */
+const disadTypeFor = (d: Disadvantage | undefined) =>
+  DISAD_TYPES.find((t) => t.value === d?.type || t.xmlId === d?.type || t.xmlId === d?.category)?.value ?? 'PSYCHOLOGICAL_COMPLICATION';
+
+const signedText = (n: number) => (n >= 0 ? `+${n}` : String(n));
+
+// =============================================================================
+// Public API
+// =============================================================================
+
+export function itemFormValues(character: Character, section: FormSection, itemId?: string): FormValues {
+  const item = itemId ? sectionItems(character, section).find((i) => i.id === itemId) : undefined;
+  switch (section) {
+    case 'skills':
+      return skillValues(item as Skill | undefined);
+    case 'perks': {
+      const p = item as Perk | undefined;
+      return { type: p?.type ?? 'CONTACT', name: p?.name ?? '', levels: p?.levels ?? 1, cost: p?.realCost ?? p?.baseCost ?? 1, notes: p?.notes ?? '' };
+    }
+    case 'talents': {
+      const t = item as Talent | undefined;
+      const perLevel = TALENT_TYPES.find((x) => x.value === t?.type)?.perLevel;
+      const levels = t?.levels || 1;
+      return {
+        type: t?.type ?? 'COMBAT_LUCK',
+        name: t?.name ?? '',
+        levels,
+        cost: perLevel ? (t?.baseCost ?? 0) / levels : (t?.baseCost ?? talentEntry(t?.type ?? 'COMBAT_LUCK')?.baseCost ?? 5),
+        notes: t?.notes ?? '',
+      };
+    }
+    case 'disadvantages': {
+      const d = item as Disadvantage | undefined;
+      // New complications keep their detail in alias; parsed ones in name (see the HDC writer)
+      const label = disadLabel(disadTypeFor(d)).toLowerCase();
+      const detail = d ? (d.input ?? [d.alias, d.name].find((x) => x && x.trim().toLowerCase() !== label) ?? '') : '';
+      return { type: disadTypeFor(d), detail, points: d?.points ?? 15, notes: d?.notes ?? '' };
+    }
+    case 'martialarts': {
+      const m = item as MartialManeuver | undefined;
+      return {
+        name: m?.name ?? '', ocv: m?.ocv ?? 0, dcv: m?.dcv ?? 0, phase: m?.phase ?? '1/2',
+        dc: m?.dc ?? 0, cost: m?.baseCost ?? 4, notes: m?.notes ?? '',
+      };
+    }
+  }
+}
+
+export function itemForm(section: FormSection, values: FormValues, isNew: boolean): ItemForm {
+  const notes: FormField = { name: 'notes', label: 'Notes', type: 'textarea', value: str(values.notes) };
+  switch (section) {
+    case 'skills':
+      return skillForm(values, isNew);
+    case 'perks':
+      return {
+        title: isNew ? 'Add perk' : 'Edit perk',
+        fields: [
+          { name: 'type', label: 'Perk', type: 'select', value: str(values.type), options: options(PERK_TYPES.map((p) => ({ value: p.value, label: perkLabel(p.value) })), str(values.type)) },
+          { name: 'name', label: 'Name', type: 'text', value: str(values.name) },
+          { name: 'levels', label: 'Levels', type: 'number', value: num(values.levels) },
+          { name: 'cost', label: 'Cost', type: 'number', value: num(values.cost) },
+          notes,
+        ],
+        cost: num(values.cost),
+        costLabel: 'pts',
+      };
+    case 'talents': {
+      const type = str(values.type);
+      const perLevel = TALENT_TYPES.find((t) => t.value === type)?.perLevel;
+      return {
+        title: isNew ? 'Add talent' : 'Edit talent',
+        fields: [
+          { name: 'type', label: 'Talent', type: 'select', value: type, options: options(TALENT_TYPES.map((t) => ({ value: t.value, label: talentEntry(t.value)?.display ?? t.value })), type) },
+          { name: 'name', label: 'Name', type: 'text', value: str(values.name) },
+          { name: 'levels', label: 'Levels', type: 'number', value: num(values.levels, 1) },
+          { name: 'cost', label: perLevel ? 'Cost per level' : 'Cost', type: 'number', value: num(values.cost) },
+          notes,
+        ],
+        cost: perLevel ? num(values.cost) * num(values.levels, 1) : num(values.cost),
+        costLabel: 'pts',
+      };
+    }
+    case 'disadvantages':
+      return {
+        title: isNew ? 'Add complication' : 'Edit complication',
+        fields: [
+          { name: 'type', label: 'Complication', type: 'select', value: str(values.type), options: options(DISAD_TYPES.map((d) => ({ value: d.value, label: disadLabel(d.value) })), str(values.type)) },
+          { name: 'detail', label: 'Description', type: 'text', value: str(values.detail), hint: 'e.g. Code vs. Killing, Hunted by VIPER' },
+          { name: 'points', label: 'Points', type: 'number', value: num(values.points) },
+          notes,
+        ],
+        cost: num(values.points),
+        costLabel: 'pts',
+      };
+    case 'martialarts':
+      return {
+        title: isNew ? 'Add maneuver' : 'Edit maneuver',
+        fields: [
+          { name: 'name', label: 'Maneuver', type: 'text', value: str(values.name) },
+          { name: 'ocv', label: 'OCV', type: 'number', value: num(values.ocv) },
+          { name: 'dcv', label: 'DCV', type: 'number', value: num(values.dcv) },
+          { name: 'phase', label: 'Phase', type: 'select', value: str(values.phase), options: options(['0', '1/2', '1'].map((p) => ({ value: p, label: p })), str(values.phase)) },
+          { name: 'dc', label: 'Damage classes', type: 'number', value: num(values.dc) },
+          { name: 'cost', label: 'Cost', type: 'number', value: num(values.cost) },
+          notes,
+        ],
+        cost: num(values.cost),
+        costLabel: 'pts',
+      };
+  }
+}
+
+/** Saves a form into the character: updates the item with `itemId`, or adds a new one */
+export function saveItemForm(character: Character, section: FormSection, itemId: string | undefined, values: FormValues): Character {
+  const list = sectionItems(character, section);
+  const existing = itemId ? list.find((i) => i.id === itemId) : undefined;
+  const position = list.length;
+  const put = <T extends { id: string }>(items: T[], item: T) =>
+    existing ? items.map((i) => (i.id === item.id ? item : i)) : [...items, item];
+
+  switch (section) {
+    case 'skills':
+      return { ...character, skills: put(character.skills, saveSkill(existing as Skill | undefined, values, position)) };
+
+    case 'perks': {
+      const cost = num(values.cost);
+      const perk: Perk = {
+        ...((existing as Perk | undefined) ?? { id: newId(), position, baseCost: 0, levels: 0, type: 'GENERIC', name: '' }),
+        type: str(values.type) as Perk['type'],
+        name: str(values.name).trim() || perkLabel(str(values.type)),
+        levels: num(values.levels),
+        baseCost: cost,
+        realCost: cost,
+        notes: str(values.notes) || undefined,
+      };
+      return { ...character, perks: put(character.perks, perk) };
+    }
+
+    case 'talents': {
+      const type = str(values.type) as Talent['type'];
+      const perLevel = TALENT_TYPES.find((t) => t.value === type)?.perLevel;
+      const cost = perLevel ? num(values.cost) * num(values.levels, 1) : num(values.cost);
+      const talent: Talent = {
+        ...((existing as Talent | undefined) ?? { id: newId(), position, baseCost: 0, levels: 0, type: 'GENERIC', name: '' }),
+        type,
+        name: str(values.name).trim() || talentEntry(type)?.display || type,
+        levels: num(values.levels, 1),
+        baseCost: cost,
+        realCost: cost,
+        notes: str(values.notes) || undefined,
+      };
+      return { ...character, talents: put(character.talents, talent) };
+    }
+
+    case 'disadvantages': {
+      const type = str(values.type) as Disadvantage['type'];
+      const points = num(values.points);
+      const d = existing as Disadvantage | undefined;
+      const detail = str(values.detail).trim();
+      const detailChanged = !d || detail !== itemFormValues(character, 'disadvantages', d.id).detail;
+      const disad: Disadvantage = {
+        ...(d ?? { id: newId(), position, levels: 0 }),
+        type,
+        // The HDC writer reads the detail from whichever of name/alias isn't the type label
+        ...(detailChanged ? { name: disadLabel(type), alias: detail || undefined, input: detail || undefined } : {}),
+        points,
+        baseCost: points,
+        realCost: points,
+        notes: str(values.notes) || undefined,
+      } as Disadvantage;
+      return { ...character, disadvantages: put(character.disadvantages, disad) };
+    }
+
+    case 'martialarts': {
+      const cost = num(values.cost);
+      const m = existing as MartialManeuver | undefined;
+      const maneuver: MartialManeuver = {
+        ...(m ?? { id: newId(), position, levels: 0 }),
+        name: str(values.name).trim() || 'Maneuver',
+        ocv: num(values.ocv),
+        dcv: num(values.dcv),
+        phase: str(values.phase) || '1/2',
+        dc: num(values.dc),
+        baseCost: cost,
+        realCost: cost,
+        notes: str(values.notes) || undefined,
+        effect: `${values.phase} Phase, ${signedText(num(values.ocv))} OCV, ${signedText(num(values.dcv))} DCV`,
+      } as MartialManeuver;
+      return { ...character, martialArts: put(character.martialArts, maneuver) };
+    }
+  }
+}

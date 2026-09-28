@@ -1,0 +1,17 @@
+<header class="hw-header">
+  <h2 class="hw-title">
+    {{title}}
+    {{#if dirty}}<i class="fa-solid fa-circle hw-dirty" data-tooltip="Unsaved changes"></i>{{/if}}
+  </h2>
+  <div class="hw-header-actions">
+    <button type="button" data-action="download">
+      <i class="fa-solid fa-file-arrow-down" inert></i> Download .hdc
+    </button>
+    {{#if (eq stage "edit")}}
+    <button type="button" class="bright" data-action="review" {{#unless canApply}}disabled{{/unless}}>
+      <i class="fa-solid fa-check" inert></i> {{#if isNew}}Review &amp; Create{{else}}Review &amp; Apply{{/if}}
+    </button>
+    {{/if}}
+  </div>
+</header>
+{{#if error}}<p class="notification error hw-error">{{error}}</p>{{/if}}

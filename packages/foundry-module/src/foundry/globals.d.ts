@@ -94,5 +94,8 @@ declare const foundry: {
     Actor: abstract new (...args: never[]) => FoundryActor;
     Item: abstract new (...args: never[]) => FoundryItem;
   };
-  utils: { saveDataToFile?: (data: BlobPart, type: string, filename: string) => void };
+  utils: {
+    saveDataToFile?: (data: BlobPart, type: string, filename: string) => void;
+    escapeHTML?: (value: string) => string;
+  };
 };

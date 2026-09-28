@@ -1,0 +1,16 @@
+<div class="hero-workshop standard-form">
+  {{#if hasLibrary}}
+  <p class="hint">Maxima are the races' listed characteristics +10 (SPD +1, combat values +2), averaged and rounded up.</p>
+  <div class="hw-race-choices">
+    {{#each races}}
+    <label class="checkbox"><input type="checkbox" name="race" value="{{name}}" {{checked checked}}> {{name}}</label>
+    {{/each}}
+  </div>
+  {{else}}
+  <p class="hint">The race library is empty, so maxima won't be calculated. You can still record the character's races.</p>
+  {{/if}}
+  <div class="form-group">
+    <label>Other races</label>
+    <input type="text" name="others" value="{{others}}" placeholder="Comma-separated">
+  </div>
+</div>

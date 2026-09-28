@@ -51,3 +51,9 @@ export {
 
 // Lossless HDC parsing/writing (shared by the backend and the Foundry module)
 export * from './hdc/index.js';
+
+// Framework-independent editing operations and view data
+export * from './editor/characteristics.js';
+export * from './editor/lists.js';
+export * from './editor/items.js';
+export * from './editor/powers.js';

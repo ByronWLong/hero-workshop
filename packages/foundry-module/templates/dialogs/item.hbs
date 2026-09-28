@@ -1,0 +1,22 @@
+<div class="standard-form hw-item-form">
+  {{#each fields as |field|}}
+  <div class="form-group {{#if (eq field.type "textarea")}}stacked{{/if}}">
+    <label for="hw-field-{{field.name}}">{{field.label}}</label>
+    <div class="form-fields">
+      {{#if (eq field.type "select")}}
+      <select id="hw-field-{{field.name}}" name="{{field.name}}" data-field="{{field.name}}">
+        {{#each field.options}}<option value="{{value}}" {{#if selected}}selected{{/if}}>{{label}}</option>{{/each}}
+      </select>
+      {{else if (eq field.type "checkbox")}}
+      <input id="hw-field-{{field.name}}" type="checkbox" name="{{field.name}}" data-field="{{field.name}}" {{checked field.value}}>
+      {{else if (eq field.type "textarea")}}
+      <textarea id="hw-field-{{field.name}}" name="{{field.name}}" data-field="{{field.name}}" rows="3">{{field.value}}</textarea>
+      {{else}}
+      <input id="hw-field-{{field.name}}" type="{{field.type}}" name="{{field.name}}" data-field="{{field.name}}" value="{{field.value}}">
+      {{/if}}
+    </div>
+    {{#if field.hint}}<p class="hint">{{field.hint}}</p>{{/if}}
+  </div>
+  {{/each}}
+  <p class="hw-item-cost-preview">Cost: <strong>{{cost}} {{costLabel}}</strong></p>
+</div>

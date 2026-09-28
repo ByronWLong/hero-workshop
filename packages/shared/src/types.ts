@@ -317,6 +317,10 @@ export interface Equipment extends GenericObjectBase {
   realCost?: number;
   endCost?: number;
   subPowers?: Power[];
+  option?: string;
+  optionAlias?: string;
+  affectsPrimary?: boolean;
+  affectsTotal?: boolean;
 }
 
 // ============================================================================

@@ -1,0 +1,536 @@
+/*
+ * Hero Workshop windows. Layout only: colours, fonts and form controls come from Foundry's
+ * theme variables and element styles, so light/dark themes and theme modules apply.
+ */
+
+.hero-workshop .window-content {
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.hero-workshop .hw-scroll {
+  overflow-y: auto;
+  min-height: 0;
+}
+
+.hero-workshop .hw-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.5rem 1rem;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.hero-workshop .hw-header .hw-title {
+  margin: 0;
+  border: none;
+  font-size: var(--font-size-20);
+}
+
+.hero-workshop .hw-header-actions,
+.hero-workshop .hw-inline-buttons,
+.hero-workshop .hw-toolbar {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.hero-workshop .hw-header-actions button,
+.hero-workshop .hw-inline-buttons button,
+.hero-workshop .hw-toolbar button {
+  flex: 0 0 auto;
+  width: auto;
+}
+
+.hero-workshop .hw-dirty {
+  font-size: 0.5em;
+  vertical-align: middle;
+  color: var(--color-level-warning);
+}
+
+.hero-workshop .hw-error {
+  margin: 0.5rem 1rem;
+}
+
+.hero-workshop .hw-body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.hero-workshop .hw-panel {
+  padding: 1rem;
+  flex: 1;
+}
+
+.hero-workshop .hw-empty {
+  text-align: center;
+  padding: 2rem;
+}
+
+.hero-workshop .hw-ok {
+  color: var(--color-level-success);
+}
+
+.hero-workshop .hw-bad,
+.hero-workshop .hw-warn li {
+  color: var(--color-level-error);
+}
+
+.hero-workshop .hw-list {
+  margin: 0.25rem 0 0.75rem 1.25rem;
+  padding: 0;
+}
+
+/* ---------------------------------------------------------------- layout */
+
+.hero-workshop .hw-layout {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: 240px 1fr;
+}
+
+.hero-workshop .hw-layout-single {
+  grid-template-columns: 1fr;
+}
+
+.hero-workshop .hw-sidebar {
+  padding: 0.75rem;
+  border-right: 1px solid var(--color-border);
+}
+
+.hero-workshop .hw-content {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+}
+
+.hero-workshop .hw-content > nav.tabs {
+  flex: 0 0 auto;
+  flex-wrap: wrap;
+  padding: 0 0.5rem;
+}
+
+.hero-workshop .hw-tabs-body {
+  flex: 1;
+  padding: 0.75rem 1rem;
+}
+
+.hero-workshop .hw-summary .form-group {
+  flex-wrap: nowrap;
+  align-items: center;
+}
+
+.hero-workshop .hw-summary .form-group > label {
+  flex: 1;
+}
+
+.hero-workshop .hw-summary .form-group input,
+.hero-workshop .hw-summary .form-fields {
+  flex: 0 0 auto;
+  width: 4.5rem;
+  text-align: right;
+}
+
+.hero-workshop .hw-summary .form-fields {
+  width: auto;
+  justify-content: flex-end;
+  gap: 0.25rem;
+}
+
+.hero-workshop .hw-summary .form-fields input {
+  width: 3.5rem;
+}
+
+.hero-workshop .hw-summary h3 {
+  font-size: var(--font-size-16);
+}
+
+.hero-workshop .hw-totals {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 0.2rem 0.5rem;
+  margin: 0;
+}
+
+.hero-workshop .hw-totals dd {
+  margin: 0;
+  text-align: right;
+}
+
+/* ---------------------------------------------------------------- drift / review */
+
+.hero-workshop .hw-drift-change {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.hero-workshop .hw-tag {
+  font-size: var(--font-size-11);
+  text-transform: uppercase;
+  padding: 0 0.35rem;
+  border: 1px solid var(--color-border);
+  border-radius: 3px;
+  color: var(--color-text-secondary);
+}
+
+.hero-workshop .hw-tag-added {
+  border-color: var(--color-level-success);
+  color: var(--color-level-success);
+}
+
+.hero-workshop .hw-tag-removed {
+  border-color: var(--color-level-error);
+  color: var(--color-level-error);
+}
+
+/* ---------------------------------------------------------------- characteristics */
+
+.hero-workshop .hw-derived {
+  display: flex;
+  justify-content: space-around;
+  text-align: center;
+  padding: 0.5rem;
+  margin-bottom: 0.75rem;
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+}
+
+.hero-workshop .hw-derived > div {
+  display: flex;
+  flex-direction: column;
+}
+
+.hero-workshop .hw-maxima-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.hero-workshop .hw-maxima-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(4.5rem, 1fr));
+  gap: 0.4rem;
+  margin-top: 0.5rem;
+}
+
+.hero-workshop .hw-maxima-cell {
+  display: flex;
+  flex-direction: column;
+  font-size: var(--font-size-12);
+  color: var(--color-form-label);
+}
+
+.hero-workshop .hw-group-title {
+  margin: 1rem 0 0.4rem;
+  font-size: var(--font-size-16);
+}
+
+.hero-workshop .hw-char-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(8rem, 1fr));
+  gap: 0.5rem;
+}
+
+.hero-workshop .hw-char {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.15rem;
+  padding: 0.5rem;
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  text-align: center;
+}
+
+.hero-workshop .hw-char.hw-over {
+  border-color: var(--color-level-warning);
+}
+
+.hero-workshop .hw-char-name {
+  font-size: var(--font-size-12);
+  text-transform: uppercase;
+  color: var(--color-form-label);
+}
+
+.hero-workshop .hw-char-effective {
+  font-size: var(--font-size-28);
+  font-weight: bold;
+  color: var(--color-text-emphatic);
+}
+
+.hero-workshop .hw-char-effective small {
+  font-size: var(--font-size-14);
+  font-weight: normal;
+  color: var(--color-text-secondary);
+}
+
+.hero-workshop .hw-char-value {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.hero-workshop .hw-char-value input {
+  width: 4rem;
+  text-align: center;
+}
+
+.hero-workshop .hw-char-max {
+  font-size: var(--font-size-12);
+  color: var(--color-text-secondary);
+}
+
+.hero-workshop .hw-over .hw-char-max {
+  color: var(--color-level-warning);
+  font-weight: bold;
+}
+
+.hero-workshop .hw-char-cost {
+  font-size: var(--font-size-12);
+  color: var(--color-text-subtle);
+}
+
+/* ---------------------------------------------------------------- item lists */
+
+.hero-workshop .hw-list-toolbar {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.hero-workshop .hw-list-toolbar button {
+  width: auto;
+}
+
+.hero-workshop .hw-items {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.hero-workshop .hw-children {
+  margin-left: 1.25rem;
+  border-left: 1px solid var(--color-border);
+}
+
+.hero-workshop .hw-item-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.3rem 0.5rem;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.hero-workshop .hw-item-group > .hw-item-row .hw-item-name {
+  font-weight: bold;
+}
+
+.hero-workshop .hw-item-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.hero-workshop .hw-item-detail {
+  font-size: var(--font-size-12);
+}
+
+.hero-workshop .hw-item-cost {
+  font-weight: bold;
+  min-width: 2.5rem;
+  text-align: right;
+}
+
+.hero-workshop .hw-item-controls {
+  display: flex;
+  gap: 0.5rem;
+}
+
+/* ---------------------------------------------------------------- inspector */
+
+.hero-workshop-inspector .hw-inspector {
+  flex: 1;
+  padding: 0.75rem 1rem;
+}
+
+.hero-workshop .hw-counts {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(8rem, 1fr));
+  gap: 0.5rem;
+}
+
+.hero-workshop .hw-counts dd {
+  margin: 0;
+  font-size: var(--font-size-20);
+  font-weight: bold;
+}
+
+.hero-workshop .hw-xml {
+  white-space: pre-wrap;
+  word-break: break-all;
+  font-size: var(--font-size-12);
+}
+
+/* ---------------------------------------------------------------- new character */
+
+.hero-workshop-new .hw-new-character {
+  padding: 1rem;
+}
+
+.hero-workshop .hw-template-choices {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(10rem, 1fr));
+  gap: 0.5rem;
+}
+
+.hero-workshop .hw-template-choice {
+  display: flex;
+  flex-direction: column;
+  padding: 0.5rem;
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.hero-workshop .hw-template-choice input {
+  display: none;
+}
+
+.hero-workshop .hw-template-choice.active {
+  border-color: var(--color-border-highlight);
+  box-shadow: 0 0 4px var(--color-border-highlight);
+}
+
+/* ---------------------------------------------------------------- race library */
+
+.hero-workshop-races .hw-races {
+  flex: 1;
+  padding: 0.75rem 1rem;
+}
+
+.hero-workshop .hw-toolbar select {
+  width: auto;
+  max-width: 16rem;
+}
+
+.hero-workshop .hw-race-table td {
+  padding: 0.1rem;
+}
+
+.hero-workshop .hw-race-table td input[type='number'] {
+  width: 3.4rem;
+  text-align: center;
+}
+
+.hero-workshop .hw-race-table td:first-child input {
+  min-width: 10rem;
+}
+
+.hero-workshop .hw-race-choices {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(10rem, 1fr));
+  gap: 0.25rem;
+  margin-bottom: 0.5rem;
+}
+
+/* ---------------------------------------------------------------- item dialog */
+
+.hero-workshop-item .hw-item-form {
+  padding: 0.75rem 1rem 0;
+}
+
+.hero-workshop .hw-item-cost-preview {
+  text-align: right;
+  margin: 0.5rem 0;
+}
+
+/* ---------------------------------------------------------------- power dialog */
+
+.hero-workshop-power .hw-power-form {
+  flex: 1;
+  padding: 0.75rem 1rem 0;
+}
+
+.hero-workshop .hw-mod-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.2rem 0;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.hero-workshop .hw-mod-name {
+  flex: 1;
+  min-width: 0;
+}
+
+.hero-workshop .hw-mod-option {
+  flex: 0 1 14rem;
+  width: auto;
+}
+
+.hero-workshop .hw-mod-value {
+  min-width: 2.5rem;
+  text-align: right;
+  font-weight: bold;
+}
+
+.hero-workshop .hw-advantage .hw-mod-value {
+  color: var(--color-level-success);
+}
+
+.hero-workshop .hw-limitation .hw-mod-value {
+  color: var(--color-level-error);
+}
+
+.hero-workshop input.hw-small {
+  flex: 0 0 4rem;
+  width: 4rem;
+  text-align: center;
+}
+
+.hero-workshop .hw-add-modifiers,
+.hero-workshop .hw-add-custom {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+
+.hero-workshop .hw-add-custom button {
+  flex: 0 0 auto;
+  width: auto;
+}
+
+.hero-workshop .hw-barrier-grid,
+.hero-workshop .hw-equipment-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(8rem, 1fr));
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.hero-workshop .hw-barrier-grid label,
+.hero-workshop .hw-equipment-grid label:not(.checkbox) {
+  display: flex;
+  flex-direction: column;
+  font-size: var(--font-size-12);
+  color: var(--color-form-label);
+}
+
+.hero-workshop .hw-cost-line {
+  text-align: right;
+  margin: 0.5rem 0;
+}

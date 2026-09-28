@@ -1,0 +1,158 @@
+/**
+ * Item lists (skills, powers, ...) as display trees, and the character point summary,
+ * independent of any UI framework.
+ */
+
+import type { Character, Modifier, Adder } from '../types.js';
+import { calculateCostBreakdown, calculateDisadvantageTotal } from '../utils.js';
+
+export type SectionId = 'skills' | 'perks' | 'talents' | 'martialarts' | 'powers' | 'disadvantages' | 'equipment';
+
+export interface ItemRowView {
+  id: string;
+  name: string;
+  detail: string;
+  cost: number;
+  isGroup: boolean;
+  children: ItemRowView[];
+}
+
+interface ListItem {
+  id: string;
+  name: string;
+  alias?: string;
+  parentId?: string;
+  realCost?: number;
+  baseCost?: number;
+  isGroup?: boolean;
+  isContainer?: boolean;
+  modifiers?: Modifier[];
+  adders?: Adder[];
+  notes?: string;
+  points?: number;
+  roll?: number;
+  subPowers?: ListItem[];
+}
+
+export function sectionItems(character: Character, section: SectionId): ListItem[] {
+  switch (section) {
+    case 'skills': return character.skills;
+    case 'perks': return character.perks;
+    case 'talents': return character.talents;
+    case 'martialarts': return character.martialArts;
+    case 'powers': return character.powers;
+    case 'disadvantages': return character.disadvantages;
+    case 'equipment': return character.equipment ?? [];
+  }
+}
+
+/** Modifier values as HERO writes them: +¼, -1½, +2 */
+export function fractionText(value: number): string {
+  const sign = value < 0 ? '-' : '+';
+  const abs = Math.abs(value);
+  const whole = Math.floor(abs);
+  const rest = abs - whole;
+  const frac = rest === 0.25 ? '¼' : rest === 0.5 ? '½' : rest === 0.75 ? '¾' : rest ? rest.toFixed(2).slice(1) : '';
+  return `${sign}${whole || !frac ? whole : ''}${frac}`;
+}
+
+/** "Armor Piercing (+¼), OAF (-1)" */
+export function modifierSummary(modifiers: Modifier[] | undefined): string {
+  return (modifiers ?? []).map((m) => `${m.name} (${fractionText(m.value)})`).join(', ');
+}
+
+function detailFor(section: SectionId, item: ListItem): string {
+  if (section === 'disadvantages') return item.alias ?? '';
+  const parts: string[] = [];
+  if (item.alias && item.alias !== item.name && section !== 'equipment') parts.push(item.alias);
+  if (item.roll) parts.push(`${item.roll}-`);
+  const adders = (item.adders ?? []).map((a) => a.optionAlias ?? a.name).filter(Boolean);
+  if (adders.length && section !== 'equipment') parts.push(adders.join(', '));
+  const mods = modifierSummary(item.modifiers);
+  if (mods) parts.push(mods);
+  return parts.join(' · ');
+}
+
+const costOf = (section: SectionId, item: ListItem) =>
+  section === 'disadvantages' ? (item.points ?? 0) : (item.realCost ?? item.baseCost ?? 0);
+
+/** Items nested under their LIST groups / compound powers, in list order */
+export function buildItemTree(character: Character, section: SectionId): ItemRowView[] {
+  const items = sectionItems(character, section);
+  const ids = new Set(items.map((i) => i.id));
+  const toRow = (item: ListItem): ItemRowView => ({
+    id: item.id,
+    name: item.name,
+    detail: detailFor(section, item),
+    cost: costOf(section, item),
+    isGroup: !!(item.isGroup || item.isContainer),
+    children: [
+      ...items.filter((c) => c.parentId === item.id).map(toRow),
+      ...(item.subPowers ?? []).map(toRow),
+    ],
+  });
+  return items.filter((i) => !i.parentId || !ids.has(i.parentId)).map(toRow);
+}
+
+export interface PointSummaryView {
+  basePoints: number;
+  disadPoints: number;
+  experience: number;
+  available: number;
+  spent: number;
+  remaining: number;
+  complicationsTaken: number;
+  complicationsOk: boolean;
+  breakdown: { label: string; points: number }[];
+}
+
+export function buildPointSummary(character: Character): PointSummaryView {
+  const { basePoints, disadPoints, experience } = character.basicConfiguration;
+  const breakdown = calculateCostBreakdown(character);
+  const available = basePoints + experience;
+  const complicationsTaken = calculateDisadvantageTotal(character.disadvantages);
+  return {
+    basePoints,
+    disadPoints,
+    experience,
+    available,
+    spent: breakdown.total,
+    remaining: available - breakdown.total,
+    complicationsTaken,
+    complicationsOk: complicationsTaken <= disadPoints,
+    breakdown: [
+      { label: 'Characteristics', points: breakdown.characteristics },
+      { label: 'Skills', points: breakdown.skills },
+      { label: 'Perks', points: breakdown.perks },
+      { label: 'Talents', points: breakdown.talents },
+      { label: 'Martial Arts', points: breakdown.martialArts },
+      { label: 'Powers', points: breakdown.powers },
+    ].filter((b) => b.points !== 0),
+  };
+}
+
+
+/** Removes an item and everything nested under it (LIST children, compound sub-powers) */
+export function removeItem(character: Character, section: SectionId, id: string): Character {
+  const items = sectionItems(character, section);
+  const doomed = new Set([id]);
+  for (let grew = true; grew; ) {
+    grew = false;
+    for (const item of items) {
+      if (item.parentId && doomed.has(item.parentId) && !doomed.has(item.id)) {
+        doomed.add(item.id);
+        grew = true;
+      }
+    }
+  }
+  const keep = <T extends { id: string }>(list: T[]) => list.filter((i) => !doomed.has(i.id));
+  switch (section) {
+    case 'skills': return { ...character, skills: keep(character.skills) };
+    case 'perks': return { ...character, perks: keep(character.perks) };
+    case 'talents': return { ...character, talents: keep(character.talents) };
+    case 'martialarts': return { ...character, martialArts: keep(character.martialArts) };
+    case 'powers': return { ...character, powers: keep(character.powers) };
+    case 'disadvantages': return { ...character, disadvantages: keep(character.disadvantages) };
+    case 'equipment': return { ...character, equipment: keep(character.equipment ?? []) };
+  }
+}

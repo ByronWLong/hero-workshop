@@ -1,0 +1,78 @@
+<div class="hw-body">
+  {{#if (eq stage "drift")}}
+  <section class="hw-panel hw-scroll standard-form">
+    <h3>Changes made in Foundry</h3>
+    <p class="hint">
+      This was edited on its Foundry sheet after its Hero Designer data was last saved. Selected changes are
+      copied into the character before you edit it, so saving from Hero Workshop won't undo them.
+    </p>
+    {{#each drift.groups as |group|}}
+    <fieldset>
+      <legend>{{group.itemName}}</legend>
+      {{#each group.changes as |change|}}
+      <label class="checkbox hw-drift-change">
+        <input type="checkbox" data-field="drift.{{change.key}}" {{checked change.selected}}>
+        <span class="hw-tag hw-tag-{{change.kind}}">{{change.kind}}</span>
+        {{change.summary}}
+      </label>
+      {{/each}}
+    </fieldset>
+    {{/each}}
+    <footer class="form-footer">
+      <button type="button" data-action="discardDrift"><i class="fa-solid fa-xmark" inert></i> Discard Foundry changes</button>
+      <button type="button" class="bright" data-action="keepDrift">
+        <i class="fa-solid fa-check" inert></i> Keep {{drift.selectedCount}} selected
+      </button>
+    </footer>
+  </section>
+
+  {{else if (eq stage "review")}}
+  <section class="hw-panel hw-scroll standard-form">
+    <h3>Review changes</h3>
+    {{#each review.errors}}<p class="notification error">{{this}}</p>{{/each}}
+    {{#if review.warnings.length}}
+    <h4>Not saved</h4>
+    <ul class="hw-list hw-warn">{{#each review.warnings}}<li>{{this}}</li>{{/each}}</ul>
+    {{/if}}
+    {{#if review.keptFromFoundry}}<p class="hint">Includes {{review.keptFromFoundry}} change(s) kept from the Foundry sheet.</p>{{/if}}
+    <h4>Changes</h4>
+    {{#if review.changes.length}}
+    <ul class="hw-list">{{#each review.changes}}<li>{{this}}</li>{{/each}}</ul>
+    {{else}}
+    <p class="hint">Only changes kept from Foundry will be applied.</p>
+    {{/if}}
+    {{#if review.notes.length}}
+    <details>
+      <summary>{{review.notes.length}} Foundry compatibility note(s)</summary>
+      <ul class="hw-list hint">{{#each review.notes}}<li>{{this}}</li>{{/each}}</ul>
+    </details>
+    {{/if}}
+    <footer class="form-footer">
+      <button type="button" data-action="backToEdit"><i class="fa-solid fa-arrow-left" inert></i> Back to editing</button>
+      <button type="button" class="bright" data-action="apply" {{#if review.errors.length}}disabled{{/if}}>
+        <i class="fa-solid fa-floppy-disk" inert></i> {{review.applyLabel}}
+      </button>
+    </footer>
+  </section>
+
+  {{else if (eq stage "applying")}}
+  <section class="hw-panel hw-empty">
+    <i class="fa-solid fa-spinner fa-spin"></i> {{#if isNew}}Creating{{else}}Updating{{/if}} {{title}}…
+  </section>
+
+  {{else}}
+  <div class="hw-layout {{#if hideSidebar}}hw-layout-single{{/if}}">
+    {{#unless hideSidebar}}
+    <aside class="hw-sidebar hw-scroll">{{> "modules/hero-workshop/templates/editor/summary.hbs" summary=summary}}</aside>
+    {{/unless}}
+    <div class="hw-content">
+      {{> "templates/generic/tab-navigation.hbs" tabs=tabs}}
+      <div class="hw-scroll hw-tabs-body">
+        {{#if info}}{{> "modules/hero-workshop/templates/editor/tab-info.hbs" tab=info}}{{/if}}
+        {{#if characteristics}}{{> "modules/hero-workshop/templates/editor/tab-characteristics.hbs" tab=characteristics}}{{/if}}
+        {{#each lists as |list|}}{{> "modules/hero-workshop/templates/editor/tab-list.hbs" tab=list}}{{/each}}
+      </div>
+    </div>
+  </div>
+  {{/if}}
+</div>

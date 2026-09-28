@@ -4,7 +4,6 @@
  * writable by the GM).
  */
 
-import { useEffect, useState } from 'react';
 import {
   HdcDocument,
   MAXIMA_CHARACTERISTICS,
@@ -53,18 +52,6 @@ export async function saveRaceLibrary(races: RaceDefinition[]): Promise<void> {
 }
 
 export const canManageRaces = () => game.user.isGM;
-
-/** The race library, kept current when the GM changes it */
-export function useRaceLibrary(): RaceDefinition[] {
-  const [races, setRaces] = useState(getRaceLibrary);
-  useEffect(() => {
-    const id = Hooks.on('updateSetting', ((setting: { key: string }) => {
-      if (setting.key === `${MODULE_ID}.${SETTING}`) setRaces(getRaceLibrary());
-    }) as (...args: never[]) => unknown);
-    return () => Hooks.off('updateSetting', id);
-  }, []);
-  return races;
-}
 
 export function newRaceId(): string {
   return `race-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;

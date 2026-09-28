@@ -7,8 +7,14 @@ A Foundry VTT v14 module for the [Hero System 6e (Unofficial) v2](https://github
 hero6e keeps the actor's source HDC in `actor.system._hdcXml`. When you open the editor:
 
 1. **Foundry changes are checked.** Edits made on hero6e's own sheets, such as changed levels or added and removed adders, are compared with the stored HDC. You choose which ones to keep before editing.
-2. **You edit in Hero Workshop.** You get the same tabs as the web app.
+2. **You edit in Hero Workshop.** You get the same sections as the web app.
 3. **The changes are reviewed and applied.** The HDC is patched rather than regenerated, and the actor is re-imported with hero6e's own `uploadFromXml`. Damage, used charges, and Foundry item IDs are preserved.
+
+## Built on Foundry's framework
+
+Every window is a native ApplicationV2 + Handlebars application, like hero6e's own sheets:
+- **Styling:** it uses Foundry's form markup and CSS variables, so light and dark themes and theme modules apply.
+- **Where the logic lives:** all character rules (costs, maxima, item forms, HDC writing) live in `@hero-workshop/shared` as framework-independent functions. The module's code only renders them (`src/apps`, `templates/`).
 
 ## Build and install
 
