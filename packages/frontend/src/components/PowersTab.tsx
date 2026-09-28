@@ -46,8 +46,12 @@ const ALL_ADVANTAGES: ModifierDefinition[] = Object.values(ADVANTAGES).sort((a: 
 const ALL_LIMITATIONS: ModifierDefinition[] = Object.values(LIMITATIONS).sort((a: ModifierDefinition, b: ModifierDefinition) => a.display.localeCompare(b.display));
 
 interface SelectedModifier {
+  /** HDC element ID of an existing modifier; preserved so saves update it in place */
+  id?: string;
   xmlId: string;
   name: string;
+  alias?: string;
+  input?: string;
   value: number;
   isAdvantage: boolean;
   isLimitation: boolean;
@@ -466,12 +470,17 @@ export function PowersTab({ character, onUpdate }: PowersTabProps) {
     
     // Convert power modifiers to SelectedModifier format
     const selectedMods: SelectedModifier[] = (power.modifiers ?? []).map(mod => ({
-      xmlId: mod.id,
+      id: mod.id,
+      xmlId: mod.xmlId ?? mod.id,
       name: mod.name,
+      alias: mod.alias,
+      input: mod.input,
       value: mod.value,
       isAdvantage: mod.isAdvantage,
       isLimitation: mod.isLimitation,
       levels: mod.levels,
+      optionId: mod.optionId,
+      optionName: mod.optionAlias,
       notes: mod.notes,
       adders: mod.adders,
     }));
@@ -697,12 +706,17 @@ export function PowersTab({ character, onUpdate }: PowersTabProps) {
     setSubPowerDef(def ?? null);
     
     const selectedMods: SelectedModifier[] = (subPower.modifiers ?? []).map(mod => ({
-      xmlId: mod.id,
+      id: mod.id,
+      xmlId: mod.xmlId ?? mod.id,
       name: mod.name,
+      alias: mod.alias,
+      input: mod.input,
       value: mod.value,
       isAdvantage: mod.isAdvantage,
       isLimitation: mod.isLimitation,
       levels: mod.levels,
+      optionId: mod.optionId,
+      optionName: mod.optionAlias,
       notes: mod.notes,
       adders: mod.adders,
     }));
@@ -733,9 +747,10 @@ export function PowersTab({ character, onUpdate }: PowersTabProps) {
     const endCost = subPowerDef?.usesEnd !== false ? Math.ceil(activeCost / 10) : 0;
 
     const modifiers: Modifier[] = subPowerFormData.selectedModifiers.map(mod => ({
-      id: generateId(),
+      id: mod.id ?? generateId(),
       name: mod.name,
-      alias: mod.optionName,
+      alias: mod.alias ?? mod.name,
+      input: mod.input,
       value: mod.value,
       isAdvantage: mod.isAdvantage,
       isLimitation: mod.isLimitation,
@@ -750,7 +765,7 @@ export function PowersTab({ character, onUpdate }: PowersTabProps) {
     const isCustomPower = !subPowerDef;
     const powerName = isCustomPower 
       ? (subPowerFormData.name || editingSubPower?.name || 'Custom Power')
-      : (subPowerFormData.alias || subPowerDef.display);
+      : (subPowerFormData.name || subPowerFormData.alias || subPowerDef.display);
     const powerType = isCustomPower
       ? (editingSubPower?.type ?? 'GENERIC')
       : subPowerDef.xmlId;
@@ -942,9 +957,10 @@ export function PowersTab({ character, onUpdate }: PowersTabProps) {
     // Handle saving a list container
     if (isEditingList) {
       const modifiers: Modifier[] = formData.selectedModifiers.map(mod => ({
-        id: generateId(),
+        id: mod.id ?? generateId(),
         name: mod.name,
-        alias: mod.optionName,
+        alias: mod.alias ?? mod.name,
+        input: mod.input,
         value: mod.value,
         isAdvantage: mod.isAdvantage,
         isLimitation: mod.isLimitation,
@@ -1066,9 +1082,10 @@ export function PowersTab({ character, onUpdate }: PowersTabProps) {
     
     // Regular power saving
     const modifiers: Modifier[] = formData.selectedModifiers.map(mod => ({
-      id: generateId(),
+      id: mod.id ?? generateId(),
       name: mod.name,
-      alias: mod.optionName,
+      alias: mod.alias ?? mod.name,
+      input: mod.input,
       value: mod.value,
       isAdvantage: mod.isAdvantage,
       isLimitation: mod.isLimitation,
@@ -1084,7 +1101,7 @@ export function PowersTab({ character, onUpdate }: PowersTabProps) {
     const isCustomPower = !selectedPowerDef;
     const powerName = isCustomPower 
       ? (formData.name || editingPower?.name || 'Custom Power')
-      : (formData.alias || selectedPowerDef.display);
+      : (formData.name || formData.alias || selectedPowerDef.display);
     const powerType = isCustomPower
       ? (editingPower?.type ?? 'GENERIC')
       : selectedPowerDef.xmlId;

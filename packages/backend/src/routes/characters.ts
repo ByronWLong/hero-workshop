@@ -4,10 +4,36 @@
 
 import { Router } from 'express';
 import { google } from 'googleapis';
-import type { Character, CharacterSummary, ApiResponse, DriveFileList } from '@hero-workshop/shared';
+import type { drive_v3 } from 'googleapis';
+import type { Character, CharacterSummary, ApiResponse, DriveFileList, HdcWriteReport } from '@hero-workshop/shared';
+import {
+  createHdc,
+  decodeHdcBytes,
+  detectHdcEncoding,
+  encodeHdcUtf16,
+  parseHdcFile,
+  updateHdc,
+} from '@hero-workshop/shared';
 import { requireAuth, getAuthenticatedClient } from '../middleware/auth.js';
-import { parseHdcFile, serializeToHdc } from '../services/hdcParser.js';
 import { Readable } from 'stream';
+
+/** Downloads an .hdc file, returning its text and the raw bytes' encoding */
+async function downloadHdc(drive: drive_v3.Drive, fileId: string) {
+  const response = await drive.files.get({ fileId, alt: 'media' }, { responseType: 'arraybuffer' });
+  const bytes = new Uint8Array(response.data as ArrayBuffer);
+  return { text: decodeHdcBytes(bytes), encoding: detectHdcEncoding(bytes) };
+}
+
+/**
+ * Encodes XML for upload. Desktop Hero Designer writes UTF-16 and declares it in the XML
+ * header, so anything that isn't plainly UTF-8 goes back out as UTF-16LE with a BOM.
+ */
+function encodeHdc(xml: string, encoding: 'utf-8' | 'utf-16le' | 'utf-16be'): Buffer {
+  const declaresUtf16 = /^<\?xml[^>]*encoding=["']UTF-16["']/i.test(xml);
+  return encoding === 'utf-8' && !declaresUtf16
+    ? Buffer.from(xml, 'utf8')
+    : Buffer.from(encodeHdcUtf16(xml));
+}
 
 export const charactersRouter = Router();
 
@@ -62,32 +88,7 @@ charactersRouter.get('/:fileId', async (req, res, next) => {
     const oauth2Client = getAuthenticatedClient(req);
     const drive = google.drive({ version: 'v3', auth: oauth2Client });
 
-    // Get file content - use arraybuffer to handle UTF-16 encoding
-    const response = await drive.files.get(
-      { fileId: fileId ?? '', alt: 'media' },
-      { responseType: 'arraybuffer' }
-    );
-
-    // Convert arraybuffer to string, handling UTF-16 encoding
-    let xmlContent: string;
-    const buffer = Buffer.from(response.data as ArrayBuffer);
-    
-    // Check for UTF-16 BOM (FF FE for little-endian, FE FF for big-endian)
-    if (buffer[0] === 0xFF && buffer[1] === 0xFE) {
-      xmlContent = buffer.toString('utf16le');
-    } else if (buffer[0] === 0xFE && buffer[1] === 0xFF) {
-      // Big-endian UTF-16 - swap bytes
-      const swapped = Buffer.alloc(buffer.length);
-      for (let i = 0; i < buffer.length; i += 2) {
-        swapped[i] = buffer[i + 1]!;
-        swapped[i + 1] = buffer[i]!;
-      }
-      xmlContent = swapped.toString('utf16le');
-    } else {
-      // Assume UTF-8
-      xmlContent = buffer.toString('utf8');
-    }
-    
+    const { text: xmlContent } = await downloadHdc(drive, fileId ?? '');
     const character = parseHdcFile(xmlContent);
 
     res.json({ success: true, data: character } as ApiResponse<Character>);
@@ -113,13 +114,8 @@ charactersRouter.get('/:fileId/summary', async (req, res, next) => {
       fields: 'id, name, modifiedTime',
     });
 
-    // Get file content for basic parsing
-    const contentResponse = await drive.files.get(
-      { fileId: fileId ?? '', alt: 'media' },
-      { responseType: 'text' }
-    );
-
-    const xmlContent = contentResponse.data as string;
+    // Get file content for basic parsing (arraybuffer: most .hdc files are UTF-16)
+    const { text: xmlContent } = await downloadHdc(drive, fileId ?? '');
     const character = parseHdcFile(xmlContent);
 
     const summary: CharacterSummary = {
@@ -149,18 +145,20 @@ charactersRouter.put('/:fileId', async (req, res, next) => {
     const oauth2Client = getAuthenticatedClient(req);
     const drive = google.drive({ version: 'v3', auth: oauth2Client });
 
-    const xmlContent = serializeToHdc(character);
+    // Patch the current file rather than regenerating it, so everything the editor doesn't
+    // model (and everything Hero Designer / Foundry depend on) is preserved
+    const original = await downloadHdc(drive, fileId ?? '');
+    const { xml, report } = updateHdc(original.text, character);
 
-    // Update file content
     await drive.files.update({
       fileId: fileId ?? '',
       media: {
         mimeType: 'application/xml',
-        body: Readable.from([xmlContent]),
+        body: Readable.from([encodeHdc(xml, original.encoding)]),
       },
     });
 
-    res.json({ success: true, data: { fileId } });
+    res.json({ success: true, data: { fileId, report } } as ApiResponse<{ fileId: string; report: HdcWriteReport }>);
   } catch (error) {
     next(error);
   }
@@ -181,7 +179,8 @@ charactersRouter.post('/', async (req, res, next) => {
     const oauth2Client = getAuthenticatedClient(req);
     const drive = google.drive({ version: 'v3', auth: oauth2Client });
 
-    const xmlContent = serializeToHdc(character);
+    const { xml, report } = createHdc(character);
+    const xmlContent = encodeHdc(xml, 'utf-16le');
 
     const fileMetadata: { name: string; mimeType: string; parents?: string[] } = {
       name: fileName.endsWith('.hdc') ? fileName : `${fileName}.hdc`,
@@ -207,6 +206,7 @@ charactersRouter.post('/', async (req, res, next) => {
         fileId: response.data.id,
         fileName: response.data.name,
         webViewLink: response.data.webViewLink,
+        report,
       },
     });
   } catch (error) {
