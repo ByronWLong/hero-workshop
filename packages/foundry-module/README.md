@@ -22,6 +22,10 @@ npm run build:foundry            # from the repo root; output in packages/foundr
 
 - On a hero6e actor sheet, open the header menu (⋮) and choose **Edit in Hero Workshop** or **Inspect HDC**.
 - You can also right-click an actor in the Actors sidebar for the same options.
+- **New characters:** use the Actors sidebar's **Hero Workshop Character** button.
+  - Heroic and Superheroic create a PC or NPC.
+  - Vehicle, Base, Computer, Automaton and AI create hero6e's matching actor type, with only that template's characteristics.
+- **Items:** "Edit in Hero Workshop" on an item owned by an actor opens that actor's editor with the item's edit form already open.
 - **Characteristic maxima:** each character's maxima are derived from its original race or races.
   - A race's maxima are its listed stats +10 (+1 SPD, +2 OCV/DCV/OMCV/DMCV).
   - Mixed races average their races' maxima, rounded up.
