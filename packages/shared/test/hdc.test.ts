@@ -287,3 +287,37 @@ describe('change reporting', () => {
     expect(xml).toBe(HdcDocument.parse(FIXTURE).toString());
   });
 });
+
+describe('new perks, talents and complications', () => {
+  it('maps editor types to Hero Designer XMLIDs and adds required roll adders at the chosen points', () => {
+    const edited = parseHdcFile(FIXTURE);
+    edited.disadvantages.push(
+      // Shaped like the web editor's new complications: type label in name, detail in alias
+      { id: 'd1', name: 'Psychological Complication', alias: 'Code vs Killing', type: 'PSYCHOLOGICAL_COMPLICATION', position: 0, levels: 1, baseCost: 20, points: 20 },
+      { id: 'd2', name: 'Social Complication', alias: 'Secret Identity', type: 'SOCIAL_COMPLICATION', position: 1, levels: 1, baseCost: 15, points: 15 },
+    );
+    edited.talents.push({ id: 't1', name: 'Lightning Reflexes', type: 'LIGHTNING_REFLEXES', position: 0, levels: 2, baseCost: 2 });
+
+    const { xml, report } = updateHdc(FIXTURE, edited);
+    expect(report.warnings).toEqual([]);
+
+    const psych = element(xml, report.idMap['d1']!);
+    expect(psych.getAttr('XMLID')).toBe('PSYCHOLOGICALLIMITATION');
+    expect(psych.getAttr('INPUT')).toBe('Code vs Killing');
+    expect(psych.getAttr('LEVELS')).toBe('0');
+    const adderIds = psych.elements('ADDER').map((a) => a.getAttr('XMLID'));
+    expect(adderIds).toEqual(expect.arrayContaining(['INTENSITY', 'SITUATION']));
+    const psychPoints = psych.elements('ADDER').reduce((sum, a) => sum + Number(a.getAttr('BASECOST')), 0) + Number(psych.getAttr('BASECOST'));
+    expect(psychPoints).toBe(20);
+
+    const social = element(xml, report.idMap['d2']!);
+    expect(social.getAttr('XMLID')).toBe('SOCIALLIMITATION');
+    expect(social.getAttr('INPUT')).toBe('Secret Identity');
+    expect(social.elements('ADDER').map((a) => a.getAttr('XMLID'))).toEqual(expect.arrayContaining(['OCCUR', 'EFFECTS']));
+
+    expect(element(xml, report.idMap['t1']!).getAttr('XMLID')).toBe('LIGHTNING_REFLEXES_ALL');
+    // Nothing the writer created trips Foundry's complication checks
+    const created = new Set(Object.values(report.idMap));
+    expect(report.foundryIssues.filter((i) => i.itemId && created.has(i.itemId))).toEqual([]);
+  });
+});

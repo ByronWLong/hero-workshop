@@ -7,6 +7,8 @@
  * - Values are fractions (e.g., 0.25 = +1/4, -0.5 = -1/2)
  */
 
+import { MODIFIER_CATALOG_6E, type CatalogEntry } from './generated/catalog6e.js';
+
 // ============================================================================
 // TYPES
 // ============================================================================
@@ -1109,6 +1111,52 @@ export const LIMITATIONS: Record<string, ModifierDefinition> = {
     description: 'Ranged Power whose Range is based on the character\'s STR.',
   },
 };
+
+// Modifiers the hand-written definitions above don't cover come from Hero Designer's template.
+// Hand-written entries win: they carry curated cost behaviour.
+for (const entry of MODIFIER_CATALOG_6E) {
+  if (ADVANTAGES[entry.xmlId] || LIMITATIONS[entry.xmlId]) continue;
+  const definition = modifierFromCatalog(entry);
+  (definition.isLimitation ? LIMITATIONS : ADVANTAGES)[entry.xmlId] = definition;
+}
+
+function modifierFromCatalog(e: CatalogEntry): ModifierDefinition {
+  // Option-priced modifiers (e.g. Delayed Return Rate) have no BASECOST of their own
+  const baseCost = e.baseCost ?? e.options?.[0]?.baseCost ?? 0;
+  const isLimitation = e.isLimitation ?? (baseCost < 0 || (baseCost === 0 && (e.lvlCost ?? 0) < 0));
+  return {
+    xmlId: e.xmlId,
+    display: e.display,
+    abbreviation: e.abbreviation,
+    baseCost,
+    lvlCost: e.lvlCost,
+    lvlVal: e.lvlVal,
+    lvlPower: e.lvlPower,
+    minCost: e.minCost,
+    maxCost: e.maxCost,
+    minVal: e.minVal,
+    maxVal: e.maxVal,
+    levelStart: e.levelStart,
+    exclusive: e.exclusive,
+    isAdvantage: !isLimitation,
+    isLimitation,
+    hasOptions: !!e.options?.length,
+    hasLevels: e.lvlCost !== undefined && e.lvlCost !== 0,
+    options: e.options?.map((o) => ({ xmlId: o.xmlId, display: o.display, baseCost: o.baseCost ?? 0, lvlVal: o.lvlVal })),
+    adders: e.adders?.map((a) => ({
+      xmlId: a.xmlId,
+      display: a.display,
+      baseCost: a.baseCost,
+      required: a.required,
+      exclusive: a.exclusive,
+      lvlCost: a.lvlCost,
+      lvlVal: a.lvlVal,
+      minVal: a.minVal,
+      options: a.options?.map((o) => ({ xmlId: o.xmlId, display: o.display, baseCost: o.baseCost ?? 0, lvlVal: o.lvlVal })),
+    })),
+    description: e.description,
+  };
+}
 
 // ============================================================================
 // HELPER FUNCTIONS

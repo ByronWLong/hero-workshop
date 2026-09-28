@@ -62,6 +62,12 @@ interface SelectedModifier {
   adders?: Adder[];
 }
 
+/** Priced-by-option modifiers start on their first option, which carries the cost */
+function defaultModifierOption(modDef: ModifierDefinition): Partial<SelectedModifier> {
+  const option = modDef.xmlId !== 'AOE' && !modDef.hasLevels ? modDef.options?.[0] : undefined;
+  return option ? { optionId: option.xmlId, optionName: option.display, value: option.baseCost } : {};
+}
+
 function generateId(): string {
   return Math.random().toString(36).substring(2, 11);
 }
@@ -185,6 +191,7 @@ export function PowersTab({ character, onUpdate }: PowersTabProps) {
   const [formData, setFormData] = useState({
     name: '',
     alias: '',
+    input: '', // Free-text INPUT, e.g. the characteristic a Drain affects
     notes: '',
     levels: 1,
     selectedModifiers: [] as SelectedModifier[],
@@ -365,6 +372,7 @@ export function PowersTab({ character, onUpdate }: PowersTabProps) {
       setFormData({
         name: 'New Compound Power',
         alias: '',
+        input: '',
         notes: '',
         levels: 0,
         selectedModifiers: [],
@@ -389,6 +397,7 @@ export function PowersTab({ character, onUpdate }: PowersTabProps) {
       setFormData({
         name: defaultPower.display,
         alias: '',
+        input: '',
         notes: '',
         levels: 1,
         selectedModifiers: [],
@@ -422,6 +431,7 @@ export function PowersTab({ character, onUpdate }: PowersTabProps) {
     setFormData({
       name: 'New Power List',
       alias: '',
+      input: '',
       notes: '',
       levels: 0,
       selectedModifiers: [],
@@ -503,6 +513,7 @@ export function PowersTab({ character, onUpdate }: PowersTabProps) {
     setFormData({
       name: power.name,
       alias: power.alias ?? '',
+      input: power.input ?? '',
       notes: power.notes ?? '',
       levels: power.levels ?? 1,
       selectedModifiers: selectedMods,
@@ -549,6 +560,7 @@ export function PowersTab({ character, onUpdate }: PowersTabProps) {
       isAdvantage: modDef.isAdvantage,
       isLimitation: modDef.isLimitation,
       levels: modDef.hasLevels ? 1 : undefined,
+      ...defaultModifierOption(modDef),
     };
     
     setFormData({
@@ -811,6 +823,7 @@ export function PowersTab({ character, onUpdate }: PowersTabProps) {
       isAdvantage: modDef.isAdvantage,
       isLimitation: modDef.isLimitation,
       levels: modDef.hasLevels ? 1 : undefined,
+      ...defaultModifierOption(modDef),
     };
     
     setSubPowerFormData({
@@ -839,6 +852,17 @@ export function PowersTab({ character, onUpdate }: PowersTabProps) {
       mod.value = modDef.baseCost + (modDef.lvlCost * (levels - 1));
     }
     
+    setFormData({ ...formData, selectedModifiers: mods });
+  };
+
+  // Choose the option of a priced-by-option modifier (e.g. Delayed Return Rate)
+  const updateModifierOption = (index: number, optionId: string) => {
+    const mods = [...formData.selectedModifiers];
+    const mod = mods[index];
+    if (!mod) return;
+    const option = (ADVANTAGES[mod.xmlId] ?? LIMITATIONS[mod.xmlId])?.options?.find((o) => o.xmlId === optionId);
+    if (!option) return;
+    mods[index] = { ...mod, optionId: option.xmlId, optionName: option.display, value: option.baseCost };
     setFormData({ ...formData, selectedModifiers: mods });
   };
 
@@ -1113,6 +1137,7 @@ export function PowersTab({ character, onUpdate }: PowersTabProps) {
       id: editingPower?.id ?? generateId(),
       name: powerName,
       alias: isCustomPower ? (formData.alias || editingPower?.alias) : formData.alias || undefined,
+      input: formData.input || editingPower?.input || undefined,
       type: powerType as Power['type'],
       notes: formData.notes || undefined,
       baseCost: costs.baseCost,
@@ -2140,6 +2165,19 @@ export function PowersTab({ character, onUpdate }: PowersTabProps) {
             </div>
             )}
 
+            {!isEditingList && selectedPowerDef?.inputLabel && (
+            <div className="form-group">
+              <label className="form-label">{selectedPowerDef.inputLabel}</label>
+              <input
+                type="text"
+                className="form-input"
+                value={formData.input}
+                onChange={e => setFormData({ ...formData, input: e.target.value })}
+                placeholder={selectedPowerDef.xmlId === 'DRAIN' || selectedPowerDef.xmlId === 'AID' ? 'e.g., STR, BODY, Fire powers' : ''}
+              />
+            </div>
+            )}
+
             {/* Alias / Description - for custom powers only */}
             {!isEditingList && !selectedPowerDef && !isCompound && (
             <div className="form-group">
@@ -2481,6 +2519,20 @@ export function PowersTab({ character, onUpdate }: PowersTabProps) {
                               <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>m</span>
                             </div>
                           )}
+                          {!isAoe && modDef?.options && modDef.options.length > 0 && !modDef.hasLevels && (
+                            <select
+                              className="form-input"
+                              value={mod.optionId ?? ''}
+                              onChange={e => updateModifierOption(realIndex, e.target.value)}
+                              style={{ maxWidth: '220px' }}
+                              title="Option"
+                            >
+                              {!mod.optionId && <option value="">Choose...</option>}
+                              {modDef.options.map(o => (
+                                <option key={o.xmlId} value={o.xmlId}>{o.display}</option>
+                              ))}
+                            </select>
+                          )}
                           {/* Regular level input for other modifiers */}
                           {!isAoe && modDef?.hasLevels && (
                             <input
@@ -2525,6 +2577,20 @@ export function PowersTab({ character, onUpdate }: PowersTabProps) {
                           <span style={{ flex: 1 }}>
                             {mod.name} ({formatModifierValue(mod.value)})
                           </span>
+                          {modDef?.options && modDef.options.length > 0 && !modDef.hasLevels && (
+                            <select
+                              className="form-input"
+                              value={mod.optionId ?? ''}
+                              onChange={e => updateModifierOption(realIndex, e.target.value)}
+                              style={{ maxWidth: '220px' }}
+                              title="Option"
+                            >
+                              {!mod.optionId && <option value="">Choose...</option>}
+                              {modDef.options.map(o => (
+                                <option key={o.xmlId} value={o.xmlId}>{o.display}</option>
+                              ))}
+                            </select>
+                          )}
                           {modDef?.hasLevels && (
                             <input
                               type="number"

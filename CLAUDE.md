@@ -60,7 +60,7 @@ Shared must build first as it provides type definitions consumed by both backend
 
 ### Key Shared Exports
 - `hdc/` - Lossless HDC handling: `xml.ts` (byte-preserving XML tree), `parse.ts` (HDC → Character), `write.ts` (`updateHdc`/`createHdc`), `foundry.ts` (hero6e compatibility rules + `validateForFoundry`)
-- `generated/skillCatalog6e.ts` - Generated from `java/.../template/Main6E.hdt` (`npm run generate:catalog -w @hero-workshop/shared`)
+- `generated/` - Catalogs generated from `java/.../template/Main6E.hdt` (`npm run generate:catalog -w @hero-workshop/shared`): skills, powers, modifiers, perks, talents, complications. `powerDefinitions.ts`/`modifierDefinitions.ts` merge in any template entries their hand-written definitions lack (hand-written entries win)
 - `types.ts` - Character, Power, Skill, Perk, Talent, Disadvantage, Equipment types
 - `powerDefinitions.ts` - HERO System 6th Edition power catalog
 - `modifierDefinitions.ts` - Power advantages and limitations

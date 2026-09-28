@@ -1282,6 +1282,7 @@ function parsePower(obj: Record<string, unknown>): Power {
     modifiers: modifiers,
     adders: adders,
     parentId: parentId || undefined,
+    input: getAttr(obj, 'INPUT') || undefined,
     option: optionId || undefined,
     optionAlias: optionAlias || undefined,
     affectsPrimary: affectsPrimary,

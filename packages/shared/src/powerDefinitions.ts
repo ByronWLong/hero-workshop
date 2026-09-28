@@ -5,6 +5,8 @@
  * for all standard HERO System powers as used in Hero Designer.
  */
 
+import { POWER_CATALOG_6E, type CatalogEntry } from './generated/catalog6e.js';
+
 // ============================================================================
 // Type Definitions
 // ============================================================================
@@ -42,6 +44,8 @@ export interface PowerDefinition {
   display: string;
   abbreviation?: string;
   description: string;
+  /** Label for the power's free-text INPUT (e.g. the characteristic a Drain affects) */
+  inputLabel?: string;
   
   // Cost structure
   baseCost: number;
@@ -1981,6 +1985,64 @@ export const ALL_POWERS: Record<string, PowerDefinition> = {
   ...CHARACTERISTIC_POWERS,
   ...SKILL_LEVEL_POWERS,
 };
+
+// Powers the hand-written definitions above don't cover come from Hero Designer's template.
+// Hand-written entries win: they carry curated descriptions and cost behaviour.
+for (const entry of POWER_CATALOG_6E) {
+  const existing = ALL_POWERS[entry.xmlId];
+  if (existing) existing.inputLabel ??= entry.inputLabel;
+  else ALL_POWERS[entry.xmlId] = powerFromCatalog(entry);
+}
+
+function powerFromCatalog(e: CatalogEntry): PowerDefinition {
+  return {
+    xmlId: e.xmlId,
+    display: e.display,
+    abbreviation: e.abbreviation,
+    description: e.description ?? '',
+    inputLabel: e.inputLabel,
+    baseCost: e.baseCost ?? 0,
+    lvlCost: e.lvlCost ?? 0,
+    lvlVal: e.lvlVal ?? 1,
+    levelStart: e.levelStart,
+    minVal: e.minVal,
+    duration: (e.duration || 'INSTANT') as PowerDuration,
+    range: (e.range || 'No') as PowerRange,
+    target: (e.target || 'N/A') as PowerTarget,
+    defense: (e.defense || undefined) as PowerDefense | undefined,
+    types: (e.types ?? []) as PowerType[],
+    doesDamage: e.doesDamage,
+    doesKnockback: e.doesKnockback,
+    doesBody: e.doesBody,
+    isKilling: e.killing,
+    standardEffectAllowed: e.standardEffectAllowed,
+    usesEnd: e.usesEnd,
+    visible: e.visible,
+    continuingEffect: e.continuingEffect,
+    exclusive: e.exclusive,
+    warningSign: e.warningSign,
+    adders: e.adders?.map((a) => ({
+      xmlId: a.xmlId,
+      display: a.display,
+      baseCost: a.baseCost,
+      lvlCost: a.lvlCost,
+      lvlVal: a.lvlVal,
+      minVal: a.minVal,
+      levelStart: a.levelStart,
+      exclusive: a.exclusive,
+      required: a.required,
+      includeInBase: a.includeInBase,
+      excludes: a.excludes,
+    })),
+    options: e.options?.map((o) => ({
+      xmlId: o.xmlId,
+      display: o.display,
+      baseCost: o.baseCost,
+      lvlCost: o.lvlCost,
+      lvlVal: o.lvlVal,
+    })),
+  };
+}
 
 /**
  * Get a power definition by its XML ID

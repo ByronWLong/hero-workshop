@@ -34,6 +34,13 @@ import {
   SKILL_ENHANCER_CATALOG_6E,
   type SkillCatalogEntry,
 } from '../generated/skillCatalog6e.js';
+import {
+  DISADVANTAGE_CATALOG_6E,
+  PERK_CATALOG_6E,
+  TALENT_CATALOG_6E,
+  type CatalogAdder,
+  type CatalogEntry,
+} from '../generated/catalog6e.js';
 import { HdcDocument, type HdcItemSection } from './document.js';
 import { XmlElement, createElement, escapeAttr } from './xml.js';
 import {
@@ -986,6 +993,8 @@ function updatePowerFields(ctx: WriteContext, el: XmlElement, b: Power, a: Power
     ctx.warn(`${a.name}: power type changed from ${b.type} to ${a.type}; review it in Hero Designer.`);
   }
   if (!same(b.levels, a.levels)) el.setAttr('LEVELS', hdInt(a.levels));
+  // Editors that don't carry `input` leave it undefined; only an explicit value is an edit
+  if (!same(b.input, a.input) && a.input) el.setAttr('INPUT', a.input);
   if (!same(b.option, a.option)) {
     el.setAttr('OPTION', a.option ?? '');
     el.setAttr('OPTIONID', a.option ?? '');
@@ -1047,7 +1056,7 @@ function createPower(ctx: WriteContext, p: Power, section: HdcItemSection): XmlE
     POSITION: '0',
     ...GENERIC_ATTRS,
     NAME: name,
-    INPUT: ATTACK_DEFENSE_DEFAULTS[xmlId],
+    INPUT: p.input || ATTACK_DEFENSE_DEFAULTS[xmlId],
     OPTION: p.option,
     OPTIONID: p.option,
     OPTION_ALIAS: p.optionAlias ?? option?.display,
@@ -1075,7 +1084,7 @@ function createPower(ctx: WriteContext, p: Power, section: HdcItemSection): XmlE
 
 const POWER_SPEC: ItemSpec<Power> = {
   handled: new Set([
-    'name', 'alias', 'levels', 'option', 'optionAlias', 'affectsPrimary', 'affectsTotal', 'notes',
+    'name', 'alias', 'levels', 'input', 'option', 'optionAlias', 'affectsPrimary', 'affectsTotal', 'notes',
     'pdLevels', 'edLevels', 'mdLevels', 'powdLevels', 'bodyLevels', 'lengthLevels', 'heightLevels', 'widthLevels',
   ]),
   derived: POWER_DERIVED,
@@ -1120,13 +1129,99 @@ const EQUIPMENT_SPEC: ItemSpec<Equipment> = {
 // Perks, talents, complications, martial arts
 // =============================================================================
 
+/** Editor type names that differ from Hero Designer's XMLIDs */
 const PERK_XMLIDS: Record<string, string> = {
-  COMPUTER_LINK: 'COMPUTER_LINK',
-  DEEP_COVER: 'DEEP_COVER',
-  FRINGE_BENEFIT: 'FRINGE_BENEFIT',
+  BASE: 'VEHICLE_BASE',
+  VEHICLE: 'VEHICLE_BASE',
   POSITIVE_REPUTATION: 'REPUTATION',
   GENERIC: 'CUSTOMPERK',
 };
+
+const TALENT_XMLIDS: Record<string, string> = {
+  LIGHTNING_REFLEXES: 'LIGHTNING_REFLEXES_ALL',
+  OFF_HAND_DEFENSE: 'OFFHANDDEFENSE',
+  GENERIC: 'CUSTOMTALENT',
+};
+
+const DISAD_XMLIDS: Record<string, string> = {
+  ACCIDENTAL_CHANGE: 'ACCIDENTALCHANGE',
+  DEPENDENT_NPC: 'DEPENDENTNPC',
+  DISTINCTIVE_FEATURES: 'DISTINCTIVEFEATURES',
+  NEGATIVE_REPUTATION: 'REPUTATION',
+  PHYSICAL_COMPLICATION: 'PHYSICALLIMITATION',
+  PSYCHOLOGICAL_COMPLICATION: 'PSYCHOLOGICALLIMITATION',
+  SOCIAL_COMPLICATION: 'SOCIALLIMITATION',
+  GENERIC: 'GENERICDISADVANTAGE',
+};
+
+const catalogIndex = (entries: CatalogEntry[]) => new Map(entries.map((e) => [e.xmlId, e]));
+const PERK_CATALOG = catalogIndex(PERK_CATALOG_6E);
+const TALENT_CATALOG = catalogIndex(TALENT_CATALOG_6E);
+const DISAD_CATALOG = catalogIndex(DISADVANTAGE_CATALOG_6E);
+
+function adderElement(ctx: WriteContext, adder: CatalogAdder, optionIndex = 0): XmlElement {
+  const option = adder.options?.[optionIndex];
+  const el = createElement('ADDER', {
+    XMLID: adder.xmlId,
+    ID: ctx.doc.nextId(),
+    BASECOST: hdCost(option?.baseCost ?? adder.baseCost),
+    LEVELS: '0',
+    ALIAS: adder.display,
+    POSITION: '-1',
+    ...GENERIC_ATTRS,
+    NAME: '',
+    OPTION: option?.xmlId,
+    OPTIONID: option?.xmlId,
+    OPTION_ALIAS: option?.display,
+    SHOWALIAS: 'Yes',
+    PRIVATE: 'No',
+    REQUIRED: 'Yes',
+    INCLUDEINBASE: yesNo(adder.includeInBase),
+    DISPLAYINSTRING: 'Yes',
+    GROUP: 'No',
+    SELECTED: 'YES',
+  });
+  insertChild(el, createElement('NOTES'));
+  return el;
+}
+
+const adderElementCost = (el: XmlElement) => Number(el.getAttr('BASECOST')) || 0;
+
+/**
+ * Adds the template's required adders that a new item lacks (Foundry needs e.g. OCCUR on a
+ * Social Complication to build its roll). With `targetPoints`, the first priced required
+ * adder is set to the option that brings the item closest to that total.
+ */
+function addRequiredAdders(
+  ctx: WriteContext,
+  el: XmlElement,
+  entry: CatalogEntry | undefined,
+  label: string,
+  targetPoints?: number,
+): number {
+  const present = new Set(el.elements('ADDER').map((a) => a.getAttr('XMLID')));
+  const added: { adder: CatalogAdder; el: XmlElement }[] = [];
+  for (const adder of entry?.adders ?? []) {
+    if (!adder.required || present.has(adder.xmlId)) continue;
+    const adderEl = insertChild(el, adderElement(ctx, adder));
+    added.push({ adder, el: adderEl });
+  }
+  if (!added.length) return 0;
+
+  const fit = added.find(({ adder }) => (adder.options?.length ?? 0) > 1);
+  if (targetPoints !== undefined && fit) {
+    const options = fit.adder.options!;
+    const others = el.elements('ADDER').reduce((sum, a) => sum + adderElementCost(a), 0) - adderElementCost(fit.el);
+    const distance = (cost: number | undefined) => Math.abs(targetPoints - others - (cost ?? 0));
+    const option = options.reduce((best, o) => (distance(o.baseCost) < distance(best.baseCost) ? o : best), options[0]!);
+    fit.el.setAttr('BASECOST', hdCost(option.baseCost ?? fit.adder.baseCost));
+    fit.el.setAttr('OPTION', option.xmlId);
+    fit.el.setAttr('OPTIONID', option.xmlId);
+    fit.el.setAttr('OPTION_ALIAS', option.display);
+  }
+  ctx.change(`${label}: added required ${added.map((a) => a.adder.display).join(', ')}`);
+  return el.elements('ADDER').reduce((sum, a) => sum + adderElementCost(a), 0);
+}
 
 function genericItem(tag: string, xmlId: string, item: { name: string; alias?: string; levels?: number; baseCost?: number }, extra: Record<string, string | undefined> = {}): XmlElement {
   return createElement(tag, {
@@ -1179,9 +1274,8 @@ const PERK_SPEC: ItemSpec<Perk> = {
     const el = genericItem('PERK', xmlId, p);
     if (xmlId === 'CUSTOMPERK') el.setAttr('NAME', p.name);
     appendChildren(ctx, el, p);
-    if (xmlId === 'REPUTATION') {
-      ctx.warn(`${p.name}: Positive Reputation needs HOWWIDE and HOWWELL adders for Foundry; add them in the editor.`);
-    }
+    addRequiredAdders(ctx, el, PERK_CATALOG.get(xmlId), p.name);
+    if (!PERK_CATALOG.has(xmlId)) ctx.warn(`${p.name}: unknown perk type ${xmlId}; Hero Designer may drop it.`);
     return el;
   },
 };
@@ -1200,18 +1294,39 @@ const TALENT_SPEC: ItemSpec<Talent> = {
   },
   create(ctx, t) {
     if (t.isGroup) return listElement(ctx, t);
-    const xmlId = t.type === 'GENERIC' ? 'CUSTOMTALENT' : t.type;
+    const xmlId = TALENT_XMLIDS[t.type] ?? t.type;
     const el = genericItem('TALENT', xmlId, t, { CHARACTERISTIC: t.characteristic });
     appendChildren(ctx, el, t);
+    addRequiredAdders(ctx, el, TALENT_CATALOG.get(xmlId), t.name);
+    if (!TALENT_CATALOG.has(xmlId)) ctx.warn(`${t.name}: unknown talent type ${xmlId}; Hero Designer may drop it.`);
     return el;
   },
 };
 
+/**
+ * The complication's detail text (Hero Designer's INPUT). The web editor keeps it in
+ * `alias` for new complications and `name` for parsed ones, with a type label in the other.
+ */
+function complicationDetail(d: Disadvantage, entry: CatalogEntry | undefined): string {
+  const typeWords = (d.type ?? '').replace(/_/g, ' ').toLowerCase();
+  const isLabel = (value: string | undefined) => {
+    const v = value?.trim().toLowerCase() ?? '';
+    return !v || v === entry?.display.toLowerCase() || v === typeWords || v === 'complication';
+  };
+  if (!isLabel(d.alias)) return d.alias!.trim();
+  if (!isLabel(d.name)) return d.name.trim();
+  return '';
+}
+
 const DISAD_SPEC: ItemSpec<Disadvantage> = {
-  handled: new Set(['name', 'notes', 'levels']),
-  derived: new Set(['baseCost', 'realCost', 'activeCost', 'points', 'alias', 'type', 'category']),
+  handled: new Set(['name', 'alias', 'notes']),
+  // The editor has no levels field but stamps levels: 1 on save; LEVELS is Unluck's dice
+  derived: new Set(['baseCost', 'realCost', 'activeCost', 'points', 'type', 'category', 'levels']),
   update(ctx, el, b, a) {
-    if (!same(b.name, a.name)) {
+    const entry = DISAD_CATALOG.get(el.getAttr('XMLID') ?? '');
+    if (!same(b.alias, a.alias) && complicationDetail({ ...a, name: '' }, entry)) {
+      el.setAttr('INPUT', complicationDetail({ ...a, name: '' }, entry));
+    } else if (!same(b.name, a.name)) {
       // Display name is "INPUT (adder options)"; strip the options back off
       const options = el.elements('ADDER').map((x) => x.getAttr('OPTION_ALIAS')).filter(Boolean).join('; ').replace(/[()]/g, '');
       let input = a.name;
@@ -1219,16 +1334,24 @@ const DISAD_SPEC: ItemSpec<Disadvantage> = {
       else if (options && input === options) input = '';
       el.setAttr(el.getAttr('INPUT') || !el.getAttr('NAME') ? 'INPUT' : 'NAME', input);
     }
-    if (!same(b.levels, a.levels)) el.setAttr('LEVELS', hdInt(a.levels));
     if (!same(b.notes, a.notes)) setNotes(el, a.notes);
     if (!same(b.points, a.points) && same(b.adders, a.adders)) {
       ctx.warn(`${a.name}: complication points come from its option adders; change those instead.`);
     }
   },
   create(ctx, d) {
-    const xmlId = d.type === 'GENERIC' ? 'GENERICDISADVANTAGE' : (d.category ?? d.type);
-    const el = genericItem('DISAD', xmlId, { name: d.name, alias: d.alias, baseCost: d.baseCost, levels: d.levels }, { INPUT: d.name });
+    const xmlId = (d.category && DISAD_CATALOG.has(d.category) ? d.category : undefined) ?? DISAD_XMLIDS[d.type] ?? d.type;
+    const entry = DISAD_CATALOG.get(xmlId);
+    const detail = complicationDetail(d, entry);
+    const el = genericItem('DISAD', xmlId, { name: detail || d.name, alias: entry?.display ?? d.name, baseCost: 0, levels: 0 }, { INPUT: detail });
     appendChildren(ctx, el, d);
+    // Complication points live in the option adders; make them add up to what the user chose
+    const target = d.points || d.baseCost || 0;
+    const adderPoints = addRequiredAdders(ctx, el, entry, detail || d.name, target);
+    const remainder = target - adderPoints;
+    if (remainder > 0) el.setAttr('BASECOST', hdCost(remainder));
+    else if (remainder < 0) ctx.warn(`${detail || d.name}: its required options total ${adderPoints} points, more than the ${target} chosen; adjust them in Hero Designer.`);
+    if (!entry) ctx.warn(`${d.name}: unknown complication type ${xmlId}; Hero Designer may drop it.`);
     return el;
   },
 };
