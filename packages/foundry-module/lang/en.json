@@ -15,6 +15,10 @@
     "RaceLibrary": "Race library",
     "ManageRaces": "Manage races",
     "RaceLibraryHint": "Races and their listed characteristics, used to derive each character's characteristic maxima.",
-    "RacesSaved": "Race library saved ({count} races)."
+    "RacesSaved": "Race library saved ({count} races).",
+    "NewItem": "Hero Workshop Item",
+    "ItemCreated": "{name} created with Hero Workshop.",
+    "ItemsCopied": "Created {name} in the Items sidebar.",
+    "NoSection": "Hero Workshop can't add {name} to a character."
   }
 }

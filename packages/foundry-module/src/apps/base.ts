@@ -27,6 +27,7 @@ export interface RenderOptions {
 
 /** The subset of ApplicationV2 our windows use */
 export interface FoundryApplication {
+  readonly id: string;
   readonly element: HTMLElement;
   readonly rendered: boolean;
   readonly options: Record<string, unknown>;

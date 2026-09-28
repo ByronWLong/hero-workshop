@@ -99,6 +99,15 @@ export class HdcDocument {
     return String(this.lastId);
   }
 
+  /** Makes nextId() hand out IDs above `floor` */
+  reserveIdsAbove(floor: number): void {
+    if (this.lastId === 0) {
+      this.nextId();
+      this.lastId -= 1;
+    }
+    this.lastId = Math.max(this.lastId, Math.floor(floor));
+  }
+
   /** First element (document order) carrying the given ID, optionally within a subtree */
   findById(id: string, scope?: XmlElement): XmlElement | undefined {
     if (scope) {

@@ -36,8 +36,11 @@
     {{/if}}
     {{#if review.keptFromFoundry}}<p class="hint">Includes {{review.keptFromFoundry}} change(s) kept from the Foundry sheet.</p>{{/if}}
     <h4>Changes</h4>
-    {{#if review.changes.length}}
-    <ul class="hw-list">{{#each review.changes}}<li>{{this}}</li>{{/each}}</ul>
+    {{#if (or review.changes.length review.imported.length)}}
+    <ul class="hw-list">
+      {{#each review.imported}}<li>Added {{this}}</li>{{/each}}
+      {{#each review.changes}}<li>{{this}}</li>{{/each}}
+    </ul>
     {{else}}
     <p class="hint">Only changes kept from Foundry will be applied.</p>
     {{/if}}

@@ -17,6 +17,8 @@ import {
   refreshOpenWindows,
 } from './apps';
 import { preloadTemplates } from './apps/base';
+import { openNewItem } from './apps/new-item';
+import { DRAG_TYPE, createWorldItems, dragData, type HeroWorkshopDragData } from './sync/worldItems';
 import { getRaceLibrary, registerRaceSettings } from './races/library';
 import { MODULE_ID, createActorSession } from './sync/session';
 
@@ -44,6 +46,7 @@ Hooks.once('init', () => {
       openItemEditor,
       openInspector,
       createCharacter: openNewCharacter,
+      createItem: openNewItem,
       openRaceLibrary,
       races: getRaceLibrary,
       driftReport,
@@ -126,6 +129,43 @@ Hooks.on('renderActorDirectory', ((_app: unknown, html: HTMLElement) => {
   button.innerHTML = `<i class="fa-solid fa-user-plus"></i> ${game.i18n.localize('HERO_WORKSHOP.NewCharacter')}`;
   button.addEventListener('click', () => openNewCharacter());
   actions.append(button);
+}) as (...args: never[]) => unknown);
+
+// Items sidebar: "New item" button, and drops of rows dragged out of a Hero Workshop editor
+Hooks.on('renderItemDirectory', ((_app: unknown, html: HTMLElement) => {
+  if (!isHeroSystem() || !game.user.can('ITEM_CREATE')) return;
+  const actions = html.querySelector('.header-actions');
+  if (actions && !actions.querySelector('.hero-workshop-create')) {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'hero-workshop-create';
+    button.innerHTML = `<i class="fa-solid fa-suitcase"></i> ${game.i18n.localize('HERO_WORKSHOP.NewItem')}`;
+    button.addEventListener('click', () => void openNewItem());
+    actions.append(button);
+  }
+  if (html.dataset.heroWorkshopDrop) return;
+  html.dataset.heroWorkshopDrop = 'true';
+  // Capture phase, ahead of hero6e's directory handler (which only understands UUIDs)
+  html.addEventListener(
+    'drop',
+    (event) => {
+      const data = dragData(event);
+      if (data?.type !== DRAG_TYPE) return;
+      event.preventDefault();
+      event.stopPropagation();
+      const drag = data as unknown as HeroWorkshopDragData;
+      const folder = (event.target as HTMLElement).closest?.<HTMLElement>('.folder');
+      const folderId = folder?.dataset.folderId ?? folder?.dataset.uuid?.split('.').pop();
+      createWorldItems(drag.transfer, folderId).then(
+        (created) => ui.notifications.info(game.i18n.format('HERO_WORKSHOP.ItemsCopied', { name: created[0]?.name ?? drag.name })),
+        (e: unknown) => {
+          console.error(e);
+          ui.notifications.error(`Hero Workshop could not create ${drag.name}: ${e instanceof Error ? e.message : String(e)}`);
+        },
+      );
+    },
+    { capture: true },
+  );
 }) as (...args: never[]) => unknown);
 
 Hooks.on('getItemContextOptions', ((_directory: unknown, options: ContextMenuEntry[]) => {

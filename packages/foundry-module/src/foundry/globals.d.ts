@@ -5,6 +5,8 @@
 
 interface FoundryItem {
   id: string;
+  uuid: string;
+  documentName: string;
   name: string;
   type: string;
   system: Record<string, unknown>;
@@ -61,7 +63,7 @@ declare const game: {
   system: { id: string; version: string };
   user: { isGM: boolean; can(permission: string): boolean };
   actors: { get(id: string): FoundryActor | undefined; contents: FoundryActor[] };
-  items: { get(id: string): FoundryItem | undefined };
+  items: { get(id: string): FoundryItem | undefined; contents: FoundryItem[] };
   modules: Map<string, { api?: unknown }> & { get(id: string): { api?: unknown } | undefined };
   i18n: { localize(key: string): string; format(key: string, data: Record<string, unknown>): string };
   settings: {
@@ -93,9 +95,14 @@ declare const foundry: {
   documents: {
     Actor: abstract new (...args: never[]) => FoundryActor;
     Item: abstract new (...args: never[]) => FoundryItem;
+    Folder: unknown;
   };
   utils: {
     saveDataToFile?: (data: BlobPart, type: string, filename: string) => void;
     escapeHTML?: (value: string) => string;
   };
 };
+
+declare const CONFIG: { Item: { documentClass: unknown } };
+
+declare function fromUuid(uuid: string): Promise<unknown>;

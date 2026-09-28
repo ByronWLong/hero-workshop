@@ -1,5 +1,5 @@
 <li class="hw-item {{#if row.isGroup}}hw-item-group{{/if}}" data-item-id="{{row.id}}">
-  <div class="hw-item-row">
+  <div class="hw-item-row" draggable="true" data-section="{{section}}" data-item-id="{{row.id}}" {{#if row.acceptsChildren}}data-accepts-children{{/if}}>
     <div class="hw-item-text">
       <span class="hw-item-name">{{row.name}}</span>
       {{#if row.detail}}<span class="hint hw-item-detail">{{row.detail}}</span>{{/if}}

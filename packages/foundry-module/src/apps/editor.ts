@@ -8,24 +8,30 @@
 import {
   HdcDocument,
   MAXIMA_CHARACTERISTICS,
+  SECTION_FOR_HDC,
   buildCharacteristicsView,
   buildItemTree,
   buildPointSummary,
   combinedRaceMaxima,
+  extractItems,
+  insertItems,
   parseHdcFile,
   removeItem,
   setCharacteristicValue,
   updateHdc,
+  withInsertedItems,
   withMaxima,
   type Character,
   type CharacteristicType,
   type HdcWriteReport,
+  type ItemTransfer,
   type PowerKind,
   type SectionId,
 } from '@hero-workshop/shared';
 import type { TabId } from '../sync/tabs';
 import { applyDrift, type DriftChange } from '../sync/drift';
 import type { ActorSession, AppliedDocument } from '../sync/session';
+import { DRAG_TYPE, dragData, transferFromItem, type HeroWorkshopDragData } from '../sync/worldItems';
 import { canManageRaces, getRaceLibrary } from '../races/library';
 import { HeroWorkshopApplication, template } from './base';
 import { chooseRaces } from './race-picker';
@@ -108,6 +114,8 @@ export class HeroWorkshopEditor extends HeroWorkshopApplication {
   #keptFromFoundry = 0;
   #review?: { xml: string; report: HdcWriteReport };
   #error?: string;
+  /** Names of items dropped in from Foundry or another editor, for the review */
+  #imported: string[] = [];
 
   constructor(options: EditorOptions) {
     super({
@@ -205,6 +213,7 @@ export class HeroWorkshopEditor extends HeroWorkshopApplication {
       errors: report.foundryIssues.filter((i) => i.severity === 'error').map((i) => i.message),
       notes: report.foundryIssues.filter((i) => i.severity === 'warning').map((i) => i.message),
       keptFromFoundry: this.#keptFromFoundry,
+      imported: this.#imported,
       applyLabel: this.session.isNew ? 'Create character' : (this.session.view?.applyLabel ?? 'Apply to actor'),
     };
   }
@@ -360,15 +369,122 @@ export class HeroWorkshopEditor extends HeroWorkshopApplication {
   }
 
   #focusHandled = false;
+  #dragListening = false;
 
   _onRender(context: unknown, options: unknown): void {
     super._onRender(context, options);
+    if (!this.#dragListening) {
+      this.#dragListening = true;
+      this.#listenForDrags();
+    }
     // Opened from an actor's item: go straight to that item's dialog
     const focus = this.session.view?.focusItemId;
     if (this.#focusHandled || !focus || this.#stage !== 'edit') return;
     this.#focusHandled = true;
     const section = this.session.view?.initialTab;
     if (section && section !== 'info' && section !== 'characteristics') void this.editItem(section, focus);
+  }
+
+  // ---------------------------------------------------------------------------
+  // Drag and drop: rows drag out as HDC (to the Items sidebar or another editor); Foundry
+  // items and other editors' rows drop in, optionally onto a list or framework row
+  // ---------------------------------------------------------------------------
+
+  /** Other items can't be added when the editor is working on a single world item */
+  get #acceptsDrops(): boolean {
+    return this.#stage === 'edit' && !this.session.view?.visibleTabs;
+  }
+
+  #listenForDrags(): void {
+    const el = this.element;
+    el.addEventListener('dragstart', (event) => {
+      const row = (event.target as HTMLElement).closest?.<HTMLElement>('.hw-item-row[draggable]');
+      if (!row || !event.dataTransfer) return;
+      const data = this.#dragDataFor(row.dataset.section as SectionId, row.dataset.itemId!);
+      if (!data) return;
+      event.dataTransfer.setData('text/plain', JSON.stringify(data));
+      event.dataTransfer.effectAllowed = 'copy';
+      row.classList.add('hw-dragging');
+    });
+    el.addEventListener('dragend', () => el.querySelectorAll('.hw-dragging').forEach((r) => r.classList.remove('hw-dragging')));
+    el.addEventListener('dragover', (event) => {
+      if (!this.#acceptsDrops) return;
+      event.preventDefault();
+      this.#highlightDropTarget(event);
+    });
+    el.addEventListener('dragleave', (event) => {
+      if (!el.contains(event.relatedTarget as Node)) this.#highlightDropTarget();
+    });
+    el.addEventListener('drop', (event) => {
+      this.#highlightDropTarget();
+      if (!this.#acceptsDrops) return;
+      event.preventDefault();
+      void this.#onDrop(event);
+    });
+  }
+
+  #highlightDropTarget(event?: DragEvent): void {
+    const target = event && (event.target as HTMLElement).closest?.<HTMLElement>('.hw-item-row[data-accepts-children]');
+    this.element.querySelectorAll('.hw-drop-target').forEach((r) => r !== target && r.classList.remove('hw-drop-target'));
+    target?.classList.add('hw-drop-target');
+    this.element.classList.toggle('hw-drop-active', !!event);
+  }
+
+  #dragDataFor(section: SectionId, id: string): HeroWorkshopDragData | undefined {
+    // Drag the item as it is now, including unsaved edits
+    const written = this.#dirty ? updateHdc(this.#baseXml, this.#character) : undefined;
+    const xml = written?.xml ?? this.#baseXml;
+    const hdcId = written?.report.idMap[id] ?? id;
+    const transfer = extractItems(xml, hdcId);
+    if (!transfer) return undefined;
+    const name = buildItemTree(this.#character, section).flatMap(function flat(r): typeof r[] {
+      return [r, ...r.children.flatMap(flat)];
+    }).find((r) => r.id === id)?.name ?? 'item';
+    return { type: DRAG_TYPE, name, transfer, sourceWindow: this.id };
+  }
+
+  async #onDrop(event: DragEvent): Promise<void> {
+    const data = dragData(event);
+    if (!data) return;
+    let transfer: ItemTransfer | undefined;
+    let name = 'item';
+    if (data.type === DRAG_TYPE) {
+      const drag = data as unknown as HeroWorkshopDragData;
+      if (drag.sourceWindow === this.id) return;
+      transfer = drag.transfer;
+      name = drag.name;
+    } else if (data.type === 'Item' && typeof data.uuid === 'string') {
+      const item = (await fromUuid(data.uuid)) as FoundryItem | null;
+      if (!item) return;
+      name = item.name;
+      transfer = await transferFromItem(item);
+      if (!transfer) {
+        ui.notifications.warn(`${item.name} has no Hero Designer data to add.`);
+        return;
+      }
+    } else {
+      return;
+    }
+
+    // Dropped on a list or framework in the same section: put it inside
+    const row = (event.target as HTMLElement).closest?.<HTMLElement>('.hw-item-row[data-accepts-children]');
+    const section = SECTION_FOR_HDC[transfer.section];
+    const parentId =
+      row && row.dataset.section === section && /^\d+$/.test(row.dataset.itemId ?? '') ? row.dataset.itemId : undefined;
+    this.addItems(transfer, name, parentId);
+  }
+
+  /** Adds copied items to the character, keeping their Hero Designer data intact */
+  addItems(transfer: ItemTransfer, name: string, parentId?: string): void {
+    const section = SECTION_FOR_HDC[transfer.section];
+    const { xml } = insertItems(this.#baseXml, transfer, { parentId });
+    const before = this.#original;
+    this.#baseXml = xml;
+    this.#original = parseHdcFile(xml);
+    this.#character = withInsertedItems(this.#character, before, this.#original, section);
+    this.#imported.push(name);
+    this.changeTab(section, 'primary');
+    void this.render();
   }
 
   static async #onDeleteItem(this: HeroWorkshopEditor, _event: Event, target: HTMLElement) {

@@ -534,3 +534,23 @@
   text-align: right;
   margin: 0.5rem 0;
 }
+
+/* ---------------------------------------------------------------- drag and drop */
+
+.hero-workshop .hw-item-row[draggable] {
+  cursor: grab;
+}
+
+.hero-workshop .hw-item-row.hw-dragging {
+  opacity: 0.5;
+}
+
+.hero-workshop.hw-drop-active .hw-tabs-body {
+  outline: 2px dashed var(--color-border-highlight, var(--color-border));
+  outline-offset: -4px;
+}
+
+.hero-workshop .hw-item-row.hw-drop-target {
+  outline: 2px solid var(--color-border-highlight, var(--color-border));
+  background: var(--color-hover-bg, transparent);
+}

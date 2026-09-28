@@ -4,6 +4,7 @@
  */
 
 import type { Character, Modifier, Adder } from '../types.js';
+import type { HdcItemSection } from '../hdc/document.js';
 import { calculateCostBreakdown, calculateDisadvantageTotal } from '../utils.js';
 
 export type SectionId = 'skills' | 'perks' | 'talents' | 'martialarts' | 'powers' | 'disadvantages' | 'equipment';
@@ -14,6 +15,8 @@ export interface ItemRowView {
   detail: string;
   cost: number;
   isGroup: boolean;
+  /** A list or framework other items can be put in */
+  acceptsChildren: boolean;
   children: ItemRowView[];
 }
 
@@ -26,6 +29,8 @@ interface ListItem {
   baseCost?: number;
   isGroup?: boolean;
   isContainer?: boolean;
+  type?: string;
+  xmlId?: string;
   modifiers?: Modifier[];
   adders?: Adder[];
   notes?: string;
@@ -76,6 +81,8 @@ function detailFor(section: SectionId, item: ListItem): string {
 const costOf = (section: SectionId, item: ListItem) =>
   section === 'disadvantages' ? (item.points ?? 0) : (item.realCost ?? item.baseCost ?? 0);
 
+const FRAMEWORKS = ['MULTIPOWER', 'ELEMENTAL_CONTROL', 'VPP'];
+
 /** Items nested under their LIST groups / compound powers, in list order */
 export function buildItemTree(character: Character, section: SectionId): ItemRowView[] {
   const items = sectionItems(character, section);
@@ -86,6 +93,7 @@ export function buildItemTree(character: Character, section: SectionId): ItemRow
     detail: detailFor(section, item),
     cost: costOf(section, item),
     isGroup: !!(item.isGroup || item.isContainer),
+    acceptsChildren: !!item.isGroup || item.type === 'LIST' || FRAMEWORKS.includes(item.xmlId ?? item.type ?? ''),
     children: [
       ...items.filter((c) => c.parentId === item.id).map(toRow),
       ...(item.subPowers ?? []).map(toRow),
@@ -145,14 +153,42 @@ export function removeItem(character: Character, section: SectionId, id: string)
       }
     }
   }
-  const keep = <T extends { id: string }>(list: T[]) => list.filter((i) => !doomed.has(i.id));
+  return setSectionItems(character, section, items.filter((i) => !doomed.has(i.id)));
+}
+
+/** Replaces a section's items (items must belong to that section) */
+function setSectionItems(character: Character, section: SectionId, items: ListItem[]): Character {
   switch (section) {
-    case 'skills': return { ...character, skills: keep(character.skills) };
-    case 'perks': return { ...character, perks: keep(character.perks) };
-    case 'talents': return { ...character, talents: keep(character.talents) };
-    case 'martialarts': return { ...character, martialArts: keep(character.martialArts) };
-    case 'powers': return { ...character, powers: keep(character.powers) };
-    case 'disadvantages': return { ...character, disadvantages: keep(character.disadvantages) };
-    case 'equipment': return { ...character, equipment: keep(character.equipment ?? []) };
+    case 'skills': return { ...character, skills: items as Character['skills'] };
+    case 'perks': return { ...character, perks: items as Character['perks'] };
+    case 'talents': return { ...character, talents: items as Character['talents'] };
+    case 'martialarts': return { ...character, martialArts: items as Character['martialArts'] };
+    case 'powers': return { ...character, powers: items as Character['powers'] };
+    case 'disadvantages': return { ...character, disadvantages: items as Character['disadvantages'] };
+    case 'equipment': return { ...character, equipment: items as NonNullable<Character['equipment']> };
   }
+}
+
+/** Editor section for each HDC section, and back */
+export const SECTION_FOR_HDC: Record<HdcItemSection, SectionId> = {
+  SKILLS: 'skills',
+  PERKS: 'perks',
+  TALENTS: 'talents',
+  MARTIALARTS: 'martialarts',
+  POWERS: 'powers',
+  DISADVANTAGES: 'disadvantages',
+  EQUIPMENT: 'equipment',
+};
+
+export const hdcSectionFor = (section: SectionId): HdcItemSection =>
+  (Object.keys(SECTION_FOR_HDC) as HdcItemSection[]).find((k) => SECTION_FOR_HDC[k] === section)!;
+
+/**
+ * Adds items that `after` (a parse of the stored HDC after inserting items) has and `before`
+ * (the parse it replaces) lacks, keeping the rest of the edited character as it is.
+ */
+export function withInsertedItems(character: Character, before: Character, after: Character, section: SectionId): Character {
+  const known = new Set(sectionItems(before, section).map((i) => i.id));
+  const added = sectionItems(after, section).filter((i) => !known.has(i.id));
+  return setSectionItems(character, section, [...sectionItems(character, section), ...added]);
 }

@@ -71,6 +71,7 @@ Shared must build first as it provides type definitions consumed by both backend
 - `src/apps/` - Native ApplicationV2 + Handlebars windows (editor, item/power dialogs, inspector, new character, race library); templates in `templates/`
 - The module has no React. UI rules (costs, forms, item operations) come from `packages/shared/src/editor/` so the Foundry UI and the web app share them; the module's CSS uses only Foundry theme variables
 - `src/sync/drift.ts` - Detects edits made on hero6e's own sheets that aren't in the actor's stored HDC
+- `src/sync/worldItems.ts` - World items ↔ HDC fragments (drag and drop, new items); world items are built with hero6e's own `parseItemsFromHeroJsonToItemDataArray`. Shared `hdc/transfer.ts` extracts/inserts items with fresh IDs
 - `src/sync/session.ts` - Applies edited HDC through hero6e's `actor.uploadFromXml` (keeps damage, charges, item IDs)
 
 ## HDC Writing Rules

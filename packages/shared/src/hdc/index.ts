@@ -6,6 +6,7 @@ export { XmlDocument, XmlElement, XmlText, XmlParseError, parseXml, createElemen
 export { decodeHdcBytes, encodeHdcUtf16, detectHdcEncoding, type HdcEncoding } from './encoding.js';
 export { HdcDocument, HDC_SECTIONS, HDC_ITEM_SECTIONS, type HdcSection, type HdcItemSection } from './document.js';
 export { parseHdcFile, parseHdcDocument } from './parse.js';
+export { extractItems, insertItems, type ItemTransfer, type InsertOptions } from './transfer.js';
 export {
   updateHdc,
   createHdc,
