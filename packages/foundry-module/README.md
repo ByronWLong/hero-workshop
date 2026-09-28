@@ -22,12 +22,21 @@ npm run build:foundry            # from the repo root; output in packages/foundr
 
 - On a hero6e actor sheet, open the header menu (⋮) and choose **Edit in Hero Workshop** or **Inspect HDC**.
 - You can also right-click an actor in the Actors sidebar for the same options.
+- **Characteristic maxima:** each character's maxima are derived from its original race or races.
+  - A race's maxima are its listed stats +10 (+1 SPD, +2 OCV/DCV/OMCV/DMCV).
+  - Mixed races average their races' maxima, rounded up.
+  - Levels above a maximum cost double.
+  - Choose races from the Characteristics tab's Maxima panel; each value can still be adjusted afterwards. Maxima are stored in the character's own HDC rules, as desktop Hero Designer does.
+  - The GM manages the **race library** under Module Settings → Hero Workshop → Manage races. Races can be imported from a creature actor or a Hero Designer rules file.
 - Macro access:
   ```js
   const api = game.modules.get('hero-workshop').api;
   api.openEditor(actor);
   api.openInspector(actor);
   api.driftReport(actor); // Foundry-side changes not yet in the HDC
+  api.createCharacter();
+  api.openItemEditor(item);
+  api.openRaceLibrary();
   ```
 
 Unlinked token actors are edited through their base actor.
