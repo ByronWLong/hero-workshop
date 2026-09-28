@@ -13,6 +13,7 @@ import {
   updateHdc,
   type Character,
   type HdcWriteReport,
+  type RaceDefinition,
 } from '@hero-workshop/shared';
 import { CharacterEditor } from '@frontend/components/CharacterEditor';
 import { applyDrift, type DriftChange } from '../sync/drift';
@@ -29,9 +30,11 @@ type Stage =
 interface EditorRootProps {
   session: ActorSession;
   onApplied(document: AppliedDocument): void;
+  raceLibrary?: RaceDefinition[];
+  onManageRaces?: () => void;
 }
 
-export function EditorRoot({ session, onApplied }: EditorRootProps) {
+export function EditorRoot({ session, onApplied, raceLibrary, onManageRaces }: EditorRootProps) {
   // Base HDC for this editing session: the stored HDC plus any drift the user accepted
   const [baseXml, setBaseXml] = useState(session.hdcXml);
   const initial = useMemo(() => {
@@ -128,6 +131,8 @@ export function EditorRoot({ session, onApplied }: EditorRootProps) {
             initialTab={session.view?.initialTab}
             visibleTabs={session.view?.visibleTabs}
             hideSidebar={session.view?.hideSidebar}
+            raceLibrary={raceLibrary}
+            onManageRaces={onManageRaces}
           />
         )}
         {stage.kind === 'review' && (

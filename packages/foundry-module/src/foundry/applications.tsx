@@ -15,6 +15,24 @@ import { createItemSession, tabForItem } from '../sync/itemSession';
 import { EditorRoot } from '../ui/EditorRoot';
 import { Inspector } from '../ui/Inspector';
 import { NewCharacterFlow } from '../ui/NewCharacterFlow';
+import { RaceLibraryManager } from '../ui/RaceLibraryManager';
+import { canManageRaces, getRaceLibrary, saveRaceLibrary, useRaceLibrary } from '../races/library';
+import type { ComponentProps } from 'react';
+
+type WithoutRaces<T> = Omit<T, 'raceLibrary' | 'onManageRaces'>;
+
+/** Supplies the live race library to the editor */
+function EditorWithRaces(props: WithoutRaces<ComponentProps<typeof EditorRoot>>) {
+  const races = useRaceLibrary();
+  return <EditorRoot {...props} raceLibrary={races} onManageRaces={canManageRaces() ? openRaceLibrary : undefined} />;
+}
+
+function NewCharacterWithRaces(props: WithoutRaces<ComponentProps<typeof NewCharacterFlow>>) {
+  const races = useRaceLibrary();
+  return (
+    <NewCharacterFlow {...props} raceLibrary={races} onManageRaces={canManageRaces() ? openRaceLibrary : undefined} />
+  );
+}
 
 /** Rewrites document-level selectors so the SPA stylesheet applies inside a shadow root */
 function scopeForShadowRoot(css: string): string {
@@ -39,6 +57,7 @@ let classes: {
   Editor: new (session: ActorSession, windowId: string) => ReactApplication;
   Inspector: new (actor: FoundryActor) => ReactApplication;
   NewCharacter: new () => ReactApplication;
+  RaceLibrary: new () => ReactApplication;
 } | undefined;
 
 function applicationClasses() {
@@ -97,7 +116,7 @@ function applicationClasses() {
 
     protected renderReact() {
       return (
-        <EditorRoot
+        <EditorWithRaces
           session={this.session}
           onApplied={(applied) => {
             ui.notifications.info(game.i18n.format('HERO_WORKSHOP.Applied', { name: applied.name }));
@@ -135,7 +154,7 @@ function applicationClasses() {
 
     protected renderReact() {
       return (
-        <NewCharacterFlow
+        <NewCharacterWithRaces
           onCreated={(actor) => {
             ui.notifications.info(game.i18n.format('HERO_WORKSHOP.Created', { name: actor.name }));
             void this.close();
@@ -146,7 +165,36 @@ function applicationClasses() {
     }
   }
 
-  classes = { Editor: EditorApplication, Inspector: InspectorApplication, NewCharacter: NewCharacterApplication };
+  class RaceLibraryApplication extends ReactHostApplication {
+    static DEFAULT_OPTIONS = {
+      id: 'hero-workshop-race-library',
+      classes: ['hero-workshop-window'],
+      window: { title: 'Hero Workshop: Race Library', icon: 'fa-solid fa-dna', resizable: true },
+      position: { width: 1300, height: 640 },
+    };
+
+    protected renderReact() {
+      return (
+        <RaceLibraryManager
+          races={getRaceLibrary()}
+          editable={canManageRaces()}
+          actors={game.actors.contents}
+          onSave={async (races) => {
+            await saveRaceLibrary(races);
+            ui.notifications.info(game.i18n.format('HERO_WORKSHOP.RacesSaved', { count: races.length }));
+            void this.render();
+          }}
+        />
+      );
+    }
+  }
+
+  classes = {
+    Editor: EditorApplication,
+    Inspector: InspectorApplication,
+    NewCharacter: NewCharacterApplication,
+    RaceLibrary: RaceLibraryApplication,
+  };
   return classes;
 }
 
@@ -195,6 +243,10 @@ export function openItemEditor(item: FoundryItem): void {
   } catch (e) {
     ui.notifications.warn(e instanceof Error ? e.message : String(e));
   }
+}
+
+export function openRaceLibrary(): void {
+  void new (applicationClasses().RaceLibrary)().render({ force: true });
 }
 
 export function openNewCharacter(): void {

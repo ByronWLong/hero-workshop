@@ -11,6 +11,10 @@
     "NewCharacter": "Hero Workshop Character",
     "Created": "{name} created with Hero Workshop.",
     "EditItem": "Edit in Hero Workshop",
-    "ItemNotEditable": "Hero Workshop cannot edit {name} (no Hero Designer data for this item type)."
+    "ItemNotEditable": "Hero Workshop cannot edit {name} (no Hero Designer data for this item type).",
+    "RaceLibrary": "Race library",
+    "ManageRaces": "Manage races",
+    "RaceLibraryHint": "Races and their listed characteristics, used to derive each character's characteristic maxima.",
+    "RacesSaved": "Race library saved ({count} races)."
   }
 }

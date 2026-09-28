@@ -8,7 +8,8 @@
 
 import './styles/window.css';
 import { HdcDocument } from '@hero-workshop/shared';
-import { openEditor, openInspector, openItemEditor, openNewCharacter } from './foundry/applications';
+import { openEditor, openInspector, openItemEditor, openNewCharacter, openRaceLibrary } from './foundry/applications';
+import { getRaceLibrary, registerRaceSettings } from './races/library';
 import { MODULE_ID, createActorSession } from './sync/session';
 
 /** Lists Foundry-side edits not yet in an actor's stored HDC (for macros and debugging) */
@@ -29,7 +30,18 @@ Hooks.once('init', () => {
     return;
   }
   const module = game.modules.get(MODULE_ID);
-  if (module) module.api = { openEditor, openItemEditor, openInspector, createCharacter: openNewCharacter, driftReport };
+  if (module) {
+    module.api = {
+      openEditor,
+      openItemEditor,
+      openInspector,
+      createCharacter: openNewCharacter,
+      openRaceLibrary,
+      races: getRaceLibrary,
+      driftReport,
+    };
+  }
+  registerRaceSettings(openRaceLibrary);
 });
 
 // ApplicationV2 fires getHeaderControls<ClassName> for every class in the sheet's hierarchy

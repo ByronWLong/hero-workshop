@@ -242,3 +242,44 @@
   border-color: var(--primary-light);
   background: color-mix(in srgb, var(--primary-color) 20%, transparent);
 }
+
+.hw-import-row {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  margin-bottom: 1rem;
+}
+
+.hw-import-row select {
+  max-width: 280px;
+}
+
+.hw-race-table-wrap {
+  overflow-x: auto;
+}
+
+.hw-race-table {
+  border-collapse: collapse;
+  width: 100%;
+}
+
+.hw-race-table th {
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  text-align: center;
+  padding: 0.25rem;
+}
+
+.hw-race-table td {
+  padding: 0.15rem;
+}
+
+.hw-race-table td:first-child input {
+  min-width: 160px;
+}
+
+.hw-race-table td input[type="number"] {
+  width: 3.6rem;
+  padding: 0.25rem 0.3rem;
+  text-align: center;
+}

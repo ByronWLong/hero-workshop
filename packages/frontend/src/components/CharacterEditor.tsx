@@ -4,7 +4,7 @@
  */
 
 import { useState } from 'react';
-import type { Character } from '@hero-workshop/shared';
+import type { Character, RaceDefinition } from '@hero-workshop/shared';
 import { InfoTab } from './InfoTab';
 import { CharacteristicsTab } from './CharacteristicsTab';
 import { SkillsTab } from './SkillsTab';
@@ -54,6 +54,9 @@ interface CharacterEditorProps {
   visibleTabs?: TabId[];
   /** Hides the point summary and effective stats sidebar */
   hideSidebar?: boolean;
+  /** Races for deriving characteristic maxima (e.g. the Foundry world's library) */
+  raceLibrary?: RaceDefinition[];
+  onManageRaces?: () => void;
 }
 
 export function CharacterEditor({
@@ -62,6 +65,8 @@ export function CharacterEditor({
   initialTab = 'info',
   visibleTabs,
   hideSidebar = false,
+  raceLibrary,
+  onManageRaces,
 }: CharacterEditorProps) {
   const [activeTab, setActiveTab] = useState<TabId>(initialTab);
   const shownTabs = visibleTabs ? tabs.filter((tab) => visibleTabs.includes(tab.id)) : tabs;
@@ -92,7 +97,12 @@ export function CharacterEditor({
         <div className="tab-content">
           {activeTab === 'info' && <InfoTab character={character} onUpdate={onUpdate} />}
           {activeTab === 'characteristics' && (
-            <CharacteristicsTab character={character} onUpdate={onUpdate} />
+            <CharacteristicsTab
+              character={character}
+              onUpdate={onUpdate}
+              raceLibrary={raceLibrary}
+              onManageRaces={onManageRaces}
+            />
           )}
           {activeTab === 'skills' && <SkillsTab character={character} onUpdate={onUpdate} />}
           {activeTab === 'perks' && <PerksTab character={character} onUpdate={onUpdate} />}

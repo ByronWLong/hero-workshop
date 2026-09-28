@@ -1,14 +1,17 @@
 import { useState } from 'react';
+import type { RaceDefinition } from '@hero-workshop/shared';
 import { createNewCharacterSession, type ActorSession, type AppliedDocument } from '../sync/session';
 import { EditorRoot } from './EditorRoot';
 import { NewCharacterForm } from './NewCharacterForm';
 
 interface NewCharacterFlowProps {
   onCreated(document: AppliedDocument): void;
+  raceLibrary?: RaceDefinition[];
+  onManageRaces?: () => void;
 }
 
 /** Character creation: pick a template, then build in the normal editor */
-export function NewCharacterFlow({ onCreated }: NewCharacterFlowProps) {
+export function NewCharacterFlow({ onCreated, raceLibrary, onManageRaces }: NewCharacterFlowProps) {
   const [session, setSession] = useState<ActorSession>();
 
   if (!session) {
@@ -20,5 +23,12 @@ export function NewCharacterFlow({ onCreated }: NewCharacterFlowProps) {
       </div>
     );
   }
-  return <EditorRoot session={session} onApplied={onCreated} />;
+  return (
+    <EditorRoot
+      session={session}
+      onApplied={onCreated}
+      raceLibrary={raceLibrary}
+      onManageRaces={onManageRaces}
+    />
+  );
 }

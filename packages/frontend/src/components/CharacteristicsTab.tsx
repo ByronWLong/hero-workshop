@@ -1,35 +1,25 @@
 import { useMemo } from 'react';
-import type { Character, Characteristic as CharacteristicType } from '@hero-workshop/shared';
-import { calculateStatModifications, getStatModificationTotal } from '@hero-workshop/shared';
+import type {
+  Character,
+  Characteristic as CharacteristicType,
+  CharacteristicType as CharacteristicKey,
+  RaceDefinition,
+} from '@hero-workshop/shared';
+import {
+  CHARACTERISTIC_RULES_6E,
+  calculateStatModifications,
+  characteristicCost,
+  getStatModificationTotal,
+} from '@hero-workshop/shared';
+import { MaximaPanel } from './MaximaPanel';
 
 interface CharacteristicsTabProps {
   character: Character;
   onUpdate: (character: Character) => void;
+  raceLibrary?: RaceDefinition[];
+  onManageRaces?: () => void;
 }
 
-// HERO System 6th Edition characteristic costs
-const CHAR_COSTS: Record<string, { baseCost: number; baseValue: number }> = {
-  STR: { baseCost: 1, baseValue: 10 },
-  DEX: { baseCost: 2, baseValue: 10 },
-  CON: { baseCost: 2, baseValue: 10 },
-  INT: { baseCost: 1, baseValue: 10 },
-  EGO: { baseCost: 1, baseValue: 10 },
-  PRE: { baseCost: 1, baseValue: 10 },
-  OCV: { baseCost: 5, baseValue: 3 },
-  DCV: { baseCost: 5, baseValue: 3 },
-  OMCV: { baseCost: 3, baseValue: 3 },
-  DMCV: { baseCost: 3, baseValue: 3 },
-  SPD: { baseCost: 10, baseValue: 2 },
-  PD: { baseCost: 1, baseValue: 2 },
-  ED: { baseCost: 1, baseValue: 2 },
-  REC: { baseCost: 1, baseValue: 4 },
-  END: { baseCost: 0.2, baseValue: 20 },
-  BODY: { baseCost: 1, baseValue: 10 },
-  STUN: { baseCost: 0.5, baseValue: 20 },
-  RUNNING: { baseCost: 1, baseValue: 12 },
-  SWIMMING: { baseCost: 1, baseValue: 4 },
-  LEAPING: { baseCost: 1, baseValue: 4 },
-};
 
 // Calculate STR-based values
 function calculateLift(str: number): string {
@@ -67,7 +57,9 @@ function calculateCharacteristicRoll(value: number): string {
   return `${roll}-`;
 }
 
-export function CharacteristicsTab({ character, onUpdate }: CharacteristicsTabProps) {
+export function CharacteristicsTab({ character, onUpdate, raceLibrary, onManageRaces }: CharacteristicsTabProps) {
+  const maxima = character.rules?.characteristicMaxima ?? {};
+  const baseOf = (type: string) => CHARACTERISTIC_RULES_6E[type as CharacteristicKey]?.base ?? 0;
   // Calculate all stat modifications from powers and equipment once
   const statModifications = useMemo(() => calculateStatModifications(character), [character]);
   
@@ -112,16 +104,24 @@ export function CharacteristicsTab({ character, onUpdate }: CharacteristicsTabPr
     return character.characteristics.find((c) => c.type === type);
   };
 
-  const calculateCost = (type: string, value: number): number => {
-    const config = CHAR_COSTS[type];
-    if (!config) return 0;
-    const levelsBought = value - config.baseValue;
-    return Math.ceil(levelsBought * config.baseCost);
+  const calculateCost = (type: string, value: number): number =>
+    characteristicCost(type as CharacteristicKey, value - baseOf(type), maxima[type as CharacteristicKey]);
+
+  /** "Max 24", plus the surcharge when the value is over it */
+  const renderMaximum = (type: string, value: number) => {
+    const maximum = maxima[type as CharacteristicKey];
+    if (maximum === undefined) return null;
+    const levels = value - baseOf(type);
+    const surcharge = calculateCost(type, value) - characteristicCost(type as CharacteristicKey, levels);
+    return (
+      <div className={`characteristic-max ${value > maximum ? 'over' : ''}`}>
+        Max {maximum}
+        {surcharge > 0 && <> · +{surcharge} pts over</>}
+      </div>
+    );
   };
 
   const handleValueChange = (type: string, newValue: number) => {
-    const config = CHAR_COSTS[type];
-    const baseValue = config?.baseValue ?? 10;
     const cost = calculateCost(type, newValue);
 
     const updatedChars = character.characteristics.map((c) => {
@@ -129,7 +129,7 @@ export function CharacteristicsTab({ character, onUpdate }: CharacteristicsTabPr
         return {
           ...c,
           totalValue: newValue,
-          levels: newValue - baseValue,
+          levels: newValue - baseOf(type),
           baseCost: cost,
           realCost: cost,
         };
@@ -180,12 +180,14 @@ export function CharacteristicsTab({ character, onUpdate }: CharacteristicsTabPr
         </div>
       </section>
 
+      <MaximaPanel character={character} onUpdate={onUpdate} raceLibrary={raceLibrary} onManageRaces={onManageRaces} />
+
       <section style={{ marginBottom: '2rem' }}>
         <h3 style={{ marginBottom: '1rem', color: 'var(--text-secondary)' }}>Primary Characteristics</h3>
         <div className="characteristics-grid">
           {primaryStats.map(({ type, label, color, showRoll }) => {
             const char = getCharacteristic(type);
-            const value = char?.totalValue ?? (CHAR_COSTS[type]?.baseValue ?? 10);
+            const value = char?.totalValue ?? baseOf(type);
             const cost = calculateCost(type, value);
             const bonus = getEffectiveBonus(type);
             const effectiveValue = value + bonus;
@@ -233,6 +235,7 @@ export function CharacteristicsTab({ character, onUpdate }: CharacteristicsTabPr
                     Roll: {calculateCharacteristicRoll(effectiveValue)}
                   </div>
                 )}
+                {renderMaximum(type, value)}
                 <div className="characteristic-cost">
                   {cost} pts
                 </div>
@@ -247,7 +250,7 @@ export function CharacteristicsTab({ character, onUpdate }: CharacteristicsTabPr
         <div className="characteristics-grid">
           {combatStats.map(({ type, label }) => {
             const char = getCharacteristic(type);
-            const value = char?.totalValue ?? (CHAR_COSTS[type]?.baseValue ?? 3);
+            const value = char?.totalValue ?? baseOf(type);
             const cost = calculateCost(type, value);
             const bonus = getEffectiveBonus(type);
             const effectiveValue = value + bonus;
@@ -290,6 +293,7 @@ export function CharacteristicsTab({ character, onUpdate }: CharacteristicsTabPr
                     </span>
                   )}
                 </div>
+                {renderMaximum(type, value)}
                 <div className="characteristic-cost">
                   {cost} pts
                 </div>
@@ -304,7 +308,7 @@ export function CharacteristicsTab({ character, onUpdate }: CharacteristicsTabPr
         <div className="characteristics-grid">
           {derivedStats.map(({ type, label }) => {
             const char = getCharacteristic(type);
-            const value = char?.totalValue ?? (CHAR_COSTS[type]?.baseValue ?? 0);
+            const value = char?.totalValue ?? baseOf(type);
             const cost = calculateCost(type, value);
             const bonus = getEffectiveBonus(type);
             const effectiveValue = value + bonus;
@@ -367,6 +371,7 @@ export function CharacteristicsTab({ character, onUpdate }: CharacteristicsTabPr
                     </span>
                   )}
                 </div>
+                {renderMaximum(type, value)}
                 <div className="characteristic-cost">
                   {cost} pts
                 </div>
@@ -381,7 +386,7 @@ export function CharacteristicsTab({ character, onUpdate }: CharacteristicsTabPr
         <div className="characteristics-grid">
           {movementStats.map(({ type, label, unit }) => {
             const char = getCharacteristic(type);
-            const value = char?.totalValue ?? (CHAR_COSTS[type]?.baseValue ?? 0);
+            const value = char?.totalValue ?? baseOf(type);
             const cost = calculateCost(type, value);
             const bonus = getEffectiveBonus(type);
             const effectiveValue = value + bonus;

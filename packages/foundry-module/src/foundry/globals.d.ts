@@ -60,10 +60,16 @@ interface ContextMenuEntry {
 declare const game: {
   system: { id: string; version: string };
   user: { isGM: boolean; can(permission: string): boolean };
-  actors: { get(id: string): FoundryActor | undefined };
+  actors: { get(id: string): FoundryActor | undefined; contents: FoundryActor[] };
   items: { get(id: string): FoundryItem | undefined };
   modules: Map<string, { api?: unknown }> & { get(id: string): { api?: unknown } | undefined };
   i18n: { localize(key: string): string; format(key: string, data: Record<string, unknown>): string };
+  settings: {
+    register(namespace: string, key: string, data: Record<string, unknown>): void;
+    registerMenu(namespace: string, key: string, data: Record<string, unknown>): void;
+    get(namespace: string, key: string): unknown;
+    set(namespace: string, key: string, value: unknown): Promise<unknown>;
+  };
 };
 
 declare const ui: {
@@ -77,6 +83,7 @@ declare const ui: {
 declare const Hooks: {
   once(hook: string, fn: (...args: never[]) => unknown): number;
   on(hook: string, fn: (...args: never[]) => unknown): number;
+  off(hook: string, id: number): void;
 };
 
 declare const foundry: {
