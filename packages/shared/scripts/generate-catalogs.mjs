@@ -220,6 +220,49 @@ export const SKILL_ENHANCER_CATALOG_6E: SkillEnhancerCatalogEntry[] = ${json(enh
 `,
 );
 
+// -----------------------------------------------------------------------------
+// Characteristics per template: Main6E's list with each template's REMOVEs and overrides
+// -----------------------------------------------------------------------------
+
+const templateDir = dirname(templatePath);
+const readTemplate = (file) => {
+  const doc = parser.parse(readFileSync(resolve(templateDir, file), 'utf8'));
+  return doc.find((n) => tagOf(n) === 'TEMPLATE');
+};
+
+function characteristicEntry(node, fallback = {}) {
+  const a = attrsOf(node);
+  return {
+    xmlId: tagOf(node),
+    display: a.DISPLAY ?? fallback.display ?? tagOf(node),
+    base: num(a.BASE) ?? fallback.base ?? 0,
+    lvlCost: num(a.LVLCOST) ?? fallback.lvlCost ?? 1,
+    lvlVal: num(a.LVLVAL) ?? fallback.lvlVal ?? 1,
+  };
+}
+
+const mainCharacteristics = elements(elements(template, 'CHARACTERISTICS')[0])
+  .filter((n) => tagOf(n) !== 'REMOVE')
+  .map((n) => characteristicEntry(n));
+
+const templateCharacteristics = {};
+for (const file of ['Main6E.hdt', 'Heroic6E.hdt', 'Superheroic6E.hdt', 'Vehicle6E.hdt', 'Base6E.hdt', 'Computer6E.hdt', 'Automaton6E.hdt', 'AI6E.hdt']) {
+  const t = file === 'Main6E.hdt' ? template : readTemplate(file);
+  const section = elements(t, 'CHARACTERISTICS')[0];
+  let list = mainCharacteristics.map((c) => ({ ...c }));
+  for (const node of section ? elements(section) : []) {
+    if (tagOf(node) === 'REMOVE') {
+      const id = textOf(node);
+      list = list.filter((c) => c.xmlId !== id);
+      continue;
+    }
+    const index = list.findIndex((c) => c.xmlId === tagOf(node));
+    if (index >= 0) list[index] = characteristicEntry(node, list[index]);
+    else list.push(characteristicEntry(node));
+  }
+  templateCharacteristics[`builtIn.${file}`] = list;
+}
+
 const catalogs = {
   POWER_CATALOG_6E: entries('POWERS'),
   MODIFIER_CATALOG_6E: entries('MODIFIERS'),
@@ -297,7 +340,18 @@ export interface CatalogEntry {
 
 ${Object.entries(catalogs)
   .map(([name, list]) => `export const ${name}: CatalogEntry[] = ${json(list)};\n`)
-  .join('\n')}`,
+  .join('\n')}
+export interface TemplateCharacteristic {
+  xmlId: string;
+  display: string;
+  base: number;
+  lvlCost: number;
+  lvlVal: number;
+}
+
+/** Characteristics each built-in 6e template provides, in Hero Designer's order */
+export const TEMPLATE_CHARACTERISTICS_6E: Record<string, TemplateCharacteristic[]> = ${json(templateCharacteristics)};
+`,
 );
 
 console.log(

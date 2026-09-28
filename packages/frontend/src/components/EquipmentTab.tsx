@@ -1,4 +1,5 @@
 import { useState, useMemo } from 'react';
+import { useFocusItem } from './useFocusItem';
 import type { Character, Equipment, Modifier, Adder, Power } from '@hero-workshop/shared';
 import {
   ALL_POWERS,
@@ -18,6 +19,8 @@ import { Modal } from './Modal';
 interface EquipmentTabProps {
   character: Character;
   onUpdate: (character: Character) => void;
+  /** Opens this item's edit form on load (HDC ID) */
+  focusItemId?: string;
 }
 
 // Powers commonly used as equipment
@@ -117,7 +120,7 @@ function calculateStrDamage(str: number): string {
   }
 }
 
-export function EquipmentTab({ character, onUpdate }: EquipmentTabProps) {
+export function EquipmentTab({ character, onUpdate, focusItemId }: EquipmentTabProps) {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingEquipment, setEditingEquipment] = useState<Equipment | null>(null);
   const [isPowerMode, setIsPowerMode] = useState(false);
@@ -173,6 +176,7 @@ export function EquipmentTab({ character, onUpdate }: EquipmentTabProps) {
   });
 
   const equipment = character.equipment ?? [];
+  useFocusItem(focusItemId, equipment, (e) => openEditModal(e));
   const totalCost = equipment.reduce((sum, e) => sum + (e.realCost ?? e.baseCost ?? 0), 0);
   const totalWeight = equipment.filter((e) => e.carried).reduce((sum, e) => sum + (e.weight ?? 0), 0);
 

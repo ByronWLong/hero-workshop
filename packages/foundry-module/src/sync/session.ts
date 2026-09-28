@@ -26,6 +26,8 @@ export interface SessionView {
   hideSidebar?: boolean;
   /** Label for the final apply button */
   applyLabel?: string;
+  /** HDC ID of an item whose edit form opens on load */
+  focusItemId?: string;
 }
 
 export interface ActorSession {
@@ -79,7 +81,8 @@ export function createActorSession(actor: FoundryActor, view?: SessionView): Act
 export interface NewCharacterOptions {
   name: string;
   template: string;
-  actorType: 'pc' | 'npc';
+  /** hero6e actor type: pc/npc for people, or the template's own type (vehicle, base2, ...) */
+  actorType: string;
   basePoints: number;
   disadPoints: number;
 }

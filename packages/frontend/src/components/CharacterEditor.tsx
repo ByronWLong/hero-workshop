@@ -57,6 +57,8 @@ interface CharacterEditorProps {
   /** Races for deriving characteristic maxima (e.g. the Foundry world's library) */
   raceLibrary?: RaceDefinition[];
   onManageRaces?: () => void;
+  /** HDC ID of an item whose edit form should open on load */
+  focusItemId?: string;
 }
 
 export function CharacterEditor({
@@ -67,6 +69,7 @@ export function CharacterEditor({
   hideSidebar = false,
   raceLibrary,
   onManageRaces,
+  focusItemId,
 }: CharacterEditorProps) {
   const [activeTab, setActiveTab] = useState<TabId>(initialTab);
   const shownTabs = visibleTabs ? tabs.filter((tab) => visibleTabs.includes(tab.id)) : tabs;
@@ -104,17 +107,17 @@ export function CharacterEditor({
               onManageRaces={onManageRaces}
             />
           )}
-          {activeTab === 'skills' && <SkillsTab character={character} onUpdate={onUpdate} />}
-          {activeTab === 'perks' && <PerksTab character={character} onUpdate={onUpdate} />}
-          {activeTab === 'talents' && <TalentsTab character={character} onUpdate={onUpdate} />}
-          {activeTab === 'powers' && <PowersTab character={character} onUpdate={onUpdate} />}
+          {activeTab === 'skills' && <SkillsTab character={character} onUpdate={onUpdate} focusItemId={focusItemId} />}
+          {activeTab === 'perks' && <PerksTab character={character} onUpdate={onUpdate} focusItemId={focusItemId} />}
+          {activeTab === 'talents' && <TalentsTab character={character} onUpdate={onUpdate} focusItemId={focusItemId} />}
+          {activeTab === 'powers' && <PowersTab character={character} onUpdate={onUpdate} focusItemId={focusItemId} />}
           {activeTab === 'disadvantages' && (
-            <DisadvantagesTab character={character} onUpdate={onUpdate} />
+            <DisadvantagesTab character={character} onUpdate={onUpdate} focusItemId={focusItemId} />
           )}
           {activeTab === 'martialarts' && (
-            <MartialArtsTab character={character} onUpdate={onUpdate} />
+            <MartialArtsTab character={character} onUpdate={onUpdate} focusItemId={focusItemId} />
           )}
-          {activeTab === 'equipment' && <EquipmentTab character={character} onUpdate={onUpdate} />}
+          {activeTab === 'equipment' && <EquipmentTab character={character} onUpdate={onUpdate} focusItemId={focusItemId} />}
         </div>
       </section>
     </div>

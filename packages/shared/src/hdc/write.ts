@@ -30,7 +30,7 @@ import type {
   Talent,
 } from '../types.js';
 import { getPowerDefinition } from '../powerDefinitions.js';
-import { formatRulesName, parseRulesName } from '../characteristics.js';
+import { characteristicRulesFor, formatRulesName, parseRulesName } from '../characteristics.js';
 import { getModifierByXmlId } from '../modifierDefinitions.js';
 import {
   SKILL_CATALOG_6E,
@@ -97,9 +97,21 @@ export function createHdc(
 
 /** Hero Designer 6e templates Hero Workshop can start a character from */
 export const CHARACTER_TEMPLATES = {
-  heroic: { template: 'builtIn.Heroic6E.hdt', label: 'Heroic', basePoints: 175, disadPoints: 50 },
-  superheroic: { template: 'builtIn.Superheroic6E.hdt', label: 'Superheroic', basePoints: 400, disadPoints: 75 },
-} as const;
+  heroic: { template: 'builtIn.Heroic6E.hdt', label: 'Heroic', basePoints: 175, disadPoints: 50, actorType: undefined },
+  superheroic: { template: 'builtIn.Superheroic6E.hdt', label: 'Superheroic', basePoints: 400, disadPoints: 75, actorType: undefined },
+  vehicle: { template: 'builtIn.Vehicle6E.hdt', label: 'Vehicle', basePoints: 0, disadPoints: 0, actorType: 'vehicle' },
+  base: { template: 'builtIn.Base6E.hdt', label: 'Base', basePoints: 0, disadPoints: 0, actorType: 'base2' },
+  computer: { template: 'builtIn.Computer6E.hdt', label: 'Computer', basePoints: 0, disadPoints: 0, actorType: 'computer' },
+  automaton: { template: 'builtIn.Automaton6E.hdt', label: 'Automaton', basePoints: 0, disadPoints: 0, actorType: 'automaton' },
+  ai: { template: 'builtIn.AI6E.hdt', label: 'AI', basePoints: 0, disadPoints: 0, actorType: 'ai' },
+} as const satisfies Record<string, {
+  template: string;
+  label: string;
+  basePoints: number;
+  disadPoints: number;
+  /** hero6e actor type the template maps to; undefined for people (pc or npc) */
+  actorType: string | undefined;
+}>;
 
 export type CharacterTemplateId = keyof typeof CHARACTER_TEMPLATES;
 
@@ -117,7 +129,7 @@ export function blankHdc(character?: Partial<Character>, template = 'builtIn.Her
       .map((tag) => `    <${tag} />`),
     '  </CHARACTER_INFO>',
     '  <CHARACTERISTICS>',
-    ...Object.keys(CHARACTERISTIC_DEFAULTS).map(
+    ...Object.keys(characteristicRulesFor(template)).map(
       (type, i) =>
         `    <${type} XMLID="${type}" ID="${i + 1}" BASECOST="0.0" LEVELS="0" ALIAS="${type}" POSITION="${i + 1}" ${GENERIC_ATTR_TEXT} NAME="" AFFECTS_PRIMARY="Yes" AFFECTS_TOTAL="Yes" />`,
     ),
@@ -220,13 +232,6 @@ const GENERIC_ATTRS = {
 const GENERIC_ATTR_TEXT = Object.entries(GENERIC_ATTRS)
   .map(([k, v]) => `${k}="${v}"`)
   .join(' ');
-
-const CHARACTERISTIC_DEFAULTS: Record<string, number> = {
-  STR: 10, DEX: 10, CON: 10, INT: 10, EGO: 10, PRE: 10,
-  OCV: 3, DCV: 3, OMCV: 3, DMCV: 3,
-  SPD: 2, PD: 2, ED: 2, REC: 4, END: 20, BODY: 10, STUN: 20,
-  RUNNING: 12, SWIMMING: 4, LEAPING: 4,
-};
 
 const yesNo = (value: boolean | undefined): string => (value ? 'Yes' : 'No');
 
@@ -379,6 +384,10 @@ function writeCharacteristics(ctx: WriteContext, before: Characteristic[], after
     if (b && same(b.levels, a.levels)) continue;
     const section = ctx.doc.ensureSection('CHARACTERISTICS');
     let el = section.firstElement(a.type);
+    if (!el && !(a.type in characteristicRulesFor(ctx.doc.root.getAttr('TEMPLATE')))) {
+      ctx.warn(`${a.type} isn't a characteristic of this template; it was not added.`);
+      continue;
+    }
     if (!el) {
       el = section.appendElement(
         createElement(a.type, {

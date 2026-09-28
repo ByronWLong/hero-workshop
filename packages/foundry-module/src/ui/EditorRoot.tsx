@@ -133,6 +133,7 @@ export function EditorRoot({ session, onApplied, raceLibrary, onManageRaces }: E
             hideSidebar={session.view?.hideSidebar}
             raceLibrary={raceLibrary}
             onManageRaces={onManageRaces}
+            focusItemId={session.view?.focusItemId}
           />
         )}
         {stage.kind === 'review' && (

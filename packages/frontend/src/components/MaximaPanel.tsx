@@ -8,6 +8,7 @@ import { useState } from 'react';
 import {
   MAXIMA_CHARACTERISTICS,
   characteristicCost,
+  characteristicRulesFor,
   combinedRaceMaxima,
   type Character,
   type CharacteristicMaxima,
@@ -31,11 +32,12 @@ export function withMaxima(character: Character, maxima: CharacteristicMaxima, r
     characteristicMaxima: maxima,
     races: races ?? character.rules?.races,
   };
+  const templateRules = characteristicRulesFor(character.hdcTemplate);
   return {
     ...character,
     rules,
     characteristics: character.characteristics.map((c) => {
-      const cost = characteristicCost(c.type, c.levels, maxima[c.type]);
+      const cost = characteristicCost(c.type, c.levels, maxima[c.type], templateRules[c.type]);
       return cost === c.realCost ? c : { ...c, baseCost: cost, realCost: cost };
     }),
   };

@@ -1,10 +1,13 @@
 import { useState, useMemo, useCallback, useEffect } from 'react';
+import { useFocusItem } from './useFocusItem';
 import type { Character, Perk, PerkType, Adder } from '@hero-workshop/shared';
 import { Modal } from './Modal';
 
 interface PerksTabProps {
   character: Character;
   onUpdate: (character: Character) => void;
+  /** Opens this item's edit form on load (HDC ID) */
+  focusItemId?: string;
 }
 
 const PERK_TYPES: { value: PerkType; label: string; defaultCost: number }[] = [
@@ -34,7 +37,7 @@ interface PerkDisplayItem {
   children: Perk[];
 }
 
-export function PerksTab({ character, onUpdate }: PerksTabProps) {
+export function PerksTab({ character, onUpdate, focusItemId }: PerksTabProps) {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isGroupModalOpen, setIsGroupModalOpen] = useState(false);
   const [editingPerk, setEditingPerk] = useState<Perk | null>(null);
@@ -55,6 +58,7 @@ export function PerksTab({ character, onUpdate }: PerksTabProps) {
   });
 
   const perks = useMemo(() => character.perks ?? [], [character.perks]);
+  useFocusItem(focusItemId, perks, (p) => (p.isGroup ? openEditGroupModal(p) : openEditModal(p)));
 
   // Close move menu when clicking outside
   const handleClickOutside = useCallback((e: MouseEvent) => {

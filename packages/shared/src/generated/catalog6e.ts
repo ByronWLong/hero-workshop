@@ -10731,3 +10731,808 @@ export const DISADVANTAGE_CATALOG_6E: CatalogEntry[] = [
     "exclusive": false
   }
 ];
+
+export interface TemplateCharacteristic {
+  xmlId: string;
+  display: string;
+  base: number;
+  lvlCost: number;
+  lvlVal: number;
+}
+
+/** Characteristics each built-in 6e template provides, in Hero Designer's order */
+export const TEMPLATE_CHARACTERISTICS_6E: Record<string, TemplateCharacteristic[]> = {
+  "builtIn.Main6E.hdt": [
+    {
+      "xmlId": "STR",
+      "display": "STR",
+      "base": 10,
+      "lvlCost": 1,
+      "lvlVal": 1
+    },
+    {
+      "xmlId": "DEX",
+      "display": "DEX",
+      "base": 10,
+      "lvlCost": 2,
+      "lvlVal": 1
+    },
+    {
+      "xmlId": "CON",
+      "display": "CON",
+      "base": 10,
+      "lvlCost": 1,
+      "lvlVal": 1
+    },
+    {
+      "xmlId": "INT",
+      "display": "INT",
+      "base": 10,
+      "lvlCost": 1,
+      "lvlVal": 1
+    },
+    {
+      "xmlId": "EGO",
+      "display": "EGO",
+      "base": 10,
+      "lvlCost": 1,
+      "lvlVal": 1
+    },
+    {
+      "xmlId": "PRE",
+      "display": "PRE",
+      "base": 10,
+      "lvlCost": 1,
+      "lvlVal": 1
+    },
+    {
+      "xmlId": "OCV",
+      "display": "OCV",
+      "base": 3,
+      "lvlCost": 5,
+      "lvlVal": 1
+    },
+    {
+      "xmlId": "DCV",
+      "display": "DCV",
+      "base": 3,
+      "lvlCost": 5,
+      "lvlVal": 1
+    },
+    {
+      "xmlId": "OMCV",
+      "display": "OMCV",
+      "base": 3,
+      "lvlCost": 3,
+      "lvlVal": 1
+    },
+    {
+      "xmlId": "DMCV",
+      "display": "DMCV",
+      "base": 3,
+      "lvlCost": 3,
+      "lvlVal": 1
+    },
+    {
+      "xmlId": "SPD",
+      "display": "SPD",
+      "base": 2,
+      "lvlCost": 10,
+      "lvlVal": 1
+    },
+    {
+      "xmlId": "PD",
+      "display": "PD",
+      "base": 2,
+      "lvlCost": 1,
+      "lvlVal": 1
+    },
+    {
+      "xmlId": "ED",
+      "display": "ED",
+      "base": 2,
+      "lvlCost": 1,
+      "lvlVal": 1
+    },
+    {
+      "xmlId": "REC",
+      "display": "REC",
+      "base": 4,
+      "lvlCost": 1,
+      "lvlVal": 1
+    },
+    {
+      "xmlId": "END",
+      "display": "END",
+      "base": 20,
+      "lvlCost": 1,
+      "lvlVal": 5
+    },
+    {
+      "xmlId": "BODY",
+      "display": "BODY",
+      "base": 10,
+      "lvlCost": 1,
+      "lvlVal": 1
+    },
+    {
+      "xmlId": "STUN",
+      "display": "STUN",
+      "base": 20,
+      "lvlCost": 1,
+      "lvlVal": 2
+    },
+    {
+      "xmlId": "RUNNING",
+      "display": "Running",
+      "base": 12,
+      "lvlCost": 1,
+      "lvlVal": 1
+    },
+    {
+      "xmlId": "SWIMMING",
+      "display": "Swimming",
+      "base": 4,
+      "lvlCost": 1,
+      "lvlVal": 2
+    },
+    {
+      "xmlId": "LEAPING",
+      "display": "Leaping",
+      "base": 4,
+      "lvlCost": 1,
+      "lvlVal": 2
+    }
+  ],
+  "builtIn.Heroic6E.hdt": [
+    {
+      "xmlId": "STR",
+      "display": "STR",
+      "base": 10,
+      "lvlCost": 1,
+      "lvlVal": 1
+    },
+    {
+      "xmlId": "DEX",
+      "display": "DEX",
+      "base": 10,
+      "lvlCost": 2,
+      "lvlVal": 1
+    },
+    {
+      "xmlId": "CON",
+      "display": "CON",
+      "base": 10,
+      "lvlCost": 1,
+      "lvlVal": 1
+    },
+    {
+      "xmlId": "INT",
+      "display": "INT",
+      "base": 10,
+      "lvlCost": 1,
+      "lvlVal": 1
+    },
+    {
+      "xmlId": "EGO",
+      "display": "EGO",
+      "base": 10,
+      "lvlCost": 1,
+      "lvlVal": 1
+    },
+    {
+      "xmlId": "PRE",
+      "display": "PRE",
+      "base": 10,
+      "lvlCost": 1,
+      "lvlVal": 1
+    },
+    {
+      "xmlId": "OCV",
+      "display": "OCV",
+      "base": 3,
+      "lvlCost": 5,
+      "lvlVal": 1
+    },
+    {
+      "xmlId": "DCV",
+      "display": "DCV",
+      "base": 3,
+      "lvlCost": 5,
+      "lvlVal": 1
+    },
+    {
+      "xmlId": "OMCV",
+      "display": "OMCV",
+      "base": 3,
+      "lvlCost": 3,
+      "lvlVal": 1
+    },
+    {
+      "xmlId": "DMCV",
+      "display": "DMCV",
+      "base": 3,
+      "lvlCost": 3,
+      "lvlVal": 1
+    },
+    {
+      "xmlId": "SPD",
+      "display": "SPD",
+      "base": 2,
+      "lvlCost": 10,
+      "lvlVal": 1
+    },
+    {
+      "xmlId": "PD",
+      "display": "PD",
+      "base": 2,
+      "lvlCost": 1,
+      "lvlVal": 1
+    },
+    {
+      "xmlId": "ED",
+      "display": "ED",
+      "base": 2,
+      "lvlCost": 1,
+      "lvlVal": 1
+    },
+    {
+      "xmlId": "REC",
+      "display": "REC",
+      "base": 4,
+      "lvlCost": 1,
+      "lvlVal": 1
+    },
+    {
+      "xmlId": "END",
+      "display": "END",
+      "base": 20,
+      "lvlCost": 1,
+      "lvlVal": 5
+    },
+    {
+      "xmlId": "BODY",
+      "display": "BODY",
+      "base": 10,
+      "lvlCost": 1,
+      "lvlVal": 1
+    },
+    {
+      "xmlId": "STUN",
+      "display": "STUN",
+      "base": 20,
+      "lvlCost": 1,
+      "lvlVal": 2
+    },
+    {
+      "xmlId": "RUNNING",
+      "display": "Running",
+      "base": 12,
+      "lvlCost": 1,
+      "lvlVal": 1
+    },
+    {
+      "xmlId": "SWIMMING",
+      "display": "Swimming",
+      "base": 4,
+      "lvlCost": 1,
+      "lvlVal": 2
+    },
+    {
+      "xmlId": "LEAPING",
+      "display": "Leaping",
+      "base": 4,
+      "lvlCost": 1,
+      "lvlVal": 2
+    }
+  ],
+  "builtIn.Superheroic6E.hdt": [
+    {
+      "xmlId": "STR",
+      "display": "STR",
+      "base": 10,
+      "lvlCost": 1,
+      "lvlVal": 1
+    },
+    {
+      "xmlId": "DEX",
+      "display": "DEX",
+      "base": 10,
+      "lvlCost": 2,
+      "lvlVal": 1
+    },
+    {
+      "xmlId": "CON",
+      "display": "CON",
+      "base": 10,
+      "lvlCost": 1,
+      "lvlVal": 1
+    },
+    {
+      "xmlId": "INT",
+      "display": "INT",
+      "base": 10,
+      "lvlCost": 1,
+      "lvlVal": 1
+    },
+    {
+      "xmlId": "EGO",
+      "display": "EGO",
+      "base": 10,
+      "lvlCost": 1,
+      "lvlVal": 1
+    },
+    {
+      "xmlId": "PRE",
+      "display": "PRE",
+      "base": 10,
+      "lvlCost": 1,
+      "lvlVal": 1
+    },
+    {
+      "xmlId": "OCV",
+      "display": "OCV",
+      "base": 3,
+      "lvlCost": 5,
+      "lvlVal": 1
+    },
+    {
+      "xmlId": "DCV",
+      "display": "DCV",
+      "base": 3,
+      "lvlCost": 5,
+      "lvlVal": 1
+    },
+    {
+      "xmlId": "OMCV",
+      "display": "OMCV",
+      "base": 3,
+      "lvlCost": 3,
+      "lvlVal": 1
+    },
+    {
+      "xmlId": "DMCV",
+      "display": "DMCV",
+      "base": 3,
+      "lvlCost": 3,
+      "lvlVal": 1
+    },
+    {
+      "xmlId": "SPD",
+      "display": "SPD",
+      "base": 2,
+      "lvlCost": 10,
+      "lvlVal": 1
+    },
+    {
+      "xmlId": "PD",
+      "display": "PD",
+      "base": 2,
+      "lvlCost": 1,
+      "lvlVal": 1
+    },
+    {
+      "xmlId": "ED",
+      "display": "ED",
+      "base": 2,
+      "lvlCost": 1,
+      "lvlVal": 1
+    },
+    {
+      "xmlId": "REC",
+      "display": "REC",
+      "base": 4,
+      "lvlCost": 1,
+      "lvlVal": 1
+    },
+    {
+      "xmlId": "END",
+      "display": "END",
+      "base": 20,
+      "lvlCost": 1,
+      "lvlVal": 5
+    },
+    {
+      "xmlId": "BODY",
+      "display": "BODY",
+      "base": 10,
+      "lvlCost": 1,
+      "lvlVal": 1
+    },
+    {
+      "xmlId": "STUN",
+      "display": "STUN",
+      "base": 20,
+      "lvlCost": 1,
+      "lvlVal": 2
+    },
+    {
+      "xmlId": "RUNNING",
+      "display": "Running",
+      "base": 12,
+      "lvlCost": 1,
+      "lvlVal": 1
+    },
+    {
+      "xmlId": "SWIMMING",
+      "display": "Swimming",
+      "base": 4,
+      "lvlCost": 1,
+      "lvlVal": 2
+    },
+    {
+      "xmlId": "LEAPING",
+      "display": "Leaping",
+      "base": 4,
+      "lvlCost": 1,
+      "lvlVal": 2
+    }
+  ],
+  "builtIn.Vehicle6E.hdt": [
+    {
+      "xmlId": "STR",
+      "display": "STR",
+      "base": 10,
+      "lvlCost": 1,
+      "lvlVal": 1
+    },
+    {
+      "xmlId": "DEX",
+      "display": "DEX",
+      "base": 10,
+      "lvlCost": 2,
+      "lvlVal": 1
+    },
+    {
+      "xmlId": "OCV",
+      "display": "OCV",
+      "base": 3,
+      "lvlCost": 5,
+      "lvlVal": 1
+    },
+    {
+      "xmlId": "DCV",
+      "display": "DCV",
+      "base": 3,
+      "lvlCost": 5,
+      "lvlVal": 1
+    },
+    {
+      "xmlId": "SPD",
+      "display": "SPD",
+      "base": 2,
+      "lvlCost": 10,
+      "lvlVal": 1
+    },
+    {
+      "xmlId": "PD",
+      "display": "PD",
+      "base": 2,
+      "lvlCost": 3,
+      "lvlVal": 2
+    },
+    {
+      "xmlId": "ED",
+      "display": "ED",
+      "base": 2,
+      "lvlCost": 3,
+      "lvlVal": 2
+    },
+    {
+      "xmlId": "BODY",
+      "display": "BODY",
+      "base": 10,
+      "lvlCost": 1,
+      "lvlVal": 1
+    },
+    {
+      "xmlId": "RUNNING",
+      "display": "Ground Movement",
+      "base": 12,
+      "lvlCost": 1,
+      "lvlVal": 1
+    },
+    {
+      "xmlId": "SWIMMING",
+      "display": "Swimming",
+      "base": 4,
+      "lvlCost": 1,
+      "lvlVal": 2
+    },
+    {
+      "xmlId": "LEAPING",
+      "display": "Leaping",
+      "base": 0,
+      "lvlCost": 1,
+      "lvlVal": 2
+    },
+    {
+      "xmlId": "SIZE",
+      "display": "Size",
+      "base": 0,
+      "lvlCost": 5,
+      "lvlVal": 1
+    }
+  ],
+  "builtIn.Base6E.hdt": [
+    {
+      "xmlId": "PD",
+      "display": "PD",
+      "base": 2,
+      "lvlCost": 3,
+      "lvlVal": 2
+    },
+    {
+      "xmlId": "ED",
+      "display": "ED",
+      "base": 2,
+      "lvlCost": 3,
+      "lvlVal": 2
+    },
+    {
+      "xmlId": "BODY",
+      "display": "BODY",
+      "base": 2,
+      "lvlCost": 1,
+      "lvlVal": 1
+    },
+    {
+      "xmlId": "BASESIZE",
+      "display": "Size",
+      "base": 0,
+      "lvlCost": 2,
+      "lvlVal": 1
+    }
+  ],
+  "builtIn.Computer6E.hdt": [
+    {
+      "xmlId": "DEX",
+      "display": "DEX",
+      "base": 10,
+      "lvlCost": 2,
+      "lvlVal": 1
+    },
+    {
+      "xmlId": "INT",
+      "display": "INT",
+      "base": 10,
+      "lvlCost": 1,
+      "lvlVal": 1
+    },
+    {
+      "xmlId": "OCV",
+      "display": "OCV",
+      "base": 3,
+      "lvlCost": 5,
+      "lvlVal": 1
+    },
+    {
+      "xmlId": "DCV",
+      "display": "DCV",
+      "base": 3,
+      "lvlCost": 5,
+      "lvlVal": 1
+    },
+    {
+      "xmlId": "OMCV",
+      "display": "OMCV",
+      "base": 3,
+      "lvlCost": 3,
+      "lvlVal": 1
+    },
+    {
+      "xmlId": "DMCV",
+      "display": "DMCV",
+      "base": 3,
+      "lvlCost": 3,
+      "lvlVal": 1
+    },
+    {
+      "xmlId": "SPD",
+      "display": "SPD",
+      "base": 2,
+      "lvlCost": 10,
+      "lvlVal": 1
+    }
+  ],
+  "builtIn.Automaton6E.hdt": [
+    {
+      "xmlId": "STR",
+      "display": "STR",
+      "base": 10,
+      "lvlCost": 1,
+      "lvlVal": 1
+    },
+    {
+      "xmlId": "DEX",
+      "display": "DEX",
+      "base": 10,
+      "lvlCost": 2,
+      "lvlVal": 1
+    },
+    {
+      "xmlId": "CON",
+      "display": "CON",
+      "base": 10,
+      "lvlCost": 1,
+      "lvlVal": 1
+    },
+    {
+      "xmlId": "INT",
+      "display": "INT",
+      "base": 10,
+      "lvlCost": 1,
+      "lvlVal": 1
+    },
+    {
+      "xmlId": "EGO",
+      "display": "EGO",
+      "base": 0,
+      "lvlCost": 2,
+      "lvlVal": 1
+    },
+    {
+      "xmlId": "PRE",
+      "display": "PRE",
+      "base": 10,
+      "lvlCost": 1,
+      "lvlVal": 1
+    },
+    {
+      "xmlId": "OCV",
+      "display": "OCV",
+      "base": 3,
+      "lvlCost": 5,
+      "lvlVal": 1
+    },
+    {
+      "xmlId": "DCV",
+      "display": "DCV",
+      "base": 3,
+      "lvlCost": 5,
+      "lvlVal": 1
+    },
+    {
+      "xmlId": "OMCV",
+      "display": "OMCV",
+      "base": 0,
+      "lvlCost": 3,
+      "lvlVal": 1
+    },
+    {
+      "xmlId": "DMCV",
+      "display": "DMCV",
+      "base": 0,
+      "lvlCost": 3,
+      "lvlVal": 1
+    },
+    {
+      "xmlId": "SPD",
+      "display": "SPD",
+      "base": 2,
+      "lvlCost": 10,
+      "lvlVal": 1
+    },
+    {
+      "xmlId": "PD",
+      "display": "PD",
+      "base": 2,
+      "lvlCost": 1,
+      "lvlVal": 1
+    },
+    {
+      "xmlId": "ED",
+      "display": "ED",
+      "base": 2,
+      "lvlCost": 1,
+      "lvlVal": 1
+    },
+    {
+      "xmlId": "REC",
+      "display": "REC",
+      "base": 4,
+      "lvlCost": 1,
+      "lvlVal": 1
+    },
+    {
+      "xmlId": "END",
+      "display": "END",
+      "base": 20,
+      "lvlCost": 1,
+      "lvlVal": 5
+    },
+    {
+      "xmlId": "BODY",
+      "display": "BODY",
+      "base": 10,
+      "lvlCost": 1,
+      "lvlVal": 1
+    },
+    {
+      "xmlId": "STUN",
+      "display": "STUN",
+      "base": 20,
+      "lvlCost": 1,
+      "lvlVal": 2
+    },
+    {
+      "xmlId": "RUNNING",
+      "display": "Running",
+      "base": 12,
+      "lvlCost": 1,
+      "lvlVal": 1
+    },
+    {
+      "xmlId": "SWIMMING",
+      "display": "Swimming",
+      "base": 4,
+      "lvlCost": 1,
+      "lvlVal": 2
+    },
+    {
+      "xmlId": "LEAPING",
+      "display": "Leaping",
+      "base": 4,
+      "lvlCost": 1,
+      "lvlVal": 2
+    }
+  ],
+  "builtIn.AI6E.hdt": [
+    {
+      "xmlId": "DEX",
+      "display": "DEX",
+      "base": 10,
+      "lvlCost": 2,
+      "lvlVal": 1
+    },
+    {
+      "xmlId": "INT",
+      "display": "INT",
+      "base": 10,
+      "lvlCost": 1,
+      "lvlVal": 1
+    },
+    {
+      "xmlId": "EGO",
+      "display": "EGO",
+      "base": 10,
+      "lvlCost": 1,
+      "lvlVal": 1
+    },
+    {
+      "xmlId": "OCV",
+      "display": "OCV",
+      "base": 3,
+      "lvlCost": 5,
+      "lvlVal": 1
+    },
+    {
+      "xmlId": "DCV",
+      "display": "DCV",
+      "base": 3,
+      "lvlCost": 5,
+      "lvlVal": 1
+    },
+    {
+      "xmlId": "OMCV",
+      "display": "OMCV",
+      "base": 3,
+      "lvlCost": 3,
+      "lvlVal": 1
+    },
+    {
+      "xmlId": "DMCV",
+      "display": "DMCV",
+      "base": 3,
+      "lvlCost": 3,
+      "lvlVal": 1
+    },
+    {
+      "xmlId": "SPD",
+      "display": "SPD",
+      "base": 2,
+      "lvlCost": 10,
+      "lvlVal": 1
+    }
+  ]
+};

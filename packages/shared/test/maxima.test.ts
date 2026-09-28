@@ -11,6 +11,8 @@ import {
   parseRulesName,
   raceStatsFromMaxima,
   updateHdc,
+  createHdc,
+  blankHdc,
   type RaceDefinition,
 } from '../src/index.js';
 
@@ -113,5 +115,27 @@ describe('maxima in HDC files', () => {
     const str = strevka.characteristics.find((c) => c.type === 'STR')!;
     const max = strevka.rules!.characteristicMaxima.STR!;
     expect(str.realCost).toBe(characteristicCost('STR', str.levels, max));
+  });
+});
+
+describe('non-character templates', () => {
+  it('builds vehicles and bases with their template characteristics and costs', () => {
+    const vehicle = parseHdcFile(createHdc({ ...parseHdcFile(blankHdc(undefined, 'builtIn.Vehicle6E.hdt')) }, { template: 'builtIn.Vehicle6E.hdt' }).xml);
+    expect(vehicle.hdcTemplate).toBe('builtIn.Vehicle6E.hdt');
+    expect(vehicle.characteristics.map((c) => c.type)).toEqual(['STR', 'DEX', 'OCV', 'DCV', 'SPD', 'PD', 'ED', 'BODY', 'RUNNING', 'SWIMMING', 'LEAPING', 'SIZE']);
+
+    const edited = clone(vehicle);
+    const pd = edited.characteristics.find((c) => c.type === 'PD')!;
+    pd.levels = 8;
+    edited.characteristics.push({ ...pd, id: 'x', type: 'INT', levels: 5 });
+    const { xml, report } = updateHdc(blankHdc(undefined, 'builtIn.Vehicle6E.hdt'), edited);
+    const reparsed = parseHdcFile(xml);
+    // Vehicle PD costs 3 CP per 2 points
+    expect(reparsed.characteristics.find((c) => c.type === 'PD')!.realCost).toBe(12);
+    expect(reparsed.characteristics.some((c) => c.type === 'INT')).toBe(false);
+    expect(report.warnings.join(' ')).toMatch(/INT isn't a characteristic of this template/);
+
+    const base = parseHdcFile(blankHdc(undefined, 'builtIn.Base6E.hdt'));
+    expect(base.characteristics.map((c) => `${c.type}:${c.totalValue}`)).toEqual(['PD:2', 'ED:2', 'BODY:2', 'BASESIZE:0']);
   });
 });

@@ -23,6 +23,8 @@ export interface Character {
   image?: CharacterImage;
   rules?: Rules;
   template?: Template;
+  /** Hero Designer template the file was built on, e.g. "builtIn.Vehicle6E.hdt" */
+  hdcTemplate?: string;
 }
 
 export interface BasicConfiguration {
@@ -119,7 +121,8 @@ export type CharacteristicType =
   | 'STR' | 'DEX' | 'CON' | 'INT' | 'EGO' | 'PRE'  // Primary
   | 'OCV' | 'DCV' | 'OMCV' | 'DMCV'                 // Combat
   | 'SPD' | 'PD' | 'ED' | 'REC' | 'END' | 'BODY' | 'STUN'  // Secondary
-  | 'RUNNING' | 'SWIMMING' | 'LEAPING';             // Movement
+  | 'RUNNING' | 'SWIMMING' | 'LEAPING'              // Movement
+  | 'SIZE' | 'BASESIZE';                            // Vehicles and bases
 
 // ============================================================================
 // Skills

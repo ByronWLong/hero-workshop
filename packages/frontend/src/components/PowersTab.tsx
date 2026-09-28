@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect, useCallback } from 'react';
+import { useFocusItem } from './useFocusItem';
 import type { Character, Power, Modifier, Adder } from '@hero-workshop/shared';
 import {
   ALL_POWERS,
@@ -20,6 +21,8 @@ import { Modal } from './Modal';
 interface PowersTabProps {
   character: Character;
   onUpdate: (character: Character) => void;
+  /** Opens this item's edit form on load (HDC ID) */
+  focusItemId?: string;
 }
 
 // Group powers by category for the dropdown
@@ -176,7 +179,7 @@ function calculateDamageClasses(dice: number, isKilling: boolean): number {
   return isKilling ? dice * 3 : dice;
 }
 
-export function PowersTab({ character, onUpdate }: PowersTabProps) {
+export function PowersTab({ character, onUpdate, focusItemId }: PowersTabProps) {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingPower, setEditingPower] = useState<Power | null>(null);
   const [isCompound, setIsCompound] = useState(false);
@@ -274,6 +277,7 @@ export function PowersTab({ character, onUpdate }: PowersTabProps) {
   }, [moveMenuOpenFor, handleClickOutside]);
 
   const powers = useMemo(() => character.powers ?? [], [character.powers]);
+  useFocusItem(focusItemId, powers, (p) => openEditModal(p));
   // Build set of power IDs to check parent relationships
   const allPowerIds = useMemo(() => new Set(powers.map(p => p.id)), [powers]);
   
@@ -796,6 +800,8 @@ export function PowersTab({ character, onUpdate }: PowersTabProps) {
       effectDice: subPowerDef?.doesDamage ? `${subPowerFormData.levels}d6` : editingSubPower?.effectDice,
       endCost,
       modifiers: modifiers.length > 0 ? modifiers : undefined,
+      // The sub-power form has no adder editor; keep the ones the power already has
+      adders: editingSubPower?.adders,
       duration: subPowerDef?.duration ?? editingSubPower?.duration,
       range: (subPowerDef?.range ?? editingSubPower?.range) as Power['range'],
       doesDamage: subPowerDef?.doesDamage ?? editingSubPower?.doesDamage,
@@ -1148,6 +1154,8 @@ export function PowersTab({ character, onUpdate }: PowersTabProps) {
       effectDice: selectedPowerDef?.doesDamage ? `${formData.levels}d6` : editingPower?.effectDice,
       endCost: costs.endCost,
       modifiers: modifiers.length > 0 ? modifiers : undefined,
+      // Adders chosen in the form (existing ones keep their HDC ids so they update in place)
+      adders: formData.adders.length > 0 ? formData.adders : undefined,
       duration: selectedPowerDef?.duration ?? editingPower?.duration,
       range: (selectedPowerDef?.range ?? editingPower?.range) as Power['range'],
       doesDamage: selectedPowerDef?.doesDamage ?? editingPower?.doesDamage,

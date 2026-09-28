@@ -1,10 +1,13 @@
 import { useState, useMemo, useCallback, useEffect } from 'react';
+import { useFocusItem } from './useFocusItem';
 import type { Character, Talent, TalentType, CharacteristicType, Adder } from '@hero-workshop/shared';
 import { Modal } from './Modal';
 
 interface TalentsTabProps {
   character: Character;
   onUpdate: (character: Character) => void;
+  /** Opens this item's edit form on load (HDC ID) */
+  focusItemId?: string;
 }
 
 const TALENT_TYPES: { value: TalentType; label: string; defaultCost: number; description: string }[] = [
@@ -40,7 +43,7 @@ interface TalentDisplayItem {
   children: Talent[];
 }
 
-export function TalentsTab({ character, onUpdate }: TalentsTabProps) {
+export function TalentsTab({ character, onUpdate, focusItemId }: TalentsTabProps) {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isGroupModalOpen, setIsGroupModalOpen] = useState(false);
   const [editingTalent, setEditingTalent] = useState<Talent | null>(null);
@@ -62,6 +65,7 @@ export function TalentsTab({ character, onUpdate }: TalentsTabProps) {
   });
 
   const talents = useMemo(() => character.talents ?? [], [character.talents]);
+  useFocusItem(focusItemId, talents, (t) => (t.isGroup ? openEditGroupModal(t) : openEditModal(t)));
   
   // Close move menu when clicking outside
   const handleClickOutside = useCallback((e: MouseEvent) => {

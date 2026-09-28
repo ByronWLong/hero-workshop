@@ -231,7 +231,8 @@ export function openItemEditor(item: FoundryItem): void {
     return;
   }
   if (item.actor) {
-    openEditor(item.actor, { initialTab: tab });
+    const hdcId = item.system.ID;
+    openEditor(item.actor, { initialTab: tab, focusItemId: hdcId ? String(hdcId) : undefined });
     return;
   }
   if (!item.isOwner) {

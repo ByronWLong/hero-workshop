@@ -1990,8 +1990,17 @@ export const ALL_POWERS: Record<string, PowerDefinition> = {
 // Hand-written entries win: they carry curated descriptions and cost behaviour.
 for (const entry of POWER_CATALOG_6E) {
   const existing = ALL_POWERS[entry.xmlId];
-  if (existing) existing.inputLabel ??= entry.inputLabel;
-  else ALL_POWERS[entry.xmlId] = powerFromCatalog(entry);
+  if (!existing) {
+    ALL_POWERS[entry.xmlId] = powerFromCatalog(entry);
+    continue;
+  }
+  // Keep hand-written details, but offer every adder and option the template defines
+  const fromCatalog = powerFromCatalog(entry);
+  existing.inputLabel ??= fromCatalog.inputLabel;
+  const known = new Set((existing.adders ?? []).map((a) => a.xmlId));
+  const extraAdders = (fromCatalog.adders ?? []).filter((a) => !known.has(a.xmlId));
+  if (extraAdders.length) existing.adders = [...(existing.adders ?? []), ...extraAdders];
+  if (!existing.options?.length && fromCatalog.options?.length) existing.options = fromCatalog.options;
 }
 
 function powerFromCatalog(e: CatalogEntry): PowerDefinition {

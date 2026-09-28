@@ -1,10 +1,13 @@
 import { useState } from 'react';
+import { useFocusItem } from './useFocusItem';
 import type { Character, Disadvantage, DisadvantageType } from '@hero-workshop/shared';
 import { Modal } from './Modal';
 
 interface DisadvantagesTabProps {
   character: Character;
   onUpdate: (character: Character) => void;
+  /** Opens this item's edit form on load (HDC ID) */
+  focusItemId?: string;
 }
 
 const DISADVANTAGE_TYPES: { value: DisadvantageType; label: string; description: string; defaultPoints: number }[] = [
@@ -41,7 +44,7 @@ function generateId(): string {
   return Math.random().toString(36).substring(2, 11);
 }
 
-export function DisadvantagesTab({ character, onUpdate }: DisadvantagesTabProps) {
+export function DisadvantagesTab({ character, onUpdate, focusItemId }: DisadvantagesTabProps) {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingDisad, setEditingDisad] = useState<Disadvantage | null>(null);
   const [formData, setFormData] = useState({
@@ -55,6 +58,7 @@ export function DisadvantagesTab({ character, onUpdate }: DisadvantagesTabProps)
   });
 
   const disadvantages = character.disadvantages ?? [];
+  useFocusItem(focusItemId, disadvantages, (d) => openEditModal(d));
   const totalPoints = disadvantages.reduce((sum, d) => sum + (d.points ?? 0), 0);
   const maxPoints = character.basicConfiguration.disadPoints;
 

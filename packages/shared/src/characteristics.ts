@@ -12,6 +12,7 @@
  */
 
 import type { CharacteristicType } from './types.js';
+import { TEMPLATE_CHARACTERISTICS_6E } from './generated/catalog6e.js';
 
 export interface CharacteristicRule {
   base: number;
@@ -40,7 +41,27 @@ export const CHARACTERISTIC_RULES_6E: Record<CharacteristicType, CharacteristicR
   RUNNING: { base: 12, costPerPoint: 1 },
   SWIMMING: { base: 4, costPerPoint: 0.5 },
   LEAPING: { base: 4, costPerPoint: 0.5 },
+  SIZE: { base: 0, costPerPoint: 5 },
+  BASESIZE: { base: 0, costPerPoint: 2 },
 };
+
+/**
+ * Characteristics a Hero Designer template provides, with its costs (vehicles pay 3 per 2
+ * points of PD, a base starts at 2 BODY, ...). Unknown templates use the standard 6e set.
+ */
+export function characteristicRulesFor(template: string | undefined): Partial<Record<CharacteristicType, CharacteristicRule>> {
+  const list = (template && TEMPLATE_CHARACTERISTICS_6E[template]) || TEMPLATE_CHARACTERISTICS_6E['builtIn.Main6E.hdt']!;
+  const rules: Partial<Record<CharacteristicType, CharacteristicRule>> = {};
+  for (const c of list) {
+    rules[c.xmlId as CharacteristicType] = { base: c.base, costPerPoint: c.lvlCost / c.lvlVal };
+  }
+  return rules;
+}
+
+/** Templates that aren't people (vehicles, bases, computers, ...) remove characteristic maxima */
+export function templateUsesMaxima(template: string | undefined): boolean {
+  return !/(Vehicle|Base|Computer|Automaton|AI)6E\.hdt$/.test(template ?? '');
+}
 
 /** Hero Designer 6e's NCM_COST_MULTIPLIER: levels above the maximum cost double */
 export const MAXIMA_COST_MULTIPLIER = 2;
@@ -59,8 +80,12 @@ export type CharacteristicMaxima = Partial<Record<CharacteristicType, number>>;
  * take the characteristic above it cost double, mirroring Hero Designer. Negative levels
  * (sold-back characteristics) cost nothing.
  */
-export function characteristicCost(type: CharacteristicType, levels: number, maximum?: number): number {
-  const rule = CHARACTERISTIC_RULES_6E[type];
+export function characteristicCost(
+  type: CharacteristicType,
+  levels: number,
+  maximum?: number,
+  rule: CharacteristicRule | undefined = CHARACTERISTIC_RULES_6E[type],
+): number {
   if (!rule || levels <= 0) return 0;
   let cost = levels * rule.costPerPoint;
   const value = rule.base + levels;

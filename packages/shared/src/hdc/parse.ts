@@ -28,7 +28,13 @@ import type {
 import { generateId, heroRoundCost } from '../utils.js';
 import { getPowerDefinition } from '../powerDefinitions.js';
 import { getModifierByXmlId } from '../modifierDefinitions.js';
-import { CHARACTERISTIC_RULES_6E, characteristicCost, parseRulesName } from '../characteristics.js';
+import {
+  CHARACTERISTIC_RULES_6E,
+  characteristicCost,
+  characteristicRulesFor,
+  parseRulesName,
+  type CharacteristicRule,
+} from '../characteristics.js';
 import { HdcDocument } from './document.js';
 import type { XmlElement } from './xml.js';
 
@@ -76,12 +82,13 @@ export function parseHdcDocument(doc: HdcDocument): Character {
   const image = imageObj && typeof imageObj === 'object' ? imageObj : undefined;
 
   const rules = parseRules(section('RULES') ?? root);
+  const hdcTemplate = getAttr(root, 'TEMPLATE') || undefined;
 
   return {
     version: getAttr(root, 'version', '6.0'),
     basicConfiguration: parseBasicConfiguration(section('BASIC_CONFIGURATION') ?? section('RULES') ?? {}),
     characterInfo,
-    characteristics: parseCharacteristics(section('CHARACTERISTICS') ?? {}, rules?.characteristicMaxima),
+    characteristics: parseCharacteristics(section('CHARACTERISTICS') ?? {}, rules?.characteristicMaxima, hdcTemplate),
     skills: parseSkillsList(root.SKILLS),
     perks: parsePerksList(root.PERKS),
     talents: parseTalentsList(root.TALENTS),
@@ -97,6 +104,7 @@ export function parseHdcDocument(doc: HdcDocument): Character {
         }
       : undefined,
     rules,
+    hdcTemplate,
   };
 }
 
@@ -172,21 +180,37 @@ function extractTextContent(obj: Record<string, unknown>, key: string): string |
   return undefined;
 }
 
-function parseCharacteristics(obj: Record<string, unknown>, maxima: Rules['characteristicMaxima'] = {}): Characteristic[] {
+function parseCharacteristics(
+  obj: Record<string, unknown>,
+  maxima: Rules['characteristicMaxima'] = {},
+  template?: string,
+): Characteristic[] {
+  const templateRules = characteristicRulesFor(template);
+  // The template's characteristics in its order, then any others the file has
+  const types = [
+    ...(Object.keys(templateRules) as CharacteristicType[]),
+    ...(Object.keys(CHARACTERISTIC_RULES_6E) as CharacteristicType[]).filter((t) => !(t in templateRules)),
+  ];
   const characteristics: Characteristic[] = [];
-  for (const type of Object.keys(CHARACTERISTIC_RULES_6E) as CharacteristicType[]) {
+  for (const type of types) {
     const charData = obj[type];
     if (charData && typeof charData === 'object') {
-      characteristics.push(parseCharacteristic(charData as Record<string, unknown>, type, maxima[type]));
+      const rule = templateRules[type] ?? CHARACTERISTIC_RULES_6E[type];
+      characteristics.push(parseCharacteristic(charData as Record<string, unknown>, type, rule, maxima[type]));
     }
   }
   return characteristics;
 }
 
-function parseCharacteristic(obj: Record<string, unknown>, type: CharacteristicType, maximum?: number): Characteristic {
+function parseCharacteristic(
+  obj: Record<string, unknown>,
+  type: CharacteristicType,
+  rule: CharacteristicRule,
+  maximum?: number,
+): Characteristic {
   const levels = getAttrNum(obj, 'LEVELS', 0);
-  const baseValue = CHARACTERISTIC_RULES_6E[type].base;
-  const cost = characteristicCost(type, levels, maximum);
+  const baseValue = rule.base;
+  const cost = characteristicCost(type, levels, maximum, rule);
 
   return {
     id: getAttr(obj, 'ID') || generateId(),
