@@ -1,4 +1,4 @@
-<div class="hw-scroll standard-form hw-power-form">
+<div class="hw-scroll standard-form hw-dialog-body">
   {{#if isPower}}
   <div class="form-group">
     <label>Power</label>
@@ -101,7 +101,7 @@
       <span class="hw-mod-value">+{{cost}}</span>
       <a data-action="removeAdder" data-id="{{id}}" data-tooltip="Remove"><i class="fa-solid fa-xmark" inert></i></a>
     </div>
-    {{else}}<p class="hint">No adders.</p>{{/each}}
+    {{/each}}
     {{#if availableAdders.length}}
     <select data-field="addAdder">
       <option value="">Add an adder…</option>
@@ -123,11 +123,11 @@
       </select>
       {{/if}}
       {{#if hasLevels}}<input type="number" class="hw-small" data-field="mod.{{id}}.levels" value="{{levels}}" min="1" data-tooltip="{{#if isAoe}}Area (m){{else}}Levels{{/if}}">{{/if}}
-      {{#if isCustom}}<input type="number" step="0.25" class="hw-small" data-field="mod.{{id}}.value" value="{{rawValue}}">{{/if}}
-      <span class="hw-mod-value">{{value}}</span>
+      {{#if isCustom}}<input type="number" step="0.25" class="hw-small" data-field="mod.{{id}}.value" value="{{rawValue}}" aria-label="Value">
+      {{else}}<span class="hw-mod-value">{{value}}</span>{{/if}}
       <a data-action="removeModifier" data-id="{{id}}" data-tooltip="Remove"><i class="fa-solid fa-xmark" inert></i></a>
     </div>
-    {{else}}<p class="hint">None.</p>{{/each}}
+    {{/each}}
     {{#if inherited.length}}<p class="hint">From the list: {{#each inherited}}{{this}}{{#unless @last}}, {{/unless}}{{/each}}</p>{{/if}}
     <div class="hw-add-modifiers">
       <select data-field="addModifier">
@@ -140,22 +140,12 @@
       </select>
     </div>
     <div class="hw-add-custom">
-      <input type="text" data-field="custom.name" placeholder="Custom modifier">
-      <input type="number" step="0.25" class="hw-small" data-field="custom.value" placeholder="±">
-      <button type="button" data-action="addCustomModifier"><i class="fa-solid fa-plus" inert></i> Add</button>
+      <input type="text" data-field="custom.name" placeholder="Custom modifier name">
+      <input type="number" step="0.25" class="hw-small" data-field="custom.value" placeholder="-½" data-tooltip="Value, e.g. 0.25 or -0.5">
+      <button type="button" data-action="addCustomModifier"><i class="fa-solid fa-plus" inert></i> Add custom</button>
     </div>
   </fieldset>
   {{/unless}}
-
-  {{#if isPower}}
-  <div class="form-group">
-    <label>Stat contribution</label>
-    <div class="form-fields">
-      <label class="checkbox"><input type="checkbox" data-field="affectsPrimary" {{checked draft.affectsPrimary}}> Primary</label>
-      <label class="checkbox"><input type="checkbox" data-field="affectsTotal" {{checked draft.affectsTotal}}> Total</label>
-    </div>
-  </div>
-  {{/if}}
 
   <div class="form-group stacked">
     <label>Notes</label>
@@ -163,9 +153,14 @@
   </div>
 
   {{#if isPower}}
-  <p class="hw-cost-line">
-    Base <strong>{{costs.base}}</strong> · Active <strong>{{costs.active}}</strong> ·
-    Real <strong>{{costs.real}}</strong> · END <strong>{{costs.end}}</strong>
-  </p>
+  <details class="hw-advanced">
+    <summary>Characteristic contribution</summary>
+    <p class="hint">For powers that add to a characteristic: whether they count toward its primary and total values.</p>
+    <div class="form-fields">
+      <label class="checkbox"><input type="checkbox" data-field="affectsPrimary" {{checked draft.affectsPrimary}}> Primary</label>
+      <label class="checkbox"><input type="checkbox" data-field="affectsTotal" {{checked draft.affectsTotal}}> Total</label>
+    </div>
+  </details>
   {{/if}}
+
 </div>

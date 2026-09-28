@@ -1,58 +1,55 @@
-<section class="tab {{tab.cssClass}}" data-group="primary" data-tab="characteristics">
-  {{#if tab.str}}
-  <div class="hw-derived">
-    <div><span class="hint">Lift</span><strong>{{tab.str.lift}}</strong></div>
-    <div><span class="hint">HTH damage</span><strong>{{tab.str.damage}}</strong></div>
-    <div><span class="hint">Throw</span><strong>{{tab.str.throw}}</strong></div>
-  </div>
-  {{/if}}
-
+<section class="tab hw-characteristics {{tab.cssClass}}" data-group="primary" data-tab="characteristics">
   {{#if tab.usesMaxima}}
-  <fieldset class="hw-maxima">
-    <legend>Characteristic maxima</legend>
-    <div class="hw-maxima-head">
-      <span class="hint">
-        {{#if tab.races.length}}Races: {{#each tab.races}}{{this}}{{#unless @last}} / {{/unless}}{{/each}}
-        {{else}}No races chosen. Levels above a maximum cost double.{{/if}}
-      </span>
-      <div class="hw-inline-buttons">
-        {{#if tab.canManageRaces}}
-        <button type="button" data-action="manageRaces"><i class="fa-solid fa-dna" inert></i> Race library</button>
-        {{/if}}
-        <button type="button" data-action="chooseRaces"><i class="fa-solid fa-people-group" inert></i> Choose races</button>
-      </div>
+  <div class="hw-race-bar">
+    <div>
+      <span class="hint">Races</span>
+      {{#if tab.races.length}}<strong>{{#each tab.races}}{{this}}{{#unless @last}} / {{/unless}}{{/each}}</strong>
+      {{else}}<span class="hint">none chosen; set maxima by hand, or choose races</span>{{/if}}
     </div>
-    <div class="hw-maxima-grid">
-      {{#each tab.maxima}}
-      <label class="hw-maxima-cell">
-        <span>{{type}}</span>
-        <input type="number" data-field="max.{{type}}" value="{{value}}" placeholder="—">
-      </label>
-      {{/each}}
+    <div class="hw-inline-buttons">
+      <button type="button" data-action="chooseRaces"><i class="fa-solid fa-people-group" inert></i> Choose races</button>
+      {{#if tab.canManageRaces}}
+      <button type="button" data-action="manageRaces" data-tooltip="Race library" aria-label="Race library"><i class="fa-solid fa-book-open" inert></i></button>
+      {{/if}}
     </div>
-  </fieldset>
+  </div>
   {{/if}}
 
-  {{#each tab.groups as |group|}}
-  <h3 class="hw-group-title">{{group.label}}</h3>
-  <div class="hw-char-grid">
-    {{#each group.stats as |stat|}}
-    <div class="hw-char {{#if stat.over}}hw-over{{/if}}">
-      <label class="hw-char-name" for="hw-char-{{stat.type}}">{{stat.label}}</label>
-      <div class="hw-char-effective">
-        {{stat.effective}}{{#if stat.unit}}<small>{{stat.unit}}</small>{{/if}}{{#if stat.resistant}}<small class="hw-resistant">/{{stat.resistant}}r</small>{{/if}}
-      </div>
-      <div class="hw-char-value">
-        <input id="hw-char-{{stat.type}}" type="number" data-field="char.{{stat.type}}" value="{{stat.value}}">
-        {{#if stat.bonus}}<span class="hint">({{#if (gt stat.bonus 0)}}+{{/if}}{{stat.bonus}})</span>{{/if}}
-      </div>
-      {{#if stat.roll}}<div class="hint">Roll {{stat.roll}}</div>{{/if}}
-      {{#if stat.maximum}}
-      <div class="hw-char-max">Max {{stat.maximum}}{{#if stat.surcharge}} · +{{stat.surcharge}} pts over{{/if}}</div>
-      {{/if}}
-      <div class="hw-char-cost">{{stat.cost}} pts</div>
-    </div>
+  <table class="hw-char-table">
+    <thead>
+      <tr>
+        <th class="hw-char-name">Characteristic</th>
+        <th>Value</th>
+        <th>Total</th>
+        <th>Roll</th>
+        {{#if tab.usesMaxima}}<th data-tooltip="Levels above the maximum cost double">Maximum</th>{{/if}}
+        <th>Cost</th>
+      </tr>
+    </thead>
+    {{#each tab.groups as |group|}}
+    <tbody>
+      <tr class="hw-char-group"><th colspan="{{#if ../tab.usesMaxima}}6{{else}}5{{/if}}">{{group.label}}</th></tr>
+      {{#each group.stats as |stat|}}
+      <tr class="{{#if stat.over}}hw-over{{/if}}">
+        <th class="hw-char-name" scope="row">
+          <label for="hw-char-{{stat.type}}"><strong>{{stat.type}}</strong> <span class="hint">{{stat.label}}</span></label>
+          {{#if stat.detail}}<div class="hint hw-char-detail">{{stat.detail}}</div>{{/if}}
+        </th>
+        <td><input id="hw-char-{{stat.type}}" type="number" data-field="char.{{stat.type}}" value="{{stat.value}}"></td>
+        <td class="hw-char-total">
+          {{stat.effective}}{{#if stat.unit}}<small>{{stat.unit}}</small>{{/if}}{{#if stat.resistant}}<small class="hint">/{{stat.resistant}}r</small>{{/if}}
+          {{#if stat.bonus}}<small class="hint" data-tooltip="From powers">({{#if (gt stat.bonus 0)}}+{{/if}}{{stat.bonus}})</small>{{/if}}
+        </td>
+        <td>{{#if stat.roll}}{{stat.roll}}{{/if}}</td>
+        {{#if ../../tab.usesMaxima}}
+        <td>{{#if stat.canMax}}<input type="number" data-field="max.{{stat.type}}" value="{{stat.maximum}}" placeholder="—" aria-label="{{stat.type}} maximum">{{/if}}</td>
+        {{/if}}
+        <td class="hw-char-cost">
+          {{stat.cost}}{{#if stat.surcharge}} <i class="fa-solid fa-circle-exclamation" data-tooltip="Includes {{stat.surcharge}} pts for levels above the maximum"></i>{{/if}}
+        </td>
+      </tr>
+      {{/each}}
+    </tbody>
     {{/each}}
-  </div>
-  {{/each}}
+  </table>
 </section>

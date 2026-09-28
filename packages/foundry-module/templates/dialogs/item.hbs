@@ -1,4 +1,4 @@
-<div class="standard-form hw-item-form">
+<div class="hw-scroll standard-form hw-dialog-body">
   {{#each fields as |field|}}
   <div class="form-group {{#if (eq field.type "textarea")}}stacked{{/if}}">
     <label for="hw-field-{{field.name}}">{{field.label}}</label>
@@ -18,5 +18,4 @@
     {{#if field.hint}}<p class="hint">{{field.hint}}</p>{{/if}}
   </div>
   {{/each}}
-  <p class="hw-item-cost-preview">Cost: <strong>{{cost}} {{costLabel}}</strong></p>
 </div>

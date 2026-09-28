@@ -30,7 +30,7 @@ export function registerRaceSettings(openManager: () => void): void {
     name: 'HERO_WORKSHOP.RaceLibrary',
     label: 'HERO_WORKSHOP.ManageRaces',
     hint: 'HERO_WORKSHOP.RaceLibraryHint',
-    icon: 'fa-solid fa-dna',
+    icon: 'fa-solid fa-book-open',
     restricted: true,
     // registerMenu requires an ApplicationV2 subclass; this one just opens the React manager
     type: class extends (foundry.applications.api.ApplicationV2 as unknown as new () => object) {

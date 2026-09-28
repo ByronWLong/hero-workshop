@@ -20,7 +20,7 @@ export interface ItemRowView {
   children: ItemRowView[];
 }
 
-interface ListItem {
+export interface ListItem {
   id: string;
   name: string;
   alias?: string;
@@ -83,22 +83,36 @@ const costOf = (section: SectionId, item: ListItem) =>
 
 const FRAMEWORKS = ['MULTIPOWER', 'ELEMENTAL_CONTROL', 'VPP'];
 
+/**
+ * What a row costs including what's under it: lists without their own cost show their
+ * contents, and skill enhancers (Scholar, Jack of All Trades) add their skills to their
+ * own cost. Power lists and compound powers already carry their total.
+ */
+function rowCost(section: SectionId, own: number, isGroup: boolean, children: ItemRowView[]): number {
+  const inside = children.reduce((sum, c) => sum + c.cost, 0);
+  if (isGroup) return own || inside;
+  if (children.length && section !== 'powers' && section !== 'equipment') return own + inside;
+  return own;
+}
+
 /** Items nested under their LIST groups / compound powers, in list order */
 export function buildItemTree(character: Character, section: SectionId): ItemRowView[] {
   const items = sectionItems(character, section);
   const ids = new Set(items.map((i) => i.id));
-  const toRow = (item: ListItem): ItemRowView => ({
-    id: item.id,
-    name: item.name,
-    detail: detailFor(section, item),
-    cost: costOf(section, item),
-    isGroup: !!(item.isGroup || item.isContainer),
-    acceptsChildren: !!item.isGroup || item.type === 'LIST' || FRAMEWORKS.includes(item.xmlId ?? item.type ?? ''),
-    children: [
-      ...items.filter((c) => c.parentId === item.id).map(toRow),
-      ...(item.subPowers ?? []).map(toRow),
-    ],
-  });
+  const toRow = (item: ListItem): ItemRowView => {
+    const children = [...items.filter((c) => c.parentId === item.id).map(toRow), ...(item.subPowers ?? []).map(toRow)];
+    const isGroup = !!(item.isGroup || item.isContainer);
+    const own = costOf(section, item);
+    return {
+      id: item.id,
+      name: item.name,
+      detail: detailFor(section, item),
+      cost: rowCost(section, own, isGroup, children),
+      isGroup,
+      acceptsChildren: !!item.isGroup || item.type === 'LIST' || FRAMEWORKS.includes(item.xmlId ?? item.type ?? ''),
+      children,
+    };
+  };
   return items.filter((i) => !i.parentId || !ids.has(i.parentId)).map(toRow);
 }
 
@@ -157,7 +171,7 @@ export function removeItem(character: Character, section: SectionId, id: string)
 }
 
 /** Replaces a section's items (items must belong to that section) */
-function setSectionItems(character: Character, section: SectionId, items: ListItem[]): Character {
+export function setSectionItems(character: Character, section: SectionId, items: ListItem[]): Character {
   switch (section) {
     case 'skills': return { ...character, skills: items as Character['skills'] };
     case 'perks': return { ...character, perks: items as Character['perks'] };

@@ -73,4 +73,20 @@ describe('item forms', () => {
     expect(el.getAttr('XMLID')).toBe('SOCIALLIMITATION');
     expect(el.getAttr('INPUT')).toBe('Secret Identity');
   });
+
+  it('edits a skill list as a list (name and notes only)', () => {
+    const source = sample('SkralkSkekMal.hdc');
+    const character = parseHdcFile(source);
+    const group = character.skills.find((s) => s.isGroup);
+    expect(group).toBeDefined();
+    if (!group) return;
+    const values = itemFormValues(character, 'skills', group.id);
+    expect(itemForm('skills', values, false).fields.map((f) => f.name)).toEqual(['name', 'notes']);
+    const edited = saveItemForm(character, 'skills', group.id, { ...values, name: 'Renamed List' });
+    const { xml, report } = updateHdc(source, edited);
+    const el = HdcDocument.parse(xml).findById(group.id)!;
+    expect(el.name).toBe('LIST');
+    expect([el.getAttr('ALIAS'), el.getAttr('NAME')]).toContain('Renamed List');
+    expect(report.changes.length).toBe(1);
+  });
 });

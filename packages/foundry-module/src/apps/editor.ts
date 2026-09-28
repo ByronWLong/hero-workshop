@@ -52,6 +52,16 @@ const ALL_TABS: { id: TabId; label: string; icon: string }[] = [
   { id: 'equipment', label: 'Equipment', icon: 'fa-solid fa-suitcase' },
 ];
 
+const SECTION_NOUNS: Record<SectionId, string> = {
+  skills: 'skill',
+  perks: 'perk',
+  talents: 'talent',
+  martialarts: 'maneuver',
+  powers: 'power',
+  disadvantages: 'complication',
+  equipment: 'equipment',
+};
+
 const INFO_FIELDS: { key: keyof Character['characterInfo']; label: string; multiline?: boolean }[] = [
   { key: 'characterName', label: 'Name' },
   { key: 'alternateIdentities', label: 'Alternate identities' },
@@ -79,7 +89,11 @@ export class HeroWorkshopEditor extends HeroWorkshopApplication {
   static DEFAULT_OPTIONS = {
     classes: ['hero-workshop', 'hero-workshop-editor'],
     position: { width: 1100, height: 820 },
-    window: { icon: 'fa-solid fa-user-pen', resizable: true },
+    window: {
+      icon: 'fa-solid fa-user-pen',
+      resizable: true,
+      controls: [{ icon: 'fa-solid fa-file-arrow-down', label: 'Download .hdc', action: 'download' }],
+    },
     actions: {
       download: HeroWorkshopEditor.#onDownload,
       review: HeroWorkshopEditor.#onReview,
@@ -96,8 +110,8 @@ export class HeroWorkshopEditor extends HeroWorkshopApplication {
   };
 
   static PARTS = {
-    header: { template: template('editor/header.hbs') },
     body: { template: template('editor/body.hbs'), scrollable: ['.hw-scroll'] },
+    footer: { template: template('footer.hbs') },
   };
 
   static TABS = { primary: { tabs: ALL_TABS, initial: 'info' } };
@@ -162,16 +176,18 @@ export class HeroWorkshopEditor extends HeroWorkshopApplication {
     const base = await (super._prepareContext as (o: unknown) => Promise<Record<string, unknown>>).call(this, options);
     const character = this.#character;
     const tabs = base.tabs as Record<string, { id: string; cssClass?: string; active: boolean }>;
-    const listTab = (id: SectionId) => ({ ...tabs[id], rows: buildItemTree(character, id), section: id });
+    const listTab = (id: SectionId) => {
+      const rows = buildItemTree(character, id);
+      const count = (list: typeof rows): number => list.reduce((n, r) => n + (r.isGroup ? 0 : 1) + count(r.children), 0);
+      return { ...tabs[id], rows, section: id, noun: SECTION_NOUNS[id], count: count(rows), points: rows.reduce((n, r) => n + r.cost, 0) };
+    };
+    const characteristics = buildCharacteristicsView(character);
 
     return {
       ...base,
       stage: this.#stage,
       isNew: this.session.isNew,
       title: character.characterInfo.characterName || this.session.actorName,
-      dirty: this.#dirty,
-      canApply: this.#dirty || this.session.isNew,
-      error: this.#error,
       hideSidebar: !!this.session.view?.hideSidebar,
       summary: buildPointSummary(character),
       drift: this.#driftContext(),
@@ -183,15 +199,66 @@ export class HeroWorkshopEditor extends HeroWorkshopApplication {
       },
       characteristics: tabs.characteristics && {
         ...tabs.characteristics,
-        ...buildCharacteristicsView(character),
+        ...characteristics,
+        groups: characteristics.groups.map((g) => ({
+          ...g,
+          stats: g.stats.map((stat) => ({
+            ...stat,
+            canMax: characteristics.usesMaxima && MAXIMA_CHARACTERISTICS.includes(stat.type),
+            detail: stat.type === 'STR' && characteristics.str
+              ? `Lift ${characteristics.str.lift} · ${characteristics.str.damage} HTH · throw ${characteristics.str.throw}`
+              : undefined,
+          })),
+        })),
         races: character.rules?.races ?? [],
-        maxima: MAXIMA_CHARACTERISTICS.map((type) => ({ type, value: character.rules?.characteristicMaxima?.[type] ?? '' })),
         canManageRaces: canManageRaces(),
       },
       lists: (['skills', 'perks', 'talents', 'martialarts', 'powers', 'disadvantages', 'equipment'] as SectionId[])
         .filter((id) => tabs[id])
         .map(listTab),
+      ...this.#footerContext(),
     };
+  }
+
+  /** The footer bar: status on the left, the stage's actions on the right */
+  #footerContext() {
+    const error = this.#error;
+    switch (this.#stage) {
+      case 'drift':
+        return {
+          status: `${this.#driftSelected.size} of ${this.#drift.length} selected`,
+          buttons: [
+            { action: 'discardDrift', icon: 'fa-solid fa-xmark', label: 'Discard Foundry changes' },
+            { action: 'keepDrift', icon: 'fa-solid fa-check', label: 'Keep selected', cssClass: 'bright' },
+          ],
+        };
+      case 'review': {
+        const review = this.#reviewContext()!;
+        return {
+          error,
+          buttons: [
+            { action: 'backToEdit', icon: 'fa-solid fa-arrow-left', label: 'Back to editing' },
+            { action: 'apply', icon: 'fa-solid fa-floppy-disk', label: review.applyLabel, cssClass: 'bright', disabled: review.errors.length > 0 },
+          ],
+        };
+      }
+      case 'applying':
+        return { buttons: [] };
+      default:
+        return {
+          error,
+          status: this.#dirty ? 'Unsaved changes' : this.session.isNew ? 'New character' : 'No changes yet',
+          buttons: [
+            {
+              action: 'review',
+              icon: 'fa-solid fa-check',
+              label: this.session.isNew ? 'Review & create' : 'Review & apply',
+              cssClass: 'bright',
+              disabled: !(this.#dirty || this.session.isNew),
+            },
+          ],
+        };
+    }
   }
 
   #driftContext() {
@@ -405,6 +472,14 @@ export class HeroWorkshopEditor extends HeroWorkshopApplication {
       event.dataTransfer.setData('text/plain', JSON.stringify(data));
       event.dataTransfer.effectAllowed = 'copy';
       row.classList.add('hw-dragging');
+    });
+    // Rows are buttons: Enter/Space opens them like a click
+    el.addEventListener('keydown', (event) => {
+      const row = event.target as HTMLElement;
+      if ((event.key === 'Enter' || event.key === ' ') && row.classList?.contains('hw-item-row')) {
+        event.preventDefault();
+        row.click();
+      }
     });
     el.addEventListener('dragend', () => el.querySelectorAll('.hw-dragging').forEach((r) => r.classList.remove('hw-dragging')));
     el.addEventListener('dragover', (event) => {

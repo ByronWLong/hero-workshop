@@ -1,26 +1,13 @@
 <section class="hw-summary">
-  <h3>Points</h3>
-  <div class="form-group">
-    <label>Base points</label>
-    <input type="number" data-field="config.basePoints" value="{{summary.basePoints}}">
+  <div class="hw-remaining {{#if (lt summary.remaining 0)}}hw-bad{{/if}}">
+    <span class="hw-remaining-value">{{summary.remaining}}</span>
+    <span class="hint">points left</span>
   </div>
-  <div class="form-group">
-    <label>Complications</label>
-    <div class="form-fields">
-      <span class="{{#if summary.complicationsOk}}hw-ok{{else}}hw-bad{{/if}}">{{summary.complicationsTaken}} /</span>
-      <input type="number" data-field="config.disadPoints" value="{{summary.disadPoints}}">
-    </div>
-  </div>
-  <div class="form-group">
-    <label>Experience</label>
-    <input type="number" data-field="config.experience" value="{{summary.experience}}">
-  </div>
-  <hr>
   <dl class="hw-totals">
-    <dt>Available</dt><dd>{{summary.available}}</dd>
-    {{#each summary.breakdown}}<dt class="hint">{{label}}</dt><dd class="hint">{{points}}</dd>{{/each}}
-    <dt>Spent</dt><dd>{{summary.spent}}</dd>
-    <dt><strong>Remaining</strong></dt>
-    <dd class="{{#if (lt summary.remaining 0)}}hw-bad{{else}}hw-ok{{/if}}"><strong>{{summary.remaining}}</strong></dd>
+    <dt>Spent</dt><dd>{{summary.spent}} <span class="hint">/ {{summary.available}}</span></dd>
+    {{#each summary.breakdown}}<dt class="hw-sub">{{label}}</dt><dd class="hw-sub">{{points}}</dd>{{/each}}
+    <dt>Complications</dt>
+    <dd class="{{#unless summary.complicationsOk}}hw-bad{{/unless}}">{{summary.complicationsTaken}} <span class="hint">/ {{summary.disadPoints}}</span></dd>
   </dl>
+  <p class="hint">{{summary.basePoints}} base + {{summary.experience}} experience. Change these on the Info tab.</p>
 </section>

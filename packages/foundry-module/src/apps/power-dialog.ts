@@ -50,7 +50,7 @@ export class PowerDialog extends HeroWorkshopApplication {
 
   static PARTS = {
     form: { template: template('dialogs/power.hbs'), scrollable: ['.hw-scroll'] },
-    footer: { template: 'templates/generic/form-footer.hbs' },
+    footer: { template: template('footer.hbs') },
   };
 
   #draft: PowerDraft;
@@ -61,6 +61,8 @@ export class PowerDialog extends HeroWorkshopApplication {
     super({
       id: `hero-workshop-power-${config.section}-${config.itemId ?? `new-${draft.kind}-${Date.now().toString(36)}`}`,
       window: { title: `${config.itemId ? 'Edit' : 'Add'} ${noun}` },
+      // Lists have only a few fields; powers need room for adders and modifiers
+      ...(draft.kind === 'list' ? { position: { width: 560, height: 'auto' } } : {}),
     });
     this.#draft = draft;
   }
@@ -69,7 +71,15 @@ export class PowerDialog extends HeroWorkshopApplication {
     const view = powerFormView(this.config.character(), this.config.section, this.#draft, this.config.itemId);
     return {
       ...view,
-      buttons: [{ type: 'submit', icon: 'fa-solid fa-check', label: this.config.itemId ? 'Save' : 'Add' }],
+      costs: view.isPower
+        ? [
+            { label: 'Base', value: view.costs.base },
+            { label: 'Active', value: view.costs.active },
+            { label: 'Real', value: view.costs.real },
+            { label: 'END', value: view.costs.end },
+          ]
+        : [],
+      buttons: [{ type: 'submit', icon: 'fa-solid fa-check', label: this.config.itemId ? 'Save' : 'Add', cssClass: 'bright' }],
     };
   }
 

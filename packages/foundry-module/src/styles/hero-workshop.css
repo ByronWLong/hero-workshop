@@ -1,7 +1,17 @@
 /*
  * Hero Workshop windows. Layout only: colours, fonts and form controls come from Foundry's
  * theme variables and element styles, so light/dark themes and theme modules apply.
+ *
+ * Every window is a column: an optional tab bar, one scrolling body, and a footer bar that
+ * holds the status on the left and the window's actions on the right.
  */
+
+.hero-workshop {
+  --hw-gap: 0.5rem;
+  --hw-pad: 1rem;
+  --hw-hover: color-mix(in srgb, var(--color-text-primary) 7%, transparent);
+  --hw-rule: color-mix(in srgb, var(--color-border) 60%, transparent);
+}
 
 .hero-workshop .window-content {
   padding: 0;
@@ -15,85 +25,101 @@
   min-height: 0;
 }
 
-.hero-workshop .hw-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
-  padding: 0.5rem 1rem;
-  border-bottom: 1px solid var(--color-border);
-}
-
-.hero-workshop .hw-header .hw-title {
-  margin: 0;
-  border: none;
-  font-size: var(--font-size-20);
-}
-
-.hero-workshop .hw-header-actions,
-.hero-workshop .hw-inline-buttons,
-.hero-workshop .hw-toolbar {
-  display: flex;
-  gap: 0.5rem;
-  align-items: center;
-  flex-wrap: wrap;
-}
-
-.hero-workshop .hw-header-actions button,
-.hero-workshop .hw-inline-buttons button,
-.hero-workshop .hw-toolbar button {
-  flex: 0 0 auto;
-  width: auto;
-}
-
-.hero-workshop .hw-dirty {
-  font-size: 0.5em;
-  vertical-align: middle;
-  color: var(--color-level-warning);
-}
-
-.hero-workshop .hw-error {
-  margin: 0.5rem 1rem;
+.hero-workshop .hw-body,
+.hero-workshop .hw-dialog-body {
+  flex: 1;
+  min-height: 0;
 }
 
 .hero-workshop .hw-body {
-  flex: 1;
-  min-height: 0;
   display: flex;
   flex-direction: column;
 }
 
+.hero-workshop .hw-dialog-body {
+  padding: 0.75rem var(--hw-pad);
+}
+
 .hero-workshop .hw-panel {
-  padding: 1rem;
   flex: 1;
+  padding: var(--hw-pad);
+}
+
+.hero-workshop .hw-panel > h2 {
+  margin-top: 0;
 }
 
 .hero-workshop .hw-empty {
   text-align: center;
-  padding: 2rem;
+  padding: 2rem var(--hw-pad);
 }
 
 .hero-workshop .hw-ok {
   color: var(--color-level-success);
 }
 
-.hero-workshop .hw-bad,
-.hero-workshop .hw-warn li {
+.hero-workshop .hw-bad {
   color: var(--color-level-error);
 }
 
-.hero-workshop .hw-list {
-  margin: 0.25rem 0 0.75rem 1.25rem;
-  padding: 0;
+.hero-workshop .hw-inline-buttons,
+.hero-workshop .hw-toolbar {
+  display: flex;
+  gap: var(--hw-gap);
+  align-items: center;
+  flex-wrap: wrap;
 }
 
-/* ---------------------------------------------------------------- layout */
+.hero-workshop .hw-inline-buttons button,
+.hero-workshop .hw-toolbar button,
+.hero-workshop .hw-toolbar select {
+  flex: 0 0 auto;
+  width: auto;
+}
+
+/* ---------------------------------------------------------------- footer bar */
+
+.hero-workshop .hw-footer {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--hw-pad);
+  padding: 0.5rem var(--hw-pad);
+  border-top: 1px solid var(--color-border);
+}
+
+.hero-workshop .hw-footer-status {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.25rem 1rem;
+  min-width: 0;
+}
+
+.hero-workshop .hw-footer-buttons {
+  display: flex;
+  gap: var(--hw-gap);
+  flex: 0 0 auto;
+}
+
+.hero-workshop .hw-footer-buttons button {
+  width: auto;
+  min-width: 8rem;
+  padding-inline: 1rem;
+}
+
+.hero-workshop .hw-stat strong {
+  font-size: var(--font-size-16);
+}
+
+/* ---------------------------------------------------------------- editor layout */
 
 .hero-workshop .hw-layout {
   flex: 1;
   min-height: 0;
   display: grid;
-  grid-template-columns: 240px 1fr;
+  grid-template-columns: 13rem 1fr;
 }
 
 .hero-workshop .hw-layout-single {
@@ -101,7 +127,7 @@
 }
 
 .hero-workshop .hw-sidebar {
-  padding: 0.75rem;
+  padding: var(--hw-pad) 0.75rem;
   border-right: 1px solid var(--color-border);
 }
 
@@ -120,44 +146,38 @@
 
 .hero-workshop .hw-tabs-body {
   flex: 1;
-  padding: 0.75rem 1rem;
+  padding: 0.75rem var(--hw-pad);
 }
 
-.hero-workshop .hw-summary .form-group {
-  flex-wrap: nowrap;
+/* ---------------------------------------------------------------- points summary */
+
+.hero-workshop .hw-remaining {
+  display: flex;
+  flex-direction: column;
   align-items: center;
+  margin-bottom: 0.75rem;
 }
 
-.hero-workshop .hw-summary .form-group > label {
-  flex: 1;
+.hero-workshop .hw-remaining-value {
+  font-size: var(--font-size-32, 2rem);
+  font-weight: bold;
+  line-height: 1.1;
+  color: var(--color-text-emphatic);
 }
 
-.hero-workshop .hw-summary .form-group input,
-.hero-workshop .hw-summary .form-fields {
-  flex: 0 0 auto;
-  width: 4.5rem;
-  text-align: right;
-}
-
-.hero-workshop .hw-summary .form-fields {
-  width: auto;
-  justify-content: flex-end;
-  gap: 0.25rem;
-}
-
-.hero-workshop .hw-summary .form-fields input {
-  width: 3.5rem;
-}
-
-.hero-workshop .hw-summary h3 {
-  font-size: var(--font-size-16);
+.hero-workshop .hw-remaining.hw-bad .hw-remaining-value {
+  color: var(--color-level-error);
 }
 
 .hero-workshop .hw-totals {
   display: grid;
   grid-template-columns: 1fr auto;
   gap: 0.2rem 0.5rem;
-  margin: 0;
+  margin: 0 0 0.75rem;
+}
+
+.hero-workshop .hw-totals dt {
+  font-weight: bold;
 }
 
 .hero-workshop .hw-totals dd {
@@ -165,153 +185,120 @@
   text-align: right;
 }
 
-/* ---------------------------------------------------------------- drift / review */
-
-.hero-workshop .hw-drift-change {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-}
-
-.hero-workshop .hw-tag {
-  font-size: var(--font-size-11);
-  text-transform: uppercase;
-  padding: 0 0.35rem;
-  border: 1px solid var(--color-border);
-  border-radius: 3px;
+.hero-workshop .hw-totals .hw-sub {
+  font-weight: normal;
+  font-size: var(--font-size-12);
   color: var(--color-text-secondary);
 }
 
-.hero-workshop .hw-tag-added {
-  border-color: var(--color-level-success);
-  color: var(--color-level-success);
+.hero-workshop .hw-totals dt.hw-sub {
+  padding-left: 0.75rem;
 }
 
-.hero-workshop .hw-tag-removed {
-  border-color: var(--color-level-error);
-  color: var(--color-level-error);
+/* ---------------------------------------------------------------- info tab */
+
+.hero-workshop .hw-field-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(14rem, 1fr));
+  gap: 0.5rem 0.75rem;
+}
+
+.hero-workshop .hw-field-grid > label,
+.hero-workshop .hw-stacked {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  font-size: var(--font-size-12);
+  color: var(--color-form-label);
+}
+
+.hero-workshop .hw-stacked + .hw-stacked {
+  margin-top: 0.5rem;
+}
+
+.hero-workshop .hw-field-grid input,
+.hero-workshop .hw-stacked textarea {
+  font-size: var(--font-size-14);
+  color: var(--color-text-primary);
 }
 
 /* ---------------------------------------------------------------- characteristics */
 
-.hero-workshop .hw-derived {
+.hero-workshop .hw-race-bar {
   display: flex;
-  justify-content: space-around;
-  text-align: center;
-  padding: 0.5rem;
-  margin-bottom: 0.75rem;
-  border: 1px solid var(--color-border);
-  border-radius: 4px;
-}
-
-.hero-workshop .hw-derived > div {
-  display: flex;
-  flex-direction: column;
-}
-
-.hero-workshop .hw-maxima-head {
-  display: flex;
+  align-items: center;
   justify-content: space-between;
-  align-items: center;
-  gap: 0.5rem;
+  gap: var(--hw-gap);
   flex-wrap: wrap;
+  margin-bottom: 0.75rem;
 }
 
-.hero-workshop .hw-maxima-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(4.5rem, 1fr));
-  gap: 0.4rem;
-  margin-top: 0.5rem;
+.hero-workshop .hw-char-table {
+  width: 100%;
+  margin: 0;
+  border-collapse: collapse;
 }
 
-.hero-workshop .hw-maxima-cell {
-  display: flex;
-  flex-direction: column;
-  font-size: var(--font-size-12);
-  color: var(--color-form-label);
-}
-
-.hero-workshop .hw-group-title {
-  margin: 1rem 0 0.4rem;
-  font-size: var(--font-size-16);
-}
-
-.hero-workshop .hw-char-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(8rem, 1fr));
-  gap: 0.5rem;
-}
-
-.hero-workshop .hw-char {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 0.15rem;
-  padding: 0.5rem;
-  border: 1px solid var(--color-border);
-  border-radius: 4px;
+.hero-workshop .hw-char-table th,
+.hero-workshop .hw-char-table td {
+  padding: 0.2rem 0.5rem;
   text-align: center;
+  border-bottom: 1px solid var(--hw-rule);
 }
 
-.hero-workshop .hw-char.hw-over {
-  border-color: var(--color-level-warning);
-}
-
-.hero-workshop .hw-char-name {
+.hero-workshop .hw-char-table thead th {
   font-size: var(--font-size-12);
-  text-transform: uppercase;
   color: var(--color-form-label);
-}
-
-.hero-workshop .hw-char-effective {
-  font-size: var(--font-size-28);
-  font-weight: bold;
-  color: var(--color-text-emphatic);
-}
-
-.hero-workshop .hw-char-effective small {
-  font-size: var(--font-size-14);
   font-weight: normal;
-  color: var(--color-text-secondary);
 }
 
-.hero-workshop .hw-char-value {
-  display: flex;
-  align-items: center;
-  gap: 0.25rem;
+.hero-workshop .hw-char-table .hw-char-name {
+  text-align: left;
+  font-weight: normal;
 }
 
-.hero-workshop .hw-char-value input {
+.hero-workshop .hw-char-group th {
+  text-align: left;
+  padding-top: 0.75rem;
+  font-family: var(--font-h3, inherit);
+  font-size: var(--font-size-14);
+  border-bottom-color: var(--color-border);
+}
+
+.hero-workshop .hw-char-table input {
   width: 4rem;
   text-align: center;
 }
 
-.hero-workshop .hw-char-max {
-  font-size: var(--font-size-12);
-  color: var(--color-text-secondary);
+.hero-workshop .hw-char-detail {
+  font-size: var(--font-size-11);
 }
 
-.hero-workshop .hw-over .hw-char-max {
-  color: var(--color-level-warning);
+.hero-workshop .hw-char-total {
   font-weight: bold;
 }
 
-.hero-workshop .hw-char-cost {
-  font-size: var(--font-size-12);
-  color: var(--color-text-subtle);
+.hero-workshop .hw-char-total small {
+  font-weight: normal;
+}
+
+.hero-workshop .hw-over .hw-char-cost,
+.hero-workshop .hw-over input[data-field^='max.'] {
+  color: var(--color-level-warning);
+}
+
+.hero-workshop .hw-over input[data-field^='max.'] {
+  border-color: var(--color-level-warning);
 }
 
 /* ---------------------------------------------------------------- item lists */
 
 .hero-workshop .hw-list-toolbar {
   display: flex;
-  justify-content: flex-end;
-  gap: 0.5rem;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--hw-gap);
   margin-bottom: 0.5rem;
-}
-
-.hero-workshop .hw-list-toolbar button {
-  width: auto;
 }
 
 .hero-workshop .hw-items {
@@ -321,8 +308,8 @@
 }
 
 .hero-workshop .hw-children {
-  margin-left: 1.25rem;
-  border-left: 1px solid var(--color-border);
+  margin-left: 1rem;
+  border-left: 2px solid var(--hw-rule);
 }
 
 .hero-workshop .hw-item-row {
@@ -330,7 +317,18 @@
   align-items: center;
   gap: 0.75rem;
   padding: 0.3rem 0.5rem;
-  border-bottom: 1px solid var(--color-border);
+  border-bottom: 1px solid var(--hw-rule);
+  border-radius: 3px;
+  cursor: pointer;
+}
+
+.hero-workshop .hw-item-row:hover,
+.hero-workshop .hw-item-row:focus-visible {
+  background: var(--hw-hover);
+}
+
+.hero-workshop .hw-item-row:focus-visible {
+  outline: 1px solid var(--color-border-highlight);
 }
 
 .hero-workshop .hw-item-group > .hw-item-row .hw-item-name {
@@ -354,122 +352,88 @@
   text-align: right;
 }
 
-.hero-workshop .hw-item-controls {
-  display: flex;
-  gap: 0.5rem;
-}
-
-/* ---------------------------------------------------------------- inspector */
-
-.hero-workshop-inspector .hw-inspector {
-  flex: 1;
-  padding: 0.75rem 1rem;
-}
-
-.hero-workshop .hw-counts {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(8rem, 1fr));
-  gap: 0.5rem;
-}
-
-.hero-workshop .hw-counts dd {
-  margin: 0;
-  font-size: var(--font-size-20);
-  font-weight: bold;
-}
-
-.hero-workshop .hw-xml {
-  white-space: pre-wrap;
-  word-break: break-all;
-  font-size: var(--font-size-12);
-}
-
-/* ---------------------------------------------------------------- new character */
-
-.hero-workshop-new .hw-new-character {
-  padding: 1rem;
-}
-
-.hero-workshop .hw-template-choices {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(10rem, 1fr));
-  gap: 0.5rem;
-}
-
-.hero-workshop .hw-template-choice {
-  display: flex;
-  flex-direction: column;
-  padding: 0.5rem;
-  border: 1px solid var(--color-border);
-  border-radius: 4px;
-  cursor: pointer;
-}
-
-.hero-workshop .hw-template-choice input {
-  display: none;
-}
-
-.hero-workshop .hw-template-choice.active {
-  border-color: var(--color-border-highlight);
-  box-shadow: 0 0 4px var(--color-border-highlight);
-}
-
-/* ---------------------------------------------------------------- race library */
-
-.hero-workshop-races .hw-races {
-  flex: 1;
-  padding: 0.75rem 1rem;
-}
-
-.hero-workshop .hw-toolbar select {
-  width: auto;
-  max-width: 16rem;
-}
-
-.hero-workshop .hw-race-table td {
-  padding: 0.1rem;
-}
-
-.hero-workshop .hw-race-table td input[type='number'] {
-  width: 3.4rem;
+/* Delete only shows on the row being pointed at (or focused), keeping long lists calm */
+.hero-workshop .hw-item-delete {
+  width: 1.25rem;
   text-align: center;
+  visibility: hidden;
+  color: var(--color-text-secondary);
 }
 
-.hero-workshop .hw-race-table td:first-child input {
-  min-width: 10rem;
+.hero-workshop .hw-item-row:hover > .hw-item-delete,
+.hero-workshop .hw-item-row:focus-within > .hw-item-delete {
+  visibility: visible;
 }
 
-.hero-workshop .hw-race-choices {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(10rem, 1fr));
-  gap: 0.25rem;
-  margin-bottom: 0.5rem;
+.hero-workshop .hw-item-delete:hover {
+  color: var(--color-level-error);
 }
 
-/* ---------------------------------------------------------------- item dialog */
+/* ---------------------------------------------------------------- drag and drop */
 
-.hero-workshop-item .hw-item-form {
-  padding: 0.75rem 1rem 0;
+.hero-workshop .hw-item-row.hw-dragging {
+  opacity: 0.5;
 }
 
-.hero-workshop .hw-item-cost-preview {
-  text-align: right;
-  margin: 0.5rem 0;
+.hero-workshop.hw-drop-active .hw-tabs-body {
+  outline: 2px dashed var(--color-border-highlight);
+  outline-offset: -4px;
 }
 
-/* ---------------------------------------------------------------- power dialog */
-
-.hero-workshop-power .hw-power-form {
-  flex: 1;
-  padding: 0.75rem 1rem 0;
+.hero-workshop .hw-item-row.hw-drop-target {
+  outline: 2px solid var(--color-border-highlight);
+  background: var(--hw-hover);
 }
+
+/* ---------------------------------------------------------------- drift / review */
+
+.hero-workshop .hw-drift-change {
+  display: flex;
+  align-items: center;
+  gap: var(--hw-gap);
+}
+
+.hero-workshop .hw-tag {
+  flex: 0 0 auto;
+  font-size: var(--font-size-11);
+  text-transform: uppercase;
+  padding: 0 0.35rem;
+  border: 1px solid var(--color-border);
+  border-radius: 3px;
+  color: var(--color-text-secondary);
+}
+
+.hero-workshop .hw-tag-added {
+  border-color: var(--color-level-success);
+  color: var(--color-level-success);
+}
+
+.hero-workshop .hw-tag-removed {
+  border-color: var(--color-level-error);
+  color: var(--color-level-error);
+}
+
+.hero-workshop .hw-change-list {
+  margin: 0.25rem 0 0.75rem 1.25rem;
+  padding: 0;
+}
+
+.hero-workshop .hw-change-list li {
+  margin-bottom: 0.2rem;
+}
+
+.hero-workshop .hw-warn li {
+  color: var(--color-level-error);
+}
+
+/* ---------------------------------------------------------------- item and power dialogs */
 
 .hero-workshop .hw-mod-row {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
+  gap: var(--hw-gap);
   padding: 0.2rem 0;
-  border-bottom: 1px solid var(--color-border);
+  border-bottom: 1px solid var(--hw-rule);
 }
 
 .hero-workshop .hw-mod-name {
@@ -496,6 +460,10 @@
   color: var(--color-level-error);
 }
 
+.hero-workshop .hw-mod-row a[data-action] {
+  color: var(--color-text-secondary);
+}
+
 .hero-workshop input.hw-small {
   flex: 0 0 4rem;
   width: 4rem;
@@ -505,7 +473,7 @@
 .hero-workshop .hw-add-modifiers,
 .hero-workshop .hw-add-custom {
   display: flex;
-  gap: 0.5rem;
+  gap: var(--hw-gap);
   margin-top: 0.5rem;
 }
 
@@ -518,7 +486,7 @@
 .hero-workshop .hw-equipment-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(8rem, 1fr));
-  gap: 0.5rem;
+  gap: var(--hw-gap);
   margin-bottom: 0.5rem;
 }
 
@@ -530,27 +498,114 @@
   color: var(--color-form-label);
 }
 
-.hero-workshop .hw-cost-line {
-  text-align: right;
+.hero-workshop .hw-advanced {
   margin: 0.5rem 0;
 }
 
-/* ---------------------------------------------------------------- drag and drop */
-
-.hero-workshop .hw-item-row[draggable] {
-  cursor: grab;
+.hero-workshop .hw-advanced summary {
+  cursor: pointer;
+  color: var(--color-form-label);
 }
 
-.hero-workshop .hw-item-row.hw-dragging {
-  opacity: 0.5;
+/* ---------------------------------------------------------------- new character */
+
+.hero-workshop .hw-template-choices {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(10rem, 1fr));
+  gap: var(--hw-gap);
 }
 
-.hero-workshop.hw-drop-active .hw-tabs-body {
-  outline: 2px dashed var(--color-border-highlight, var(--color-border));
-  outline-offset: -4px;
+.hero-workshop .hw-template-choice {
+  display: flex;
+  flex-direction: column;
+  padding: 0.5rem;
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  cursor: pointer;
 }
 
-.hero-workshop .hw-item-row.hw-drop-target {
-  outline: 2px solid var(--color-border-highlight, var(--color-border));
-  background: var(--color-hover-bg, transparent);
+.hero-workshop .hw-template-choice:hover {
+  background: var(--hw-hover);
+}
+
+.hero-workshop .hw-template-choice input {
+  display: none;
+}
+
+.hero-workshop .hw-template-choice.active {
+  border-color: var(--color-border-highlight);
+  box-shadow: 0 0 4px var(--color-border-highlight);
+}
+
+/* ---------------------------------------------------------------- inspector */
+
+.hero-workshop .hw-inspector {
+  flex: 1;
+  padding: 0.75rem var(--hw-pad);
+}
+
+.hero-workshop .hw-inspector h2 {
+  margin-top: 0;
+}
+
+.hero-workshop .hw-counts {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(8rem, 1fr));
+  gap: var(--hw-gap);
+}
+
+.hero-workshop .hw-counts dd {
+  margin: 0;
+  font-size: var(--font-size-20);
+  font-weight: bold;
+}
+
+.hero-workshop .hw-list {
+  margin: 0.25rem 0 0.75rem 1.25rem;
+  padding: 0;
+}
+
+.hero-workshop .hw-xml {
+  white-space: pre-wrap;
+  word-break: break-all;
+  font-size: var(--font-size-12);
+}
+
+/* ---------------------------------------------------------------- race library and picker */
+
+.hero-workshop .hw-races {
+  flex: 1;
+  padding: 0.75rem var(--hw-pad);
+}
+
+.hero-workshop .hw-toolbar {
+  margin: 0.5rem 0 0.75rem;
+}
+
+.hero-workshop .hw-toolbar-gap {
+  flex: 1;
+}
+
+.hero-workshop .hw-toolbar select {
+  max-width: 16rem;
+}
+
+.hero-workshop .hw-race-table td {
+  padding: 0.1rem;
+}
+
+.hero-workshop .hw-race-table td input[type='number'] {
+  width: 3.4rem;
+  text-align: center;
+}
+
+.hero-workshop .hw-race-table td:first-child input {
+  min-width: 10rem;
+}
+
+.hero-workshop .hw-race-choices {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(10rem, 1fr));
+  gap: 0.25rem;
+  margin-bottom: 0.5rem;
 }

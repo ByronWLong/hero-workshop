@@ -34,8 +34,8 @@ export class ItemDialog extends HeroWorkshopApplication {
   };
 
   static PARTS = {
-    form: { template: template('dialogs/item.hbs') },
-    footer: { template: 'templates/generic/form-footer.hbs' },
+    form: { template: template('dialogs/item.hbs'), scrollable: ['.hw-scroll'] },
+    footer: { template: template('footer.hbs') },
   };
 
   #values: FormValues;
@@ -53,7 +53,8 @@ export class ItemDialog extends HeroWorkshopApplication {
     const form = itemForm(this.config.section, this.#values, !this.config.itemId);
     return {
       ...form,
-      buttons: [{ type: 'submit', icon: 'fa-solid fa-check', label: this.config.itemId ? 'Save' : 'Add' }],
+      costs: form.costLabel ? [{ label: 'Cost', value: `${form.cost} ${form.costLabel}` }] : [],
+      buttons: [{ type: 'submit', icon: 'fa-solid fa-check', label: this.config.itemId ? 'Save' : 'Add', cssClass: 'bright' }],
     };
   }
 

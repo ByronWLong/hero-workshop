@@ -1,14 +1,12 @@
-<li class="hw-item {{#if row.isGroup}}hw-item-group{{/if}}" data-item-id="{{row.id}}">
-  <div class="hw-item-row" draggable="true" data-section="{{section}}" data-item-id="{{row.id}}" {{#if row.acceptsChildren}}data-accepts-children{{/if}}>
+<li class="hw-item {{#if row.isGroup}}hw-item-group{{/if}}">
+  <div class="hw-item-row" draggable="true" tabindex="0" role="button" data-action="editItem" data-section="{{section}}"
+    data-item-id="{{row.id}}" {{#if row.acceptsChildren}}data-accepts-children{{/if}}>
     <div class="hw-item-text">
       <span class="hw-item-name">{{row.name}}</span>
       {{#if row.detail}}<span class="hint hw-item-detail">{{row.detail}}</span>{{/if}}
     </div>
     <span class="hw-item-cost">{{row.cost}}</span>
-    <span class="hw-item-controls">
-      <a data-action="editItem" data-section="{{section}}" data-item-id="{{row.id}}" data-tooltip="Edit"><i class="fa-solid fa-pen-to-square" inert></i></a>
-      <a data-action="deleteItem" data-section="{{section}}" data-item-id="{{row.id}}" data-tooltip="Delete"><i class="fa-solid fa-trash" inert></i></a>
-    </span>
+    <a class="hw-item-delete" data-action="deleteItem" data-section="{{section}}" data-item-id="{{row.id}}" data-tooltip="Delete" aria-label="Delete {{row.name}}"><i class="fa-solid fa-trash" inert></i></a>
   </div>
   {{#if row.children.length}}
   <ol class="hw-items hw-children">

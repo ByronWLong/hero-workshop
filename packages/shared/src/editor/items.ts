@@ -20,7 +20,7 @@ import {
   TALENT_CATALOG_6E,
 } from '../generated/catalog6e.js';
 import { SKILL_CATALOG_6E } from '../generated/skillCatalog6e.js';
-import { sectionItems, type SectionId } from './lists.js';
+import { sectionItems, setSectionItems, type SectionId } from './lists.js';
 
 export type FormSection = Exclude<SectionId, 'powers' | 'equipment'>;
 export type FormValues = Record<string, string | number | boolean | undefined>;
@@ -314,6 +314,8 @@ const signedText = (n: number) => (n >= 0 ? `+${n}` : String(n));
 
 export function itemFormValues(character: Character, section: FormSection, itemId?: string): FormValues {
   const item = itemId ? sectionItems(character, section).find((i) => i.id === itemId) : undefined;
+  // Lists only have a name and notes; their members are edited on their own
+  if (item?.isGroup) return { group: true, name: item.name, notes: item.notes ?? '' };
   switch (section) {
     case 'skills':
       return skillValues(item as Skill | undefined);
@@ -352,6 +354,14 @@ export function itemFormValues(character: Character, section: FormSection, itemI
 
 export function itemForm(section: FormSection, values: FormValues, isNew: boolean): ItemForm {
   const notes: FormField = { name: 'notes', label: 'Notes', type: 'textarea', value: str(values.notes) };
+  if (values.group) {
+    return {
+      title: 'Edit list',
+      fields: [{ name: 'name', label: 'Name', type: 'text', value: str(values.name) }, notes],
+      cost: 0,
+      costLabel: '',
+    };
+  }
   switch (section) {
     case 'skills':
       return skillForm(values, isNew);
@@ -421,6 +431,11 @@ export function saveItemForm(character: Character, section: FormSection, itemId:
   const position = list.length;
   const put = <T extends { id: string }>(items: T[], item: T) =>
     existing ? items.map((i) => (i.id === item.id ? item : i)) : [...items, item];
+
+  if (existing?.isGroup) {
+    const renamed = { ...existing, name: str(values.name).trim() || existing.name, notes: str(values.notes) || undefined };
+    return setSectionItems(character, section, list.map((i) => (i.id === existing.id ? renamed : i)));
+  }
 
   switch (section) {
     case 'skills':

@@ -26,7 +26,11 @@ export class HdcInspector extends HeroWorkshopApplication {
   static DEFAULT_OPTIONS = {
     classes: ['hero-workshop', 'hero-workshop-inspector'],
     position: { width: 860, height: 700 },
-    window: { icon: 'fa-solid fa-file-code', resizable: true },
+    window: {
+      icon: 'fa-solid fa-file-code',
+      resizable: true,
+      controls: [{ icon: 'fa-solid fa-file-arrow-down', label: 'Download .hdc', action: 'download' }],
+    },
     actions: { download: HdcInspector.#onDownload },
   };
 
@@ -96,7 +100,7 @@ export class NewCharacterWindow extends HeroWorkshopApplication {
 
   static PARTS = {
     form: { template: template('new-character.hbs') },
-    footer: { template: 'templates/generic/form-footer.hbs' },
+    footer: { template: template('footer.hbs') },
   };
 
   #templateId: CharacterTemplateId = 'heroic';
@@ -124,7 +128,8 @@ export class NewCharacterWindow extends HeroWorkshopApplication {
           : `${CHARACTER_TEMPLATES[id].basePoints} points, ${CHARACTER_TEMPLATES[id].disadPoints} in complications`,
       })),
       isPerson: !preset.actorType,
-      buttons: [{ type: 'submit', icon: 'fa-solid fa-hammer', label: 'Start building' }],
+      status: 'Nothing is added to the world until you apply.',
+      buttons: [{ type: 'submit', icon: 'fa-solid fa-hammer', label: 'Start building', cssClass: 'bright' }],
     };
   }
 
@@ -168,7 +173,7 @@ export class RaceLibraryWindow extends HeroWorkshopApplication {
     id: 'hero-workshop-race-library',
     classes: ['hero-workshop', 'hero-workshop-races'],
     position: { width: 1300, height: 640 },
-    window: { title: 'Hero Workshop: Race Library', icon: 'fa-solid fa-dna', resizable: true },
+    window: { title: 'Hero Workshop: Race Library', icon: 'fa-solid fa-book-open', resizable: true },
     actions: {
       addRace: RaceLibraryWindow.#onAdd,
       deleteRace: RaceLibraryWindow.#onDelete,
@@ -180,6 +185,7 @@ export class RaceLibraryWindow extends HeroWorkshopApplication {
 
   static PARTS = {
     body: { template: template('race-library.hbs'), scrollable: ['.hw-scroll'] },
+    footer: { template: template('footer.hbs') },
   };
 
   #draft: RaceDefinition[] = getRaceLibrary();
@@ -191,10 +197,14 @@ export class RaceLibraryWindow extends HeroWorkshopApplication {
 
   async _prepareContext() {
     const saved = JSON.stringify(getRaceLibrary());
+    const dirty = saved !== JSON.stringify(this.#draft);
     return {
-      editable: this.editable,
-      dirty: saved !== JSON.stringify(this.#draft),
       error: this.#error,
+      status: !this.editable ? 'Only the GM can change the race library.' : dirty ? 'Unsaved changes' : `${this.#draft.length} races`,
+      buttons: this.editable
+        ? [{ action: 'save', icon: 'fa-solid fa-floppy-disk', label: 'Save', cssClass: 'bright', disabled: !dirty }]
+        : [],
+      editable: this.editable,
       columns: MAXIMA_CHARACTERISTICS,
       actors: game.actors.contents.map((a) => ({ id: a.id, name: a.name })),
       races: [...this.#draft]
