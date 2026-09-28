@@ -13,6 +13,7 @@ import appCss from '../styles/app.css?inline';
 import { createActorSession, downloadHdc } from '../sync/session';
 import { EditorRoot } from '../ui/EditorRoot';
 import { Inspector } from '../ui/Inspector';
+import { NewCharacterFlow } from '../ui/NewCharacterFlow';
 
 /** Rewrites document-level selectors so the SPA stylesheet applies inside a shadow root */
 function scopeForShadowRoot(css: string): string {
@@ -36,6 +37,7 @@ interface ReactApplication {
 let classes: {
   Editor: new (actor: FoundryActor) => ReactApplication;
   Inspector: new (actor: FoundryActor) => ReactApplication;
+  NewCharacter: new () => ReactApplication;
 } | undefined;
 
 function applicationClasses() {
@@ -122,7 +124,28 @@ function applicationClasses() {
     }
   }
 
-  classes = { Editor: EditorApplication, Inspector: InspectorApplication };
+  class NewCharacterApplication extends ReactHostApplication {
+    static DEFAULT_OPTIONS = {
+      id: 'hero-workshop-new-character',
+      classes: ['hero-workshop-window'],
+      window: { title: 'Hero Workshop: New Character', icon: 'fa-solid fa-user-plus', resizable: true },
+      position: { width: 1200, height: 820 },
+    };
+
+    protected renderReact() {
+      return (
+        <NewCharacterFlow
+          onCreated={(actor) => {
+            ui.notifications.info(game.i18n.format('HERO_WORKSHOP.Created', { name: actor.name }));
+            void this.close();
+            void actor.sheet?.render(true);
+          }}
+        />
+      );
+    }
+  }
+
+  classes = { Editor: EditorApplication, Inspector: InspectorApplication, NewCharacter: NewCharacterApplication };
   return classes;
 }
 
@@ -146,6 +169,10 @@ function editableActor(actor: FoundryActor): FoundryActor | undefined {
 export function openEditor(actor: FoundryActor): void {
   const target = editableActor(actor);
   if (target) void new (applicationClasses().Editor)(target).render({ force: true });
+}
+
+export function openNewCharacter(): void {
+  void new (applicationClasses().NewCharacter)().render({ force: true });
 }
 
 export function openInspector(actor: FoundryActor): void {

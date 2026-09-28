@@ -28,7 +28,7 @@ type Stage =
 
 interface EditorRootProps {
   session: ActorSession;
-  onApplied(): void;
+  onApplied(actor: FoundryActor): void;
 }
 
 export function EditorRoot({ session, onApplied }: EditorRootProps) {
@@ -49,6 +49,7 @@ export function EditorRoot({ session, onApplied }: EditorRootProps) {
   const [keptFromFoundry, setKeptFromFoundry] = useState(0);
 
   const dirty = character !== original || baseXml !== session.hdcXml;
+  const canApply = dirty || session.isNew;
 
   const acceptDrift = (selected: DriftChange[]) => {
     if (stage.kind !== 'drift') return;
@@ -79,10 +80,10 @@ export function EditorRoot({ session, onApplied }: EditorRootProps) {
     setStage({ kind: 'applying' });
     try {
       const name = character.characterInfo.characterName;
-      await session.apply(xml, {
+      const actor = await session.apply(xml, {
         characterName: name !== original.characterInfo.characterName ? name : undefined,
       });
-      onApplied();
+      onApplied(actor);
     } catch (e) {
       console.error(e);
       setError(e instanceof Error ? e.message : String(e));
@@ -107,8 +108,8 @@ export function EditorRoot({ session, onApplied }: EditorRootProps) {
             Download .hdc
           </button>
           {stage.kind === 'edit' && (
-            <button className="btn btn-primary" onClick={review} disabled={!dirty}>
-              Review &amp; Apply
+            <button className="btn btn-primary" onClick={review} disabled={!canApply}>
+              {session.isNew ? 'Review & Create' : 'Review & Apply'}
             </button>
           )}
         </div>
@@ -125,11 +126,16 @@ export function EditorRoot({ session, onApplied }: EditorRootProps) {
           <ReviewPanel
             report={stage.report}
             keptFromFoundry={keptFromFoundry}
+            applyLabel={session.isNew ? 'Create character' : 'Apply to actor'}
             onBack={() => setStage({ kind: 'edit' })}
             onApply={() => apply(stage.xml)}
           />
         )}
-        {stage.kind === 'applying' && <div className="hw-empty">Updating {session.actorName}…</div>}
+        {stage.kind === 'applying' && (
+          <div className="hw-empty">
+            {session.isNew ? 'Creating' : 'Updating'} {character.characterInfo.characterName || session.actorName}…
+          </div>
+        )}
       </main>
     </div>
   );

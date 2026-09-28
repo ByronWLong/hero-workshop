@@ -35,7 +35,7 @@ import {
   type SkillCatalogEntry,
 } from '../generated/skillCatalog6e.js';
 import { HdcDocument, type HdcItemSection } from './document.js';
-import { XmlElement, createElement } from './xml.js';
+import { XmlElement, createElement, escapeAttr } from './xml.js';
 import {
   ATTACK_DEFENSE_DEFAULTS,
   isCharacteristicTag,
@@ -85,13 +85,24 @@ export function createHdc(
   return updateHdc(blankHdc(character, options.template), character, options);
 }
 
+/** Hero Designer 6e templates Hero Workshop can start a character from */
+export const CHARACTER_TEMPLATES = {
+  heroic: { template: 'builtIn.Heroic6E.hdt', label: 'Heroic', basePoints: 175, disadPoints: 50 },
+  superheroic: { template: 'builtIn.Superheroic6E.hdt', label: 'Superheroic', basePoints: 400, disadPoints: 75 },
+} as const;
+
+export type CharacterTemplateId = keyof typeof CHARACTER_TEMPLATES;
+
 /** A minimal, valid Hero Designer 6e character */
 export function blankHdc(character?: Partial<Character>, template = 'builtIn.Heroic6E.hdt'): string {
+  const config = character?.basicConfiguration;
+  const preset = Object.values(CHARACTER_TEMPLATES).find((t) => t.template === template);
+  const attr = (value: string) => escapeAttr(value);
   const lines = [
     '<?xml version="1.0" encoding="UTF-16"?>',
-    `<CHARACTER version="6.0" TEMPLATE="${template}">`,
-    '  <BASIC_CONFIGURATION BASE_POINTS="175" DISAD_POINTS="50" EXPERIENCE="0" />',
-    '  <CHARACTER_INFO CHARACTER_NAME="" ALTERNATE_IDENTITIES="" PLAYER_NAME="" HEIGHT="78.74015748031496" WEIGHT="220.46224760379584" HAIR_COLOR="" EYE_COLOR="" CAMPAIGN_NAME="" GENRE="" GM="">',
+    `<CHARACTER version="6.0" TEMPLATE="${attr(template)}">`,
+    `  <BASIC_CONFIGURATION BASE_POINTS="${config?.basePoints ?? preset?.basePoints ?? 175}" DISAD_POINTS="${config?.disadPoints ?? preset?.disadPoints ?? 50}" EXPERIENCE="${config?.experience ?? 0}" />`,
+    `  <CHARACTER_INFO CHARACTER_NAME="${attr(character?.characterInfo?.characterName ?? '')}" ALTERNATE_IDENTITIES="" PLAYER_NAME="" HEIGHT="78.74015748031496" WEIGHT="220.46224760379584" HAIR_COLOR="" EYE_COLOR="" CAMPAIGN_NAME="" GENRE="" GM="">`,
     ...['BACKGROUND', 'PERSONALITY', 'QUOTE', 'TACTICS', 'CAMPAIGN_USE', 'APPEARANCE', 'NOTES1', 'NOTES2', 'NOTES3', 'NOTES4', 'NOTES5']
       .map((tag) => `    <${tag} />`),
     '  </CHARACTER_INFO>',
@@ -111,7 +122,6 @@ export function blankHdc(character?: Partial<Character>, template = 'builtIn.Her
     '</CHARACTER>',
     '',
   ];
-  void character;
   return lines.join('\n');
 }
 

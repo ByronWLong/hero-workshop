@@ -10,6 +10,8 @@ export {
   updateHdc,
   createHdc,
   blankHdc,
+  CHARACTER_TEMPLATES,
+  type CharacterTemplateId,
   applyCharacterChanges,
   lookupSkillCatalog,
   type HdcWriteReport,

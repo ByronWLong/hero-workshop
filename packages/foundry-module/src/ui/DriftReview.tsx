@@ -42,7 +42,7 @@ export function DriftReview({ changes, onContinue }: DriftReviewProps) {
       <p className="hw-muted">
         This actor was edited on its Foundry sheet after its Hero Designer data was last saved.
         Selected changes will be copied into the character before you edit it, so saving from
-        Hero Workshop won't undo them.
+        Hero Workshop won&apos;t undo them.
       </p>
 
       <div className="hw-drift-list">

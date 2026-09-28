@@ -4,12 +4,13 @@ interface ReviewPanelProps {
   report: HdcWriteReport;
   /** Number of Foundry-side changes kept at the start of the session */
   keptFromFoundry: number;
+  applyLabel: string;
   onBack(): void;
   onApply(): void;
 }
 
 /** Summarizes what applying will change, before the actor is re-imported */
-export function ReviewPanel({ report, keptFromFoundry, onBack, onApply }: ReviewPanelProps) {
+export function ReviewPanel({ report, keptFromFoundry, applyLabel, onBack, onApply }: ReviewPanelProps) {
   const foundryWarnings = report.foundryIssues.filter((i) => i.severity === 'warning');
   const foundryErrors = report.foundryIssues.filter((i) => i.severity === 'error');
 
@@ -71,7 +72,7 @@ export function ReviewPanel({ report, keptFromFoundry, onBack, onApply }: Review
           Back to editing
         </button>
         <button className="btn btn-primary" onClick={onApply} disabled={foundryErrors.length > 0}>
-          Apply to actor
+          {applyLabel}
         </button>
       </div>
     </section>

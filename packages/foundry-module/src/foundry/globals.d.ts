@@ -26,6 +26,7 @@ interface FoundryActor {
   getFlag(scope: string, key: string): unknown;
   setFlag(scope: string, key: string, value: unknown): Promise<unknown>;
   update(data: Record<string, unknown>): Promise<unknown>;
+  sheet?: { render(force?: boolean): unknown };
   /** hero6e: re-imports the actor from HDC XML, merging items by HDC ID */
   uploadFromXml(xml: string, options?: Record<string, unknown>): Promise<void>;
 }
@@ -48,7 +49,7 @@ interface ContextMenuEntry {
 
 declare const game: {
   system: { id: string; version: string };
-  user: { isGM: boolean };
+  user: { isGM: boolean; can(permission: string): boolean };
   actors: { get(id: string): FoundryActor | undefined };
   modules: Map<string, { api?: unknown }> & { get(id: string): { api?: unknown } | undefined };
   i18n: { localize(key: string): string; format(key: string, data: Record<string, unknown>): string };

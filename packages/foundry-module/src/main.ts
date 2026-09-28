@@ -8,7 +8,7 @@
 
 import './styles/window.css';
 import { HdcDocument } from '@hero-workshop/shared';
-import { openEditor, openInspector } from './foundry/applications';
+import { openEditor, openInspector, openNewCharacter } from './foundry/applications';
 import { MODULE_ID, createActorSession } from './sync/session';
 
 /** Lists Foundry-side edits not yet in an actor's stored HDC (for macros and debugging) */
@@ -29,7 +29,7 @@ Hooks.once('init', () => {
     return;
   }
   const module = game.modules.get(MODULE_ID);
-  if (module) module.api = { openEditor, openInspector, driftReport };
+  if (module) module.api = { openEditor, openInspector, createCharacter: openNewCharacter, driftReport };
 });
 
 // ApplicationV2 fires getHeaderControls<ClassName> for every class in the sheet's hierarchy
@@ -78,4 +78,17 @@ Hooks.on('getActorContextOptions', ((_directory: unknown, options: ContextMenuEn
       },
     },
   );
+}) as (...args: never[]) => unknown);
+
+// "New character" button in the Actors sidebar, for users allowed to create actors
+Hooks.on('renderActorDirectory', ((_app: unknown, html: HTMLElement) => {
+  if (!isHeroSystem() || !game.user.can('ACTOR_CREATE')) return;
+  const actions = html.querySelector('.header-actions');
+  if (!actions || actions.querySelector('.hero-workshop-create')) return;
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.className = 'hero-workshop-create';
+  button.innerHTML = `<i class="fa-solid fa-user-plus"></i> ${game.i18n.localize('HERO_WORKSHOP.NewCharacter')}`;
+  button.addEventListener('click', () => openNewCharacter());
+  actions.append(button);
 }) as (...args: never[]) => unknown);
