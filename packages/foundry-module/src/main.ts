@@ -8,7 +8,7 @@
 
 import './styles/window.css';
 import { HdcDocument } from '@hero-workshop/shared';
-import { openEditor, openInspector, openNewCharacter } from './foundry/applications';
+import { openEditor, openInspector, openItemEditor, openNewCharacter } from './foundry/applications';
 import { MODULE_ID, createActorSession } from './sync/session';
 
 /** Lists Foundry-side edits not yet in an actor's stored HDC (for macros and debugging) */
@@ -29,15 +29,29 @@ Hooks.once('init', () => {
     return;
   }
   const module = game.modules.get(MODULE_ID);
-  if (module) module.api = { openEditor, openInspector, createCharacter: openNewCharacter, driftReport };
+  if (module) module.api = { openEditor, openItemEditor, openInspector, createCharacter: openNewCharacter, driftReport };
 });
 
 // ApplicationV2 fires getHeaderControls<ClassName> for every class in the sheet's hierarchy
 Hooks.on('getHeaderControlsApplicationV2', ((app: { document?: unknown }, controls: HeaderControl[]) => {
   if (!isHeroSystem()) return;
-  const actor = app.document as FoundryActor | undefined;
-  if (!actor || !(actor instanceof foundry.documents.Actor) || !actor.isOwner) return;
+  const document = app.document;
 
+  if (document instanceof foundry.documents.Item) {
+    const item = document as FoundryItem;
+    if (!item.isOwner || !item.system._hdcXml) return;
+    controls.push({
+      action: 'heroWorkshopEditItem',
+      icon: 'fa-solid fa-user-pen',
+      label: game.i18n.localize('HERO_WORKSHOP.EditItem'),
+      onClick: () => openItemEditor(item),
+    });
+    return;
+  }
+
+  if (!(document instanceof foundry.documents.Actor)) return;
+  const actor = document as FoundryActor;
+  if (!actor.isOwner) return;
   controls.push(
     {
       action: 'heroWorkshopEdit',
@@ -91,4 +105,21 @@ Hooks.on('renderActorDirectory', ((_app: unknown, html: HTMLElement) => {
   button.innerHTML = `<i class="fa-solid fa-user-plus"></i> ${game.i18n.localize('HERO_WORKSHOP.NewCharacter')}`;
   button.addEventListener('click', () => openNewCharacter());
   actions.append(button);
+}) as (...args: never[]) => unknown);
+
+Hooks.on('getItemContextOptions', ((_directory: unknown, options: ContextMenuEntry[]) => {
+  if (!isHeroSystem()) return;
+  const itemFrom = (li: HTMLElement) => game.items.get(li.dataset.entryId ?? li.dataset.documentId ?? '');
+  options.push({
+    name: 'HERO_WORKSHOP.EditItem',
+    icon: '<i class="fa-solid fa-user-pen"></i>',
+    condition: (li) => {
+      const item = itemFrom(li);
+      return !!item?.isOwner && !!item.system._hdcXml;
+    },
+    callback: (li) => {
+      const item = itemFrom(li);
+      if (item) openItemEditor(item);
+    },
+  });
 }) as (...args: never[]) => unknown);

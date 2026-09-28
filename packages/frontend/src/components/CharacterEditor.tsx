@@ -50,25 +50,34 @@ interface CharacterEditorProps {
   character: Character;
   onUpdate: (character: Character) => void;
   initialTab?: TabId;
+  /** Restricts the editor to these sections (e.g. when editing a single item) */
+  visibleTabs?: TabId[];
+  /** Hides the point summary and effective stats sidebar */
+  hideSidebar?: boolean;
 }
 
 export function CharacterEditor({
   character,
   onUpdate,
   initialTab = 'info',
+  visibleTabs,
+  hideSidebar = false,
 }: CharacterEditorProps) {
   const [activeTab, setActiveTab] = useState<TabId>(initialTab);
+  const shownTabs = visibleTabs ? tabs.filter((tab) => visibleTabs.includes(tab.id)) : tabs;
 
   return (
-    <div className="editor-layout">
-      <aside className="editor-sidebar">
-        <CharacterSummaryCard character={character} onUpdate={onUpdate} />
-        <EffectiveStatsCard character={character} />
-      </aside>
+    <div className={hideSidebar ? 'editor-layout editor-layout-single' : 'editor-layout'}>
+      {!hideSidebar && (
+        <aside className="editor-sidebar">
+          <CharacterSummaryCard character={character} onUpdate={onUpdate} />
+          <EffectiveStatsCard character={character} />
+        </aside>
+      )}
 
       <section className="editor-content">
         <div className="tab-list">
-          {tabs.map((tab) => (
+          {shownTabs.map((tab) => (
             <button
               key={tab.id}
               className={`tab-button ${activeTab === tab.id ? 'active' : ''}`}

@@ -8,9 +8,25 @@
  */
 
 import { HdcDocument, blankHdc, type Character } from '@hero-workshop/shared';
+import type { TabId } from '@frontend/components/CharacterEditor';
 import { detectDrift, type DriftChange, type DriftItemSource } from './drift';
 
 export const MODULE_ID = 'hero-workshop';
+
+/** The Foundry document an editing session wrote to */
+export interface AppliedDocument {
+  name: string;
+  sheet?: { render(force?: boolean): unknown };
+}
+
+/** How the editor should present a session */
+export interface SessionView {
+  visibleTabs?: TabId[];
+  initialTab?: TabId;
+  hideSidebar?: boolean;
+  /** Label for the final apply button */
+  applyLabel?: string;
+}
 
 export interface ActorSession {
   actorName: string;
@@ -21,12 +37,13 @@ export interface ActorSession {
   /** Foundry-side edits not yet in the stored HDC */
   detectDrift(doc: HdcDocument): DriftChange[];
   /** Re-imports the actor from edited HDC XML */
-  apply(xml: string, options: { characterName?: string }): Promise<FoundryActor>;
+  apply(xml: string, options: { characterName?: string }): Promise<AppliedDocument>;
+  view?: SessionView;
   /** Saves the HDC as a file desktop Hero Designer can open */
   download(xml: string, fileName: string): void;
 }
 
-export function createActorSession(actor: FoundryActor): ActorSession {
+export function createActorSession(actor: FoundryActor, view?: SessionView): ActorSession {
   const hdcXml = actor.system._hdcXml;
   if (!hdcXml) throw new Error(`${actor.name} has no stored HDC`);
 
@@ -34,12 +51,14 @@ export function createActorSession(actor: FoundryActor): ActorSession {
     actorName: actor.name,
     isNew: false,
     hdcXml,
+    view,
 
     detectDrift(doc) {
       return detectDrift(doc, {
         items: actor.items.contents.map(itemSource),
         actorSystem: actor.toObject().system,
         syncedIds: actor.getFlag(MODULE_ID, 'syncedIds') as string[] | undefined,
+        syncedNames: actor.getFlag(MODULE_ID, 'syncedNames') as Record<string, string> | undefined,
       });
     },
 
@@ -105,14 +124,18 @@ async function importHdc(actor: FoundryActor, xml: string, options: Record<strin
   const failure = actor.getFlag('hero6efoundryvttv2', 'uploadingError');
   if (failure) throw new Error(`hero6e could not import ${actor.name}: ${String(failure).split('\n')[0]}`);
 
-  const imported = actor.items.contents
-    .map((item) => item.system.ID)
-    .filter((id) => id !== undefined && id !== null && id !== '' && id !== 0)
-    .map(String);
-  await actor.setFlag(MODULE_ID, 'syncedIds', imported);
+  const names: Record<string, string> = {};
+  for (const item of actor.items.contents) {
+    const id = item.system.ID;
+    if (id !== undefined && id !== null && id !== '' && id !== 0) names[String(id)] = item.name;
+  }
+  await actor.setFlag(MODULE_ID, 'syncedIds', Object.keys(names));
+  // Replace rather than merge, so deleted items don't linger in the flag
+  await actor.unsetFlag(MODULE_ID, 'syncedNames');
+  await actor.setFlag(MODULE_ID, 'syncedNames', names);
 }
 
-function itemSource(item: FoundryItem): DriftItemSource {
+export function itemSource(item: FoundryItem): DriftItemSource {
   // Source data, not prepared data: prepared values include derived fields
   return {
     id: item.id,

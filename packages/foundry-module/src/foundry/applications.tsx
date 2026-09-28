@@ -10,7 +10,8 @@ import type { ReactNode } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import frontendCss from '@frontend/index.css?inline';
 import appCss from '../styles/app.css?inline';
-import { createActorSession, downloadHdc } from '../sync/session';
+import { createActorSession, downloadHdc, type ActorSession, type SessionView } from '../sync/session';
+import { createItemSession, tabForItem } from '../sync/itemSession';
 import { EditorRoot } from '../ui/EditorRoot';
 import { Inspector } from '../ui/Inspector';
 import { NewCharacterFlow } from '../ui/NewCharacterFlow';
@@ -35,7 +36,7 @@ interface ReactApplication {
 }
 
 let classes: {
-  Editor: new (actor: FoundryActor) => ReactApplication;
+  Editor: new (session: ActorSession, windowId: string) => ReactApplication;
   Inspector: new (actor: FoundryActor) => ReactApplication;
   NewCharacter: new () => ReactApplication;
 } | undefined;
@@ -87,19 +88,19 @@ function applicationClasses() {
       position: { width: 1200, height: 820 },
     };
 
-    readonly #session;
-
-    constructor(readonly actor: FoundryActor) {
-      super({ id: `hero-workshop-editor-${actor.id}`, window: { title: `Hero Workshop: ${actor.name}` } });
-      this.#session = createActorSession(actor);
+    constructor(
+      readonly session: ActorSession,
+      windowId: string,
+    ) {
+      super({ id: `hero-workshop-editor-${windowId}`, window: { title: `Hero Workshop: ${session.actorName}` } });
     }
 
     protected renderReact() {
       return (
         <EditorRoot
-          session={this.#session}
-          onApplied={() => {
-            ui.notifications.info(game.i18n.format('HERO_WORKSHOP.Applied', { name: this.actor.name }));
+          session={this.session}
+          onApplied={(applied) => {
+            ui.notifications.info(game.i18n.format('HERO_WORKSHOP.Applied', { name: applied.name }));
             void this.close();
           }}
         />
@@ -166,9 +167,34 @@ function editableActor(actor: FoundryActor): FoundryActor | undefined {
   return actor;
 }
 
-export function openEditor(actor: FoundryActor): void {
+export function openEditor(actor: FoundryActor, view?: SessionView): void {
   const target = editableActor(actor);
-  if (target) void new (applicationClasses().Editor)(target).render({ force: true });
+  if (target) void new (applicationClasses().Editor)(createActorSession(target, view), target.id).render({ force: true });
+}
+
+/**
+ * Items owned by an actor are part of the actor's HDC, so they open the actor's editor on
+ * the item's tab; world items are edited on their own.
+ */
+export function openItemEditor(item: FoundryItem): void {
+  const tab = tabForItem(item);
+  if (!tab) {
+    ui.notifications.warn(game.i18n.format('HERO_WORKSHOP.ItemNotEditable', { name: item.name }));
+    return;
+  }
+  if (item.actor) {
+    openEditor(item.actor, { initialTab: tab });
+    return;
+  }
+  if (!item.isOwner) {
+    ui.notifications.warn(game.i18n.format('HERO_WORKSHOP.NotOwner', { name: item.name }));
+    return;
+  }
+  try {
+    void new (applicationClasses().Editor)(createItemSession(item), `item-${item.id}`).render({ force: true });
+  } catch (e) {
+    ui.notifications.warn(e instanceof Error ? e.message : String(e));
+  }
 }
 
 export function openNewCharacter(): void {

@@ -9,6 +9,8 @@
     "Applied": "{name} updated from Hero Workshop.",
     "ApplyFailed": "Hero Workshop could not update {name}. The actor was not changed; see the console for details.",
     "NewCharacter": "Hero Workshop Character",
-    "Created": "{name} created with Hero Workshop."
+    "Created": "{name} created with Hero Workshop.",
+    "EditItem": "Edit in Hero Workshop",
+    "ItemNotEditable": "Hero Workshop cannot edit {name} (no Hero Designer data for this item type)."
   }
 }

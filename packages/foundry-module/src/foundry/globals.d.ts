@@ -9,7 +9,16 @@ interface FoundryItem {
   type: string;
   system: Record<string, unknown>;
   isFreeStuff?: boolean;
+  isOwner: boolean;
+  /** Owning actor, for embedded items */
+  actor: FoundryActor | null;
+  sheet?: { render(force?: boolean): unknown };
   toObject(): { system: Record<string, unknown> };
+  update(data: Record<string, unknown>, options?: Record<string, unknown>): Promise<unknown>;
+  getFlag(scope: string, key: string): unknown;
+  setFlag(scope: string, key: string, value: unknown): Promise<unknown>;
+  /** hero6e: rebuilds system data from system._hdcXml */
+  restoreFromHdc(): Promise<boolean>;
 }
 
 interface FoundryActor {
@@ -25,6 +34,7 @@ interface FoundryActor {
   toObject(): { system: Record<string, unknown> };
   getFlag(scope: string, key: string): unknown;
   setFlag(scope: string, key: string, value: unknown): Promise<unknown>;
+  unsetFlag(scope: string, key: string): Promise<unknown>;
   update(data: Record<string, unknown>): Promise<unknown>;
   sheet?: { render(force?: boolean): unknown };
   /** hero6e: re-imports the actor from HDC XML, merging items by HDC ID */
@@ -51,6 +61,7 @@ declare const game: {
   system: { id: string; version: string };
   user: { isGM: boolean; can(permission: string): boolean };
   actors: { get(id: string): FoundryActor | undefined };
+  items: { get(id: string): FoundryItem | undefined };
   modules: Map<string, { api?: unknown }> & { get(id: string): { api?: unknown } | undefined };
   i18n: { localize(key: string): string; format(key: string, data: Record<string, unknown>): string };
 };
@@ -72,6 +83,9 @@ declare const foundry: {
   applications: {
     api: { ApplicationV2: new (options?: Record<string, unknown>) => unknown };
   };
-  documents: { Actor: abstract new (...args: never[]) => FoundryActor };
+  documents: {
+    Actor: abstract new (...args: never[]) => FoundryActor;
+    Item: abstract new (...args: never[]) => FoundryItem;
+  };
   utils: { saveDataToFile?: (data: BlobPart, type: string, filename: string) => void };
 };

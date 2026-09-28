@@ -16,7 +16,7 @@ import {
 } from '@hero-workshop/shared';
 import { CharacterEditor } from '@frontend/components/CharacterEditor';
 import { applyDrift, type DriftChange } from '../sync/drift';
-import type { ActorSession } from '../sync/session';
+import type { ActorSession, AppliedDocument } from '../sync/session';
 import { DriftReview } from './DriftReview';
 import { ReviewPanel } from './ReviewPanel';
 
@@ -28,7 +28,7 @@ type Stage =
 
 interface EditorRootProps {
   session: ActorSession;
-  onApplied(actor: FoundryActor): void;
+  onApplied(document: AppliedDocument): void;
 }
 
 export function EditorRoot({ session, onApplied }: EditorRootProps) {
@@ -80,10 +80,10 @@ export function EditorRoot({ session, onApplied }: EditorRootProps) {
     setStage({ kind: 'applying' });
     try {
       const name = character.characterInfo.characterName;
-      const actor = await session.apply(xml, {
+      const applied = await session.apply(xml, {
         characterName: name !== original.characterInfo.characterName ? name : undefined,
       });
-      onApplied(actor);
+      onApplied(applied);
     } catch (e) {
       console.error(e);
       setError(e instanceof Error ? e.message : String(e));
@@ -121,12 +121,20 @@ export function EditorRoot({ session, onApplied }: EditorRootProps) {
         {stage.kind === 'drift' && (
           <DriftReview changes={stage.changes} onContinue={acceptDrift} />
         )}
-        {stage.kind === 'edit' && <CharacterEditor character={character} onUpdate={setCharacter} />}
+        {stage.kind === 'edit' && (
+          <CharacterEditor
+            character={character}
+            onUpdate={setCharacter}
+            initialTab={session.view?.initialTab}
+            visibleTabs={session.view?.visibleTabs}
+            hideSidebar={session.view?.hideSidebar}
+          />
+        )}
         {stage.kind === 'review' && (
           <ReviewPanel
             report={stage.report}
             keptFromFoundry={keptFromFoundry}
-            applyLabel={session.isNew ? 'Create character' : 'Apply to actor'}
+            applyLabel={session.isNew ? 'Create character' : (session.view?.applyLabel ?? 'Apply to actor')}
             onBack={() => setStage({ kind: 'edit' })}
             onApply={() => apply(stage.xml)}
           />

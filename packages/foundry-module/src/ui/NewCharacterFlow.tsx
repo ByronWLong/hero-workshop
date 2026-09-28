@@ -1,10 +1,10 @@
 import { useState } from 'react';
-import { createNewCharacterSession, type ActorSession } from '../sync/session';
+import { createNewCharacterSession, type ActorSession, type AppliedDocument } from '../sync/session';
 import { EditorRoot } from './EditorRoot';
 import { NewCharacterForm } from './NewCharacterForm';
 
 interface NewCharacterFlowProps {
-  onCreated(actor: FoundryActor): void;
+  onCreated(document: AppliedDocument): void;
 }
 
 /** Character creation: pick a template, then build in the normal editor */

@@ -44,6 +44,12 @@ export interface DriftInput {
    * otherwise hero6e probably skipped them (unsupported power) and they're left alone.
    */
   syncedIds?: string[];
+  /**
+   * Foundry item names (by HDC ID) right after the last sync. hero6e renames some items on
+   * import (skills become "PS: Bodyguard"), so renames are detected against these rather
+   * than against NAME/ALIAS.
+   */
+  syncedNames?: Record<string, string>;
 }
 
 const SECTION_BY_ITEM_TYPE: Record<string, string> = {
@@ -78,6 +84,7 @@ export function detectDrift(doc: HdcDocument, input: DriftInput): DriftChange[] 
     const el = doc.findById(id);
     if (el) {
       diffElement(el, item.system, item.name, `item:${id}`, changes, isNested(el));
+      detectRename(el, item, input.syncedNames, changes);
     } else {
       changes.push(addedItemChange(item));
     }
@@ -145,6 +152,27 @@ function* hdcItemElements(doc: HdcDocument): Generator<XmlElement> {
 
 function labelOf(el: XmlElement): string {
   return el.getAttr('NAME')?.trim() || el.getAttr('ALIAS')?.trim() || el.getAttr('XMLID') || el.name;
+}
+
+/** A Foundry-side rename since the last sync, carried into NAME */
+function detectRename(
+  el: XmlElement,
+  item: DriftItemSource,
+  syncedNames: Record<string, string> | undefined,
+  changes: DriftChange[],
+): void {
+  const id = String(item.system.ID);
+  const synced = syncedNames?.[id];
+  const current = item.name.trim();
+  if (synced === undefined || !current || current === synced.trim()) return;
+  changes.push({
+    key: `item:${id}:rename`,
+    kind: 'modified',
+    itemName: current,
+    summary: `Renamed from ${show(synced)}`,
+    recommended: true,
+    apply: () => el.setAttr('NAME', current),
+  });
 }
 
 function detectCharacteristicDrift(doc: HdcDocument, actorSystem: Record<string, unknown>, changes: DriftChange[]): void {

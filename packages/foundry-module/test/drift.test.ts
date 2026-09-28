@@ -89,3 +89,20 @@ describe('detectDrift', () => {
     expect(el.getAttr('PDLEVELS')).toBe('4');
   });
 });
+
+describe('renames', () => {
+  it('carries a Foundry-side item rename into NAME', () => {
+    const doc = HdcDocument.parse(XML);
+    const renamed = { ...blast(), name: 'Flame Lance' };
+    const changes = detectDrift(doc, { items: [renamed, flight], actorSystem, syncedNames: { '10': 'Firebolt' } });
+    expect(changes.map((c) => c.summary)).toEqual(['Renamed from "Firebolt"']);
+    applyDrift(doc, changes);
+    expect(doc.findById('10')!.getAttr('NAME')).toBe('Flame Lance');
+  });
+
+  it('ignores names hero6e assigned on import when there is no sync record', () => {
+    const doc = HdcDocument.parse(XML);
+    const skillStyle = { ...blast(), name: 'PS: Firebolt' };
+    expect(detectDrift(doc, { items: [skillStyle, flight], actorSystem })).toEqual([]);
+  });
+});

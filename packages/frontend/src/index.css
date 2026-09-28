@@ -224,6 +224,10 @@ button {
   gap: 1.5rem;
 }
 
+.editor-layout-single {
+  grid-template-columns: 1fr;
+}
+
 .editor-sidebar {
   display: flex;
   flex-direction: column;
