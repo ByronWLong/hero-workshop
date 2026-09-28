@@ -582,6 +582,8 @@ export function MartialArtsTab({ character, onUpdate, focusItemId }: MartialArts
 
   const handleSave = () => {
     const newManeuver: MartialManeuver = {
+      // Keep what the form doesn't edit (modifiers, adders, style membership)
+      ...editingManeuver,
       id: editingManeuver?.id ?? generateId(),
       name: formData.name || 'Maneuver',
       alias: formData.alias || undefined,

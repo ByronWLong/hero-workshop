@@ -249,6 +249,8 @@ export function TalentsTab({ character, onUpdate, focusItemId }: TalentsTabProps
   const handleSave = () => {
     const totalCostValue = calculateTotalCostValue();
     const newTalent: Talent = {
+      // Keep what the form doesn't edit (adders, modifiers)
+      ...editingTalent,
       id: editingTalent?.id ?? generateId(),
       name: formData.name || TALENT_TYPES.find((t) => t.value === formData.type)?.label || formData.type,
       alias: formData.alias || undefined,

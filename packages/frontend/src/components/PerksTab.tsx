@@ -226,6 +226,8 @@ export function PerksTab({ character, onUpdate, focusItemId }: PerksTabProps) {
 
   const handleSave = () => {
     const newPerk: Perk = {
+      // Keep what the form doesn't edit (adders, modifiers, group membership)
+      ...editingPerk,
       id: editingPerk?.id ?? generateId(),
       name: formData.name || PERK_TYPES.find((p) => p.value === formData.type)?.label || formData.type,
       alias: formData.alias || undefined,

@@ -108,6 +108,8 @@ export function DisadvantagesTab({ character, onUpdate, focusItemId }: Disadvant
     const points = calculatePoints();
     
     const newDisad: Disadvantage = {
+      // Keep what the form doesn't edit, notably the option adders that carry the points
+      ...editingDisad,
       id: editingDisad?.id ?? generateId(),
       name: formData.name || DISADVANTAGE_TYPES.find((d) => d.value === formData.type)?.label || 'Complication',
       alias: formData.alias || undefined,

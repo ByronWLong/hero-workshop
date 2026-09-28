@@ -1,9 +1,0 @@
-/* Foundry-side chrome for Hero Workshop windows; everything inside is in a shadow root. */
-.hero-workshop-window .window-content {
-  padding: 0;
-  overflow: hidden;
-}
-
-.hero-workshop-window .hero-workshop-host {
-  height: 100%;
-}
