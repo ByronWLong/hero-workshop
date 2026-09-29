@@ -278,9 +278,25 @@ function diffChildren(
   const sysIds = new Set(children.map((c) => String(c.ID ?? '')));
   const label = tag === 'ADDER' ? 'adder' : 'modifier';
 
+  // hero6e regenerates some children with new IDs (a Combat Skill Level's attack list), so
+  // an unmatched ID falls back to the same XMLID and name
+  const byId = new Set(xmlChildren.map((c) => c.getAttr('ID') ?? ''));
+  const renumbered = new Map<XmlElement, Record<string, unknown>>();
+  for (const child of xmlChildren) {
+    if (children.some((c) => String(c.ID ?? '') === (child.getAttr('ID') ?? ''))) continue;
+    const twin = children.find(
+      (c) =>
+        !byId.has(String(c.ID ?? '')) &&
+        ![...renumbered.values()].includes(c) &&
+        c.XMLID === child.getAttr('XMLID') &&
+        String(c.ALIAS ?? '') === (child.getAttr('ALIAS') ?? ''),
+    );
+    if (twin) renumbered.set(child, twin);
+  }
+
   for (const child of xmlChildren) {
     const id = child.getAttr('ID') ?? '';
-    const match = children.find((c) => String(c.ID ?? '') === id);
+    const match = children.find((c) => String(c.ID ?? '') === id) ?? renumbered.get(child);
     if (match) {
       diffElement(child, match, itemName, `${keyPrefix}:${tag}:${id}`, changes, false);
     } else if (id) {
@@ -299,6 +315,7 @@ function diffChildren(
   for (const child of children) {
     const id = String(child.ID ?? '');
     if (id && xmlIds.has(id)) continue;
+    if ([...renumbered.values()].includes(child)) continue;
     if (!id && sysIds.size === 0) continue;
     const name = String(child.ALIAS ?? child.NAME ?? child.XMLID ?? label);
     changes.push({

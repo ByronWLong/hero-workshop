@@ -113,22 +113,25 @@ export async function createWorldItems(transfer: ItemTransfer, folderId?: string
   return ItemClass.createDocuments(items);
 }
 
+/** Creation option marking items Hero Workshop creates itself (already part of a queued drop) */
+export const OWN_CREATION = 'heroWorkshopCreated';
+
 interface ActorWithItems {
   items: { contents: FoundryItem[] };
-  createEmbeddedDocuments(type: string, data: HeroItemData[]): Promise<unknown>;
+  createEmbeddedDocuments(type: string, data: HeroItemData[], options?: Record<string, unknown>): Promise<FoundryItem[]>;
 }
 
 /**
  * Gives a compound power on an actor its parts as child items (hero6e's representation),
  * when it arrived without them, e.g. dropped from a Hero Workshop world item.
  */
-export async function expandCompound(item: FoundryItem): Promise<void> {
+export async function expandCompound(item: FoundryItem): Promise<FoundryItem[]> {
   const actor = item.actor as unknown as ActorWithItems | null;
   const section = SECTION_FOR_ITEM_TYPE[item.type];
   const fragment = item.system._hdcXml;
-  if (!actor || !section || typeof fragment !== 'string') return;
+  if (!actor || !section || typeof fragment !== 'string') return [];
   const element = parseXml(fragment.trim()).root;
-  if (!element.elements().some((el) => el.hasAttr('XMLID') && el.name !== 'ADDER' && el.name !== 'MODIFIER')) return;
+  if (!element.elements().some((el) => el.hasAttr('XMLID') && el.name !== 'ADDER' && el.name !== 'MODIFIER')) return [];
 
   // Fresh part IDs, above everything the actor already has
   let floor = Date.now();
@@ -140,7 +143,7 @@ export async function expandCompound(item: FoundryItem): Promise<void> {
   const parts = parsed
     .filter((d) => d.system.PARENTID === Number(id))
     .map((d) => ({ ...d, type: item.type, system: { ...d.system, PARENTID: parentId } }));
-  if (!parts.length) return;
+  if (!parts.length) return [];
 
   // Keep the compound's stored XML in step with its parts' new IDs
   const copy = HdcDocument.parse(xml).findById(id!);
@@ -148,7 +151,7 @@ export async function expandCompound(item: FoundryItem): Promise<void> {
     copy.setAttr('ID', String(parentId));
     await item.update({ 'system._hdcXml': copy.toString() });
   }
-  await actor.createEmbeddedDocuments('Item', parts);
+  return actor.createEmbeddedDocuments('Item', parts, { [OWN_CREATION]: true });
 }
 
 interface HeroItem extends FoundryItem {

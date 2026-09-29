@@ -17,12 +17,13 @@ import {
   refreshOpenWindows,
 } from './apps';
 import { preloadTemplates } from './apps/base';
+import { queueCreatedItem } from './sync/actorItems';
 import { openNewItem } from './apps/new-item';
 import {
   DRAG_TYPE,
   createWorldItems,
   dragData,
-  expandCompound,
+  OWN_CREATION,
   transferFromItem,
   type HeroWorkshopDragData,
 } from './sync/worldItems';
@@ -211,11 +212,11 @@ Hooks.on('updateSetting', ((setting: { key: string }) => {
   if (setting.key === `${MODULE_ID}.races`) refreshOpenWindows();
 }) as (...args: never[]) => unknown);
 
-// A compound dropped onto an actor without its parts (a Hero Workshop world item) gets them as
-// child items, which is how hero6e shows compounds. Uploads create parts themselves (render: false).
-Hooks.on('createItem', ((item: FoundryItem, options: { render?: boolean }, userId: string) => {
-  if (!isHeroSystem() || userId !== game.user.id || !item.actor || options?.render === false) return;
-  if (item.system.XMLID !== 'COMPOUNDPOWER') return;
-  const hasParts = item.actor.items.contents.some((i) => i.system.PARENTID === item.system.ID);
-  if (!hasParts) void expandCompound(item).catch((e: unknown) => console.error(`${MODULE_ID} | expanding ${item.name}`, e));
+// Items dropped onto an actor are written into its stored HDC right away (and a compound that
+// arrives without its parts gets them, the way hero6e shows compounds). Uploads are skipped:
+// they create items with render: false and write the HDC themselves.
+Hooks.on('createItem', ((item: FoundryItem, options: Record<string, unknown>, userId: string) => {
+  if (!isHeroSystem() || userId !== game.user.id || !item.actor) return;
+  if (options?.render === false || options?.[OWN_CREATION]) return;
+  queueCreatedItem(item);
 }) as (...args: never[]) => unknown);

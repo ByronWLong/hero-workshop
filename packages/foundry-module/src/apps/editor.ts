@@ -146,7 +146,9 @@ export class HeroWorkshopEditor extends HeroWorkshopApplication {
     this.#drift = options.session.detectDrift(doc);
     this.#driftDoc = doc;
     this.#driftSelected = new Set(this.#drift.filter((c) => c.recommended).map((c) => c.key));
-    this.#stage = this.#drift.length ? 'drift' : 'edit';
+    // Only interrupt for changes worth keeping. The rest (e.g. items hero6e never imported)
+    // are kept as they are unless picked, which is also what skipping the step does
+    this.#stage = this.#drift.some((c) => c.recommended) ? 'drift' : 'edit';
     const view = options.session.view;
     if (view?.initialTab) this.tabGroups.primary = view.initialTab;
   }
