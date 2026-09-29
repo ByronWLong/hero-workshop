@@ -5,6 +5,7 @@
 
 interface FoundryItem {
   id: string;
+  img?: string;
   uuid: string;
   documentName: string;
   name: string;

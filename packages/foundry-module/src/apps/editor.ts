@@ -30,6 +30,7 @@ import {
 } from '@hero-workshop/shared';
 import type { TabId } from '../sync/tabs';
 import { applyDrift, type DriftChange } from '../sync/drift';
+import { DEFAULT_ICON } from '../sync/icons';
 import type { ActorSession, AppliedDocument } from '../sync/session';
 import { DRAG_TYPE, dragData, transferFromItem, type HeroWorkshopDragData } from '../sync/worldItems';
 import { canManageRaces, getRaceLibrary } from '../races/library';
@@ -178,8 +179,13 @@ export class HeroWorkshopEditor extends HeroWorkshopApplication {
     const base = await (super._prepareContext as (o: unknown) => Promise<Record<string, unknown>>).call(this, options);
     const character = this.#character;
     const tabs = base.tabs as Record<string, { id: string; cssClass?: string; active: boolean }>;
+    // Rows show the item's custom icon, else its icon in Foundry
+    type Row = ReturnType<typeof buildItemTree>[number];
+    type ImageRow = Omit<Row, 'children'> & { img: string; children: ImageRow[] };
+    const withImages = (rows: Row[]): ImageRow[] =>
+      rows.map((r) => ({ ...r, img: r.icon ?? this.session.itemImage?.(r.id) ?? DEFAULT_ICON, children: withImages(r.children) }));
     const listTab = (id: SectionId) => {
-      const rows = buildItemTree(character, id);
+      const rows = withImages(buildItemTree(character, id));
       const count = (list: typeof rows): number => list.reduce((n, r) => n + (r.isGroup ? 0 : 1) + count(r.children), 0);
       return {
         ...tabs[id],
@@ -433,6 +439,7 @@ export class HeroWorkshopEditor extends HeroWorkshopApplication {
         section,
         itemId,
         kind,
+        defaultIcon: itemId ? this.session.itemImage?.(itemId) : undefined,
         character: () => this.#character,
         onSave: (character) => this.setCharacter(character),
       }).render({ force: true });
@@ -441,6 +448,7 @@ export class HeroWorkshopEditor extends HeroWorkshopApplication {
     await new ItemDialog({
       section,
       itemId,
+      defaultIcon: itemId ? this.session.itemImage?.(itemId) : undefined,
       character: () => this.#character,
       onSave: (character) => this.setCharacter(character),
     }).render({ force: true });

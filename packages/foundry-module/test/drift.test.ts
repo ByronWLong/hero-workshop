@@ -127,4 +127,15 @@ describe('renames', () => {
     expect(text.match(/ID="3001"/g)).toHaveLength(1);
     expect(doc.findById('3000')!.firstElement('POWER')!.getAttr('ID')).toBe('3001');
   });
+
+  it('picks up an icon chosen on the Foundry sheet, and ignores hero6e defaults', () => {
+    const custom = { ...flight, img: 'icons/magic/air/wind-tornado-wall-blue.webp' };
+    const defaulted = { ...blast(), img: 'icons/svg/aura.svg' };
+    const doc = HdcDocument.parse(XML);
+    const changes = detectDrift(doc, { items: [defaulted, custom], actorSystem });
+    expect(changes.map((c) => c.key)).toEqual(['item:20:icon']);
+    applyDrift(doc, changes);
+    expect(doc.findById('20')!.getAttr('FOUNDRY_ICON')).toBe(custom.img);
+    expect(detectDrift(doc, { items: [defaulted, custom], actorSystem })).toEqual([]);
+  });
 });

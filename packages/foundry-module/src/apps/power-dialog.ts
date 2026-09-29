@@ -25,7 +25,8 @@ import {
   type PowerKind,
   type PowerSection,
 } from '@hero-workshop/shared';
-import { HeroWorkshopApplication, template } from './base';
+import { HeroWorkshopApplication, pickImage, template } from './base';
+import { DEFAULT_ICON } from '../sync/icons';
 
 export interface PowerDialogOptions {
   section: PowerSection;
@@ -35,6 +36,8 @@ export interface PowerDialogOptions {
   onSave(character: Character): void;
   /** Distinguishes dialogs for a compound's parts from the editor's own dialogs */
   idScope?: string;
+  /** Icon shown when the item has no custom one (its current Foundry icon) */
+  defaultIcon?: string;
 }
 
 const TITLES: Record<PowerKind, string> = { power: 'power', list: 'power list', compound: 'compound power' };
@@ -53,6 +56,8 @@ export class PowerDialog extends HeroWorkshopApplication {
       addPart: PowerDialog.#onAddPart,
       editPart: PowerDialog.#onEditPart,
       removePart: PowerDialog.#onRemovePart,
+      pickIcon: PowerDialog.#onPickIcon,
+      clearIcon: PowerDialog.#onClearIcon,
     },
   };
 
@@ -92,6 +97,7 @@ export class PowerDialog extends HeroWorkshopApplication {
     ];
     return {
       ...view,
+      icon: { src: this.#draft.icon || this.config.defaultIcon || DEFAULT_ICON, custom: !!this.#draft.icon },
       kindChoices: isNew ? kinds.map((k) => ({ ...k, checked: k.value === this.#draft.kind })) : undefined,
       costs: view.isPower || view.kind === 'compound'
         ? [
@@ -186,6 +192,15 @@ export class PowerDialog extends HeroWorkshopApplication {
 
   static #onRemovePart(this: PowerDialog, _event: Event, target: HTMLElement) {
     this.#update(removeSubPower(this.#draft, target.dataset.id!));
+  }
+
+  static async #onPickIcon(this: PowerDialog) {
+    const path = await pickImage(this.#draft.icon || this.config.defaultIcon || '');
+    this.#update({ ...this.#draft, icon: path });
+  }
+
+  static #onClearIcon(this: PowerDialog) {
+    this.#update({ ...this.#draft, icon: '' });
   }
 
   static #onSubmit(this: PowerDialog) {

@@ -1,6 +1,7 @@
 <li class="hw-item {{#if row.isGroup}}hw-item-group{{/if}}">
   <div class="hw-item-row" draggable="true" tabindex="0" role="button" data-action="editItem" data-section="{{section}}"
     data-item-id="{{row.id}}" {{#if row.acceptsChildren}}data-accepts-children{{/if}}>
+    <img class="hw-item-icon" src="{{row.img}}" alt="" loading="lazy">
     <div class="hw-item-text">
       <span class="hw-item-name">{{row.name}}</span>
       {{#if row.detail}}<span class="hint hw-item-detail">{{row.detail}}</span>{{/if}}

@@ -10,6 +10,7 @@
 import { HdcDocument, blankHdc, type Character } from '@hero-workshop/shared';
 import type { TabId } from './tabs';
 import { detectDrift, type DriftChange, type DriftItemSource } from './drift';
+import { applyIcons } from './icons';
 
 export const MODULE_ID = 'hero-workshop';
 
@@ -43,6 +44,8 @@ export interface ActorSession {
   view?: SessionView;
   /** Saves the HDC as a file desktop Hero Designer can open */
   download(xml: string, fileName: string): void;
+  /** The Foundry icon of the item with this HDC ID, if it's in Foundry */
+  itemImage?(hdcId: string): string | undefined;
 }
 
 export function createActorSession(actor: FoundryActor, view?: SessionView): ActorSession {
@@ -62,6 +65,10 @@ export function createActorSession(actor: FoundryActor, view?: SessionView): Act
         syncedIds: actor.getFlag(MODULE_ID, 'syncedIds') as string[] | undefined,
         syncedNames: actor.getFlag(MODULE_ID, 'syncedNames') as Record<string, string> | undefined,
       });
+    },
+
+    itemImage(hdcId) {
+      return actor.items.contents.find((i) => String(i.system.ID) === hdcId)?.img;
     },
 
     async apply(xml, { characterName }) {
@@ -136,6 +143,7 @@ async function importHdc(actor: FoundryActor, xml: string, options: Record<strin
   // Replace rather than merge, so deleted items don't linger in the flag
   await actor.unsetFlag(MODULE_ID, 'syncedNames');
   await actor.setFlag(MODULE_ID, 'syncedNames', names);
+  await applyIcons(actor);
 }
 
 export function itemSource(item: FoundryItem): DriftItemSource {
@@ -146,6 +154,7 @@ export function itemSource(item: FoundryItem): DriftItemSource {
     type: item.type,
     system: item.toObject().system,
     isFreeStuff: !!item.isFreeStuff,
+    img: item.img,
   };
 }
 

@@ -21,6 +21,7 @@ import {
   type ItemTransfer,
 } from '@hero-workshop/shared';
 import { applyDrift, detectDrift } from './drift';
+import { iconOfFragment } from './icons';
 import { MODULE_ID, itemSource } from './session';
 
 /** Drag data for items dragged out of a Hero Workshop editor */
@@ -48,6 +49,7 @@ export const SECTION_FOR_ITEM_TYPE: Record<string, HdcItemSection> = {
 
 interface HeroItemData {
   name: string;
+  img?: string;
   type: string;
   system: Record<string, unknown> & { ID?: number; PARENTID?: number };
   folder?: string;
@@ -95,6 +97,7 @@ export async function createWorldItems(transfer: ItemTransfer, folderId?: string
   // A compound's parts live in its own XML; as world items they'd only clutter the sidebar
   const compounds = new Set(parsed.filter((d) => d.system.XMLID === 'COMPOUNDPOWER').map((d) => d.system.ID));
   const items = parsed.filter((d) => !(d.system.PARENTID && compounds.has(d.system.PARENTID)));
+  for (const data of items) data.img = iconOfFragment(data.system._hdcXml) ?? data.img;
 
   const FolderDoc = foundry.documents.Folder as unknown as FolderClass;
   const folderOf = new Map<number, string | undefined>();
@@ -142,8 +145,10 @@ export async function expandCompound(item: FoundryItem): Promise<FoundryItem[]> 
   const parentId = Number(item.system.ID);
   const parts = parsed
     .filter((d) => d.system.PARENTID === Number(id))
-    .map((d) => ({ ...d, type: item.type, system: { ...d.system, PARENTID: parentId } }));
+    .map((d) => ({ ...d, type: item.type, img: iconOfFragment(d.system._hdcXml) ?? d.img, system: { ...d.system, PARENTID: parentId } }));
   if (!parts.length) return [];
+  // Another expansion may have finished while this one was parsing
+  if (actor.items.contents.some((i) => i.system.PARENTID === parentId)) return [];
 
   // Keep the compound's stored XML in step with its parts' new IDs
   const copy = HdcDocument.parse(xml).findById(id!);

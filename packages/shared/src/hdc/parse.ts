@@ -35,7 +35,7 @@ import {
   parseRulesName,
   type CharacteristicRule,
 } from '../characteristics.js';
-import { HdcDocument } from './document.js';
+import { HdcDocument, ICON_ATTR } from './document.js';
 import type { XmlElement } from './xml.js';
 
 type ParserObject = Record<string, unknown>;
@@ -73,6 +73,29 @@ export function parseHdcFile(xmlContent: string): Character {
  * every model object can be traced back to its element.
  */
 export function parseHdcDocument(doc: HdcDocument): Character {
+  return withIcons(parseDocument(doc), doc);
+}
+
+/** Custom icons, read from each item element's FOUNDRY_ICON attribute */
+function withIcons(character: Character, doc: HdcDocument): Character {
+  const icon = <T extends { id: string; icon?: string; subPowers?: T[] }>(item: T): T => {
+    const value = doc.findById(item.id)?.getAttr(ICON_ATTR);
+    const subPowers = item.subPowers?.map(icon);
+    return value || subPowers ? { ...item, ...(value ? { icon: value } : {}), ...(subPowers ? { subPowers } : {}) } : item;
+  };
+  return {
+    ...character,
+    skills: character.skills.map(icon),
+    perks: character.perks.map(icon),
+    talents: character.talents.map(icon),
+    martialArts: character.martialArts.map(icon),
+    powers: character.powers.map(icon),
+    disadvantages: character.disadvantages.map(icon),
+    equipment: character.equipment?.map(icon),
+  };
+}
+
+function parseDocument(doc: HdcDocument): Character {
   const rootEl = doc.root;
   const root = toParserObject(rootEl) as ParserObject;
   const section = (name: string) => root[name] as ParserObject | undefined;

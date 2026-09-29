@@ -11,13 +11,16 @@ import {
   type FormSection,
   type FormValues,
 } from '@hero-workshop/shared';
-import { HeroWorkshopApplication, template } from './base';
+import { HeroWorkshopApplication, pickImage, template } from './base';
+import { DEFAULT_ICON } from '../sync/icons';
 
 export interface ItemDialogOptions {
   section: FormSection;
   itemId?: string;
   character: () => Character;
   onSave(character: Character): void;
+  /** Icon shown when the item has no custom one (its current Foundry icon) */
+  defaultIcon?: string;
 }
 
 /** Existing items get one dialog each; new-item dialogs are always fresh */
@@ -31,6 +34,10 @@ export class ItemDialog extends HeroWorkshopApplication {
     position: { width: 520 },
     window: { icon: 'fa-solid fa-pen-to-square', resizable: true },
     form: { handler: ItemDialog.#onSubmit, closeOnSubmit: true },
+    actions: {
+      pickIcon: ItemDialog.#onPickIcon,
+      clearIcon: ItemDialog.#onClearIcon,
+    },
   };
 
   static PARTS = {
@@ -51,8 +58,10 @@ export class ItemDialog extends HeroWorkshopApplication {
 
   async _prepareContext() {
     const form = itemForm(this.config.section, this.#values, !this.config.itemId);
+    const custom = String(this.#values.icon ?? '');
     return {
       ...form,
+      icon: { src: custom || this.config.defaultIcon || DEFAULT_ICON, custom: !!custom },
       costs: form.costLabel ? [{ label: 'Cost', value: `${form.cost} ${form.costLabel}` }] : [],
       buttons: [{ type: 'submit', icon: 'fa-solid fa-check', label: this.config.itemId ? 'Save' : 'Add', cssClass: 'bright' }],
     };
@@ -64,6 +73,17 @@ export class ItemDialog extends HeroWorkshopApplication {
       [field]: target.type === 'checkbox' ? target.checked : target.type === 'number' ? Number(value) : value,
     };
     // Re-render so dependent fields (e.g. a skill's characteristic choices) and the cost update
+    void this.render();
+  }
+
+  static async #onPickIcon(this: ItemDialog) {
+    const path = await pickImage(String(this.#values.icon || this.config.defaultIcon || ''));
+    this.#values = { ...this.#values, icon: path };
+    void this.render();
+  }
+
+  static #onClearIcon(this: ItemDialog) {
+    this.#values = { ...this.#values, icon: '' };
     void this.render();
   }
 

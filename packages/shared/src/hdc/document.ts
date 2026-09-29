@@ -33,6 +33,12 @@ export const HDC_ITEM_SECTIONS = [
 
 export type HdcItemSection = (typeof HDC_ITEM_SECTIONS)[number];
 
+/**
+ * Attribute holding an item's custom icon (a Foundry image path). Not part of Hero Designer's
+ * format: desktop Hero Designer opens files that have it but drops it when it saves.
+ */
+export const ICON_ATTR = 'FOUNDRY_ICON';
+
 /** Elements that are purchasable objects and must carry an ID */
 function isObjectElement(el: XmlElement): boolean {
   return el.hasAttr('XMLID') || el.name === 'LIST';

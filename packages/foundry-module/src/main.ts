@@ -17,7 +17,7 @@ import {
   refreshOpenWindows,
 } from './apps';
 import { preloadTemplates } from './apps/base';
-import { queueCreatedItem } from './sync/actorItems';
+import { queueCreatedItem, recordIconChange } from './sync/actorItems';
 import { openNewItem } from './apps/new-item';
 import {
   DRAG_TYPE,
@@ -215,8 +215,24 @@ Hooks.on('updateSetting', ((setting: { key: string }) => {
 // Items dropped onto an actor are written into its stored HDC right away (and a compound that
 // arrives without its parts gets them, the way hero6e shows compounds). Uploads are skipped:
 // they create items with render: false and write the HDC themselves.
+/**
+ * Whether this browser should act on a document change made by this user. Every connected
+ * browser gets the hook, including other windows logged in as the same user, so only the
+ * visible one (where the user is working) writes, or they'd all make the same change.
+ */
+const actsForUser = (userId: string) => userId === game.user.id && document.visibilityState === 'visible';
+
 Hooks.on('createItem', ((item: FoundryItem, options: Record<string, unknown>, userId: string) => {
-  if (!isHeroSystem() || userId !== game.user.id || !item.actor) return;
+  if (!isHeroSystem() || !actsForUser(userId) || !item.actor) return;
   if (options?.render === false || options?.[OWN_CREATION]) return;
   queueCreatedItem(item);
+}) as (...args: never[]) => unknown);
+
+// Icons changed on a Foundry sheet go into the item's Hero Designer data, so they show in the
+// editor and travel with the item
+Hooks.on('updateItem', ((item: FoundryItem, changes: Record<string, unknown>, _options: unknown, userId: string) => {
+  if (!isHeroSystem() || !actsForUser(userId) || !('img' in changes)) return;
+  // hero6e's own import sets items up (and we restore icons after it)
+  if (item.actor?.getFlag(HERO_SYSTEM_ID, 'uploading')) return;
+  recordIconChange(item);
 }) as (...args: never[]) => unknown);

@@ -81,6 +81,16 @@ export class HeroWorkshopApplication extends api.HandlebarsApplicationMixin(api.
   }
 }
 
+/** Opens Foundry's file picker for an image; resolves with the chosen path */
+export function pickImage(current: string): Promise<string> {
+  const FilePicker = (foundry.applications as unknown as {
+    apps: { FilePicker: { implementation: new (options: Record<string, unknown>) => { render(force?: boolean): unknown } } };
+  }).apps.FilePicker.implementation;
+  return new Promise((resolve) => {
+    void new FilePicker({ type: 'image', current, callback: (path: string) => resolve(path) }).render(true);
+  });
+}
+
 /** Renders a template to an HTML string (for dialogs) */
 export function renderTemplate(path: string, data: Record<string, unknown>): Promise<string> {
   const handlebars = (foundry.applications as unknown as {

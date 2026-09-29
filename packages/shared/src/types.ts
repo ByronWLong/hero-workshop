@@ -100,6 +100,8 @@ export interface GenericObjectBase {
   modifiers?: Modifier[];
   adders?: Adder[];
   parentId?: string; // Reference to parent LIST element if in a group
+  /** Custom icon (an image path in Foundry), kept in the element's FOUNDRY_ICON attribute */
+  icon?: string;
 }
 
 // ============================================================================

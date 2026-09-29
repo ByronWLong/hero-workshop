@@ -44,7 +44,7 @@ import {
   type CatalogAdder,
   type CatalogEntry,
 } from '../generated/catalog6e.js';
-import { HdcDocument, type HdcItemSection } from './document.js';
+import { HdcDocument, type HdcItemSection, ICON_ATTR } from './document.js';
 import { XmlElement, createElement, escapeAttr } from './xml.js';
 import {
   ATTACK_DEFENSE_DEFAULTS,
@@ -548,6 +548,7 @@ function reconcileItems<T extends ItemModel>(
   for (const a of createdItems) {
     const section = doc.ensureSection(sectionName);
     const el = spec.create(ctx, a, sectionName);
+    if ((a as { icon?: string }).icon) el.setAttr(ICON_ATTR, (a as { icon?: string }).icon!);
     const id = doc.nextId();
     el.setAttr('ID', id);
     if (a.id !== id) ctx.report.idMap[a.id] = id;
@@ -600,10 +601,10 @@ function orderParentsFirst<T extends ItemModel>(items: T[]): T[] {
   return out;
 }
 
-const COMMON_FIELDS = new Set(['parentId', 'position', 'modifiers', 'adders', 'id']);
+const COMMON_FIELDS = new Set(['parentId', 'position', 'modifiers', 'adders', 'id', 'icon']);
 
 /** Grouping, ordering, modifiers and adders work the same way for every item type */
-function writeCommonFields<T extends ItemModel & { modifiers?: Modifier[]; adders?: Adder[] }>(
+function writeCommonFields<T extends ItemModel & { modifiers?: Modifier[]; adders?: Adder[]; icon?: string }>(
   ctx: WriteContext,
   el: XmlElement,
   b: T,
@@ -626,6 +627,10 @@ function writeCommonFields<T extends ItemModel & { modifiers?: Modifier[]; adder
   }
   if (!same(b.modifiers, a.modifiers)) reconcileModifiers(ctx, el, b.modifiers ?? [], a.modifiers ?? []);
   if (!same(b.adders, a.adders)) reconcileAdders(ctx, el, b.adders ?? [], a.adders ?? []);
+  if (!same(b.icon, a.icon)) {
+    if (a.icon) el.setAttr(ICON_ATTR, a.icon);
+    else el.removeAttr(ICON_ATTR);
+  }
 }
 
 // =============================================================================

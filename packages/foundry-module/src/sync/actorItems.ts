@@ -8,8 +8,9 @@
  * parts get them first (see expandCompound), then everything is written in one update.
  */
 
-import { HdcDocument } from '@hero-workshop/shared';
+import { HdcDocument, ICON_ATTR, parseXml } from '@hero-workshop/shared';
 import { applyDrift } from './drift';
+import { isCustomIcon } from './icons';
 import { MODULE_ID, createActorSession } from './session';
 import { expandCompound } from './worldItems';
 
@@ -32,8 +33,13 @@ export function queueCreatedItem(item: FoundryItem): void {
 }
 
 function schedule(actorId: string): void {
+  enqueue(actorId, () => flush(actorId));
+}
+
+/** Runs a write after any earlier writes for the same actor */
+function enqueue(actorId: string, work: () => Promise<void>): void {
   const previous = writing.get(actorId) ?? Promise.resolve();
-  const next = previous.then(() => flush(actorId));
+  const next = previous.then(work).catch((e: unknown) => console.error(`${MODULE_ID} | updating HDC`, e));
   writing.set(actorId, next);
   void next.finally(() => {
     if (writing.get(actorId) === next) writing.delete(actorId);
@@ -87,4 +93,34 @@ async function writeAddedItems(actor: FoundryActor, itemIds: Set<string>): Promi
   }
   await actor.setFlag(MODULE_ID, 'syncedIds', [...synced]);
   await actor.setFlag(MODULE_ID, 'syncedNames', names);
+}
+
+/**
+ * Records an icon changed on an item's Foundry sheet in its Hero Designer data: the actor's
+ * HDC for an owned item, the item's own XML for a world item. A default icon clears it.
+ */
+export function recordIconChange(item: FoundryItem): void {
+  const icon = isCustomIcon(item.img) ? item.img : undefined;
+  const actor = item.actor;
+  if (actor) {
+    enqueue(actor.id, async () => {
+      const xml = actor.system._hdcXml;
+      const id = item.system.ID;
+      if (!xml || id === undefined || id === null || id === '') return;
+      const doc = HdcDocument.parse(xml);
+      const el = doc.findById(String(id));
+      if (!el || (el.getAttr(ICON_ATTR) ?? undefined) === icon) return;
+      if (icon) el.setAttr(ICON_ATTR, icon);
+      else el.removeAttr(ICON_ATTR);
+      await actor.update({ 'system._hdcXml': doc.toString() });
+    });
+    return;
+  }
+  const fragment = item.system._hdcXml;
+  if (typeof fragment !== 'string' || !fragment.trim()) return;
+  const el = parseXml(fragment.trim()).root;
+  if ((el.getAttr(ICON_ATTR) ?? undefined) === icon) return;
+  if (icon) el.setAttr(ICON_ATTR, icon);
+  else el.removeAttr(ICON_ATTR);
+  void item.update({ 'system._hdcXml': el.toString() });
 }

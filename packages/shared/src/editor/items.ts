@@ -20,7 +20,7 @@ import {
   TALENT_CATALOG_6E,
 } from '../generated/catalog6e.js';
 import { SKILL_CATALOG_6E } from '../generated/skillCatalog6e.js';
-import { sectionItems, setSectionItems, type SectionId } from './lists.js';
+import { sectionItems, setSectionItems, type ListItem, type SectionId } from './lists.js';
 
 export type FormSection = Exclude<SectionId, 'powers' | 'equipment'>;
 export type FormValues = Record<string, string | number | boolean | undefined>;
@@ -314,6 +314,10 @@ const signedText = (n: number) => (n >= 0 ? `+${n}` : String(n));
 
 export function itemFormValues(character: Character, section: FormSection, itemId?: string): FormValues {
   const item = itemId ? sectionItems(character, section).find((i) => i.id === itemId) : undefined;
+  return { ...sectionFormValues(section, item), icon: item?.icon ?? '' };
+}
+
+function sectionFormValues(section: FormSection, item: ListItem | undefined): FormValues {
   // Lists only have a name and notes; their members are edited on their own
   if (item?.isGroup) return { group: true, name: item.name, notes: item.notes ?? '' };
   switch (section) {
@@ -429,11 +433,15 @@ export function saveItemForm(character: Character, section: FormSection, itemId:
   const list = sectionItems(character, section);
   const existing = itemId ? list.find((i) => i.id === itemId) : undefined;
   const position = list.length;
-  const put = <T extends { id: string }>(items: T[], item: T) =>
-    existing ? items.map((i) => (i.id === item.id ? item : i)) : [...items, item];
+  // Every section's save keeps the form's icon
+  const icon = str(values.icon) || undefined;
+  const put = <T extends { id: string; icon?: string }>(items: T[], saved: T) => {
+    const item = { ...saved, icon };
+    return existing ? items.map((i) => (i.id === item.id ? item : i)) : [...items, item];
+  };
 
   if (existing?.isGroup) {
-    const renamed = { ...existing, name: str(values.name).trim() || existing.name, notes: str(values.notes) || undefined };
+    const renamed = { ...existing, name: str(values.name).trim() || existing.name, notes: str(values.notes) || undefined, icon };
     return setSectionItems(character, section, list.map((i) => (i.id === existing.id ? renamed : i)));
   }
 

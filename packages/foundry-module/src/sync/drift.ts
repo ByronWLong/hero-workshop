@@ -11,7 +11,8 @@
  * pull them into the HDC before editing it in Hero Workshop.
  */
 
-import { HdcDocument, XmlElement, createElement, parseXml } from '@hero-workshop/shared';
+import { HdcDocument, ICON_ATTR, XmlElement, createElement, parseXml } from '@hero-workshop/shared';
+import { isCustomIcon } from './icons';
 
 /** The subset of a Foundry item's source data drift detection reads */
 export interface DriftItemSource {
@@ -22,6 +23,8 @@ export interface DriftItemSource {
   system: Record<string, unknown>;
   /** hero6e's system-generated items (maneuvers, Perception, ...) have no HDC element */
   isFreeStuff?: boolean;
+  /** The item's icon in Foundry */
+  img?: string;
 }
 
 export interface DriftChange {
@@ -85,6 +88,7 @@ export function detectDrift(doc: HdcDocument, input: DriftInput): DriftChange[] 
     if (el) {
       diffElement(el, item.system, item.name, `item:${id}`, changes, isNested(el));
       detectRename(el, item, input.syncedNames, changes);
+      detectIcon(el, item, `item:${id}`, changes);
     } else {
       changes.push(addedItemChange(item));
     }
@@ -337,6 +341,20 @@ function isItemChild(el: XmlElement): boolean {
   return el.name !== 'NOTES' && el.name !== 'ADDER' && el.name !== 'MODIFIER';
 }
 
+/** A custom icon chosen on the Foundry sheet (resetting to a default icon isn't tracked) */
+function detectIcon(el: XmlElement, item: DriftItemSource, keyPrefix: string, changes: DriftChange[]): void {
+  const img = item.img;
+  if (!isCustomIcon(img) || el.getAttr(ICON_ATTR) === img) return;
+  changes.push({
+    key: `${keyPrefix}:icon`,
+    kind: 'modified',
+    itemName: item.name,
+    summary: 'Icon changed',
+    recommended: true,
+    apply: () => el.setAttr(ICON_ATTR, img),
+  });
+}
+
 /** A Foundry-created item: rebuilt from its stored XML fragment where possible */
 function addedItemChange(item: DriftItemSource): DriftChange {
   const sectionName = SECTION_BY_ITEM_TYPE[item.type];
@@ -350,6 +368,7 @@ function addedItemChange(item: DriftItemSource): DriftChange {
       if (!sectionName) return;
       const tag = String(item.system.xmlTag || (sectionName === 'DISADVANTAGES' ? 'DISAD' : item.type.toUpperCase()));
       const el = elementFromSystem(target, tag, item.system);
+      if (isCustomIcon(item.img)) el.setAttr(ICON_ATTR, item.img);
       // Keep Foundry's ID so the next import matches this element to the existing item
       const wanted = String(item.system.ID);
       el.setAttr('ID', target.findById(wanted) ? target.nextId() : wanted);

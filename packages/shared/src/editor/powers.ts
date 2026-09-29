@@ -36,6 +36,8 @@ export interface PowerDraft {
   parentId: string;
   /** A compound power's parts */
   subPowers: Power[];
+  /** Custom icon (image path), or empty for the default */
+  icon: string;
   // Equipment
   price: number;
   weight: number;
@@ -104,6 +106,7 @@ export function powerDraft(character: Character, section: PowerSection, itemId?:
     modifiers: p?.modifiers ? [...p.modifiers] : [],
     parentId: p?.parentId ?? '',
     subPowers: detectedKind === 'compound' && p ? compoundParts(character, section, p) : [],
+    icon: p?.icon ?? '',
     price: p?.price ?? 0,
     weight: p?.weight ?? 0,
     carried: p?.carried ?? true,
@@ -431,7 +434,7 @@ const modifierText = (mods: Modifier[] | undefined) => (mods ?? []).map((m) => `
 
 function buildPower(existing: PowerLike | undefined, draft: PowerDraft, costs: PowerCosts, position: number): Power {
   const def = getPowerDefinition(draft.xmlId);
-  const base = existing ?? ({ id: newId(), position } as Power);
+  const base = { ...(existing ?? ({ id: newId(), position } as Power)), icon: draft.icon || undefined };
   if (draft.kind === 'list') {
     return {
       ...base,

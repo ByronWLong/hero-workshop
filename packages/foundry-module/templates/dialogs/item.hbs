@@ -1,4 +1,13 @@
 <div class="hw-scroll standard-form hw-dialog-body">
+  <div class="hw-icon-field">
+    <button type="button" class="hw-icon-pick" data-action="pickIcon" data-tooltip="Choose icon" aria-label="Choose icon">
+      <img src="{{icon.src}}" alt="">
+    </button>
+    <div>
+      <span class="hint">{{#if icon.custom}}Custom icon{{else}}Default icon{{/if}}</span>
+      {{#if icon.custom}}<a class="hw-icon-clear" data-action="clearIcon">Use default</a>{{/if}}
+    </div>
+  </div>
   {{#each fields as |field|}}
   <div class="form-group {{#if (eq field.type "textarea")}}stacked{{/if}}">
     <label for="hw-field-{{field.name}}">{{field.label}}</label>

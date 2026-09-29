@@ -666,3 +666,40 @@
 .hero-workshop .hw-kind-choice:focus-within {
   outline: 1px solid var(--color-border-highlight);
 }
+
+/* ---------------------------------------------------------------- icons */
+
+.hero-workshop .hw-item-icon {
+  flex: 0 0 auto;
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: 3px;
+  object-fit: cover;
+}
+
+.hero-workshop .hw-icon-field {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
+}
+
+.hero-workshop .hw-icon-field > div {
+  display: flex;
+  flex-direction: column;
+}
+
+.hero-workshop .hw-icon-pick {
+  flex: 0 0 auto;
+  width: 56px;
+  height: 56px;
+  padding: 2px;
+}
+
+.hero-workshop .hw-icon-pick img {
+  width: 100%;
+  height: 100%;
+  border: none;
+  object-fit: cover;
+}

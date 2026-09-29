@@ -6,7 +6,7 @@
  * element is written back and hero6e rebuilds the item from it (item.restoreFromHdc).
  */
 
-import { HdcDocument, blankHdc, parseXml, type HdcSection } from '@hero-workshop/shared';
+import { HdcDocument, ICON_ATTR, blankHdc, parseXml, type HdcSection } from '@hero-workshop/shared';
 import type { TabId } from './tabs';
 import { detectDrift } from './drift';
 import { MODULE_ID, downloadHdc, itemSource, type ActorSession } from './session';
@@ -71,6 +71,8 @@ export function createItemSession(item: FoundryItem): ActorSession {
       }
       await item.update({ 'system._hdcXml': updated.toString() });
       await item.restoreFromHdc();
+      const icon = updated.getAttr(ICON_ATTR);
+      if (icon && item.img !== icon) await item.update({ img: icon });
       await item.setFlag(MODULE_ID, 'syncedName', item.name);
       return item;
     },
@@ -78,5 +80,7 @@ export function createItemSession(item: FoundryItem): ActorSession {
     download(xml, fileName) {
       downloadHdc(xml, fileName);
     },
+
+    itemImage: () => item.img,
   };
 }

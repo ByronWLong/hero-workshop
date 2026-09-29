@@ -17,6 +17,8 @@ export interface ItemRowView {
   isGroup: boolean;
   /** A list or framework other items can be put in */
   acceptsChildren: boolean;
+  /** Custom icon, if the item has one */
+  icon?: string;
   children: ItemRowView[];
 }
 
@@ -31,6 +33,7 @@ export interface ListItem {
   isContainer?: boolean;
   type?: string;
   xmlId?: string;
+  icon?: string;
   modifiers?: Modifier[];
   adders?: Adder[];
   notes?: string;
@@ -109,6 +112,7 @@ export function buildItemTree(character: Character, section: SectionId): ItemRow
       detail: detailFor(section, item),
       cost: rowCost(section, own, isGroup, children),
       isGroup,
+      icon: item.icon,
       acceptsChildren: !!item.isGroup || item.type === 'LIST' || FRAMEWORKS.includes(item.xmlId ?? item.type ?? ''),
       children,
     };
