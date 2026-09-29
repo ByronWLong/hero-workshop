@@ -61,7 +61,7 @@ interface ContextMenuEntry {
 
 declare const game: {
   system: { id: string; version: string };
-  user: { isGM: boolean; can(permission: string): boolean };
+  user: { id: string; isGM: boolean; can(permission: string): boolean };
   actors: { get(id: string): FoundryActor | undefined; contents: FoundryActor[] };
   items: { get(id: string): FoundryItem | undefined; contents: FoundryItem[] };
   modules: Map<string, { api?: unknown }> & { get(id: string): { api?: unknown } | undefined };
@@ -106,3 +106,4 @@ declare const foundry: {
 declare const CONFIG: { Item: { documentClass: unknown } };
 
 declare function fromUuid(uuid: string): Promise<unknown>;
+declare function fromUuidSync(uuid: string): unknown;

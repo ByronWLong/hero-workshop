@@ -609,3 +609,23 @@
   gap: 0.25rem;
   margin-bottom: 0.5rem;
 }
+
+/* ---------------------------------------------------------------- compound parts */
+
+.hero-workshop .hw-part {
+  cursor: pointer;
+}
+
+.hero-workshop .hw-part:hover {
+  background: var(--hw-hover);
+}
+
+.hero-workshop .hw-part .hw-mod-name {
+  display: flex;
+  flex-direction: column;
+}
+
+.hero-workshop .hw-add-part {
+  margin-top: 0.5rem;
+  width: auto;
+}

@@ -32,9 +32,10 @@ npm run build:foundry            # from the repo root; output in packages/foundr
   - Heroic and Superheroic create a PC or NPC.
   - Vehicle, Base, Computer, Automaton and AI create hero6e's matching actor type, with only that template's characteristics.
 - **Items:** "Edit in Hero Workshop" on an item owned by an actor opens that actor's editor with the item's edit form already open.
-- **New world items:** the Items sidebar's **Hero Workshop Item** button creates equipment, powers, compound powers, skills, perks, talents, maneuvers or complications with the same forms. hero6e's own parser builds the item, so it matches an uploaded one.
+- **New world items:** the Items sidebar's **Hero Workshop Item** button creates equipment, compound equipment, powers, compound powers, skills, perks, talents, maneuvers or complications with the same forms. A compound's form lists its powers; **Add power** opens the power form for another part. hero6e's own parser builds the item, so it matches an uploaded one.
 - **Drag and drop:**
   - Drag a row out of the editor onto the Items sidebar (or one of its folders) to make a world item. Lists and frameworks become a folder holding the parent item and its members, as in hero6e's compendiums.
+  - Compound powers (most equipment) stay a single world item, with their parts kept in the item's Hero Designer data. Compounds dragged from a hero6e actor sheet to the sidebar are handled the same way. When one is dropped onto an actor, Hero Workshop adds its parts as child items, which is how hero6e shows compounds.
   - Drag a world, compendium or actor item onto the editor to add it to the character, or onto a list or framework row to put it inside. Edits made on the item's hero6e sheet come along. Rows can also be dragged between two open editors.
   - Copied items get fresh HDC IDs; the rest of the item's Hero Designer data is kept as is.
 - **Characteristic maxima:** each character's maxima are derived from its original race or races.

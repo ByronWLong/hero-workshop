@@ -1,13 +1,17 @@
 <section class="tab hw-list-tab {{tab.cssClass}}" data-group="primary" data-tab="{{tab.id}}">
   <div class="hw-list-toolbar">
     <span class="hint">{{tab.count}} {{#if (eq tab.count 1)}}entry{{else}}entries{{/if}} · {{tab.points}} pts</span>
+    {{#if tab.canAdd}}
     <div class="hw-inline-buttons">
       {{#if (eq tab.section "powers")}}
       <button type="button" data-action="addItem" data-section="powers" data-kind="list"><i class="fa-solid fa-folder-plus" inert></i> List</button>
-      <button type="button" data-action="addItem" data-section="powers" data-kind="compound"><i class="fa-solid fa-layer-group" inert></i> Compound power</button>
+      {{/if}}
+      {{#if (or (eq tab.section "powers") (eq tab.section "equipment"))}}
+      <button type="button" data-action="addItem" data-section="{{tab.section}}" data-kind="compound"><i class="fa-solid fa-layer-group" inert></i> Compound</button>
       {{/if}}
       <button type="button" data-action="addItem" data-section="{{tab.section}}"><i class="fa-solid fa-plus" inert></i> Add {{tab.noun}}</button>
     </div>
+    {{/if}}
   </div>
   {{#if tab.rows.length}}
   <ol class="hw-items">

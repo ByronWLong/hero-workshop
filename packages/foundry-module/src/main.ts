@@ -18,7 +18,14 @@ import {
 } from './apps';
 import { preloadTemplates } from './apps/base';
 import { openNewItem } from './apps/new-item';
-import { DRAG_TYPE, createWorldItems, dragData, type HeroWorkshopDragData } from './sync/worldItems';
+import {
+  DRAG_TYPE,
+  createWorldItems,
+  dragData,
+  expandCompound,
+  transferFromItem,
+  type HeroWorkshopDragData,
+} from './sync/worldItems';
 import { getRaceLibrary, registerRaceSettings } from './races/library';
 import { MODULE_ID, createActorSession } from './sync/session';
 
@@ -150,19 +157,33 @@ Hooks.on('renderItemDirectory', ((_app: unknown, html: HTMLElement) => {
     'drop',
     (event) => {
       const data = dragData(event);
-      if (data?.type !== DRAG_TYPE) return;
+      // Compounds dragged off an actor sheet become one world item too, rather than hero6e's folder
+      const ownedCompound = (): FoundryItem | undefined => {
+        if (data?.type !== 'Item' || typeof data.uuid !== 'string' || !data.uuid.startsWith('Actor.')) return undefined;
+        const item = fromUuidSync(data.uuid) as FoundryItem | null;
+        return item?.system.XMLID === 'COMPOUNDPOWER' ? item : undefined;
+      };
+      const compound = ownedCompound();
+      if (data?.type !== DRAG_TYPE && !compound) return;
       event.preventDefault();
       event.stopPropagation();
-      const drag = data as unknown as HeroWorkshopDragData;
       const folder = (event.target as HTMLElement).closest?.<HTMLElement>('.folder');
       const folderId = folder?.dataset.folderId ?? folder?.dataset.uuid?.split('.').pop();
-      createWorldItems(drag.transfer, folderId).then(
-        (created) => ui.notifications.info(game.i18n.format('HERO_WORKSHOP.ItemsCopied', { name: created[0]?.name ?? drag.name })),
-        (e: unknown) => {
-          console.error(e);
-          ui.notifications.error(`Hero Workshop could not create ${drag.name}: ${e instanceof Error ? e.message : String(e)}`);
-        },
-      );
+      const drag = data as unknown as HeroWorkshopDragData;
+      const name = compound?.name ?? drag.name;
+      const transfer = compound ? transferFromItem(compound) : Promise.resolve(drag.transfer);
+      transfer
+        .then((t) => {
+          if (!t) throw new Error('it has no Hero Designer data');
+          return createWorldItems(t, folderId);
+        })
+        .then(
+          (created) => ui.notifications.info(game.i18n.format('HERO_WORKSHOP.ItemsCopied', { name: created[0]?.name ?? name })),
+          (e: unknown) => {
+            console.error(e);
+            ui.notifications.error(`Hero Workshop could not create ${name}: ${e instanceof Error ? e.message : String(e)}`);
+          },
+        );
     },
     { capture: true },
   );
@@ -188,4 +209,13 @@ Hooks.on('getItemContextOptions', ((_directory: unknown, options: ContextMenuEnt
 // Open editors pick up race library changes
 Hooks.on('updateSetting', ((setting: { key: string }) => {
   if (setting.key === `${MODULE_ID}.races`) refreshOpenWindows();
+}) as (...args: never[]) => unknown);
+
+// A compound dropped onto an actor without its parts (a Hero Workshop world item) gets them as
+// child items, which is how hero6e shows compounds. Uploads create parts themselves (render: false).
+Hooks.on('createItem', ((item: FoundryItem, options: { render?: boolean }, userId: string) => {
+  if (!isHeroSystem() || userId !== game.user.id || !item.actor || options?.render === false) return;
+  if (item.system.XMLID !== 'COMPOUNDPOWER') return;
+  const hasParts = item.actor.items.contents.some((i) => i.system.PARENTID === item.system.ID);
+  if (!hasParts) void expandCompound(item).catch((e: unknown) => console.error(`${MODULE_ID} | expanding ${item.name}`, e));
 }) as (...args: never[]) => unknown);

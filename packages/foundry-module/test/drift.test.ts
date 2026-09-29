@@ -105,4 +105,26 @@ describe('renames', () => {
     const skillStyle = { ...blast(), name: 'PS: Firebolt' };
     expect(detectDrift(doc, { items: [skillStyle, flight], actorSystem })).toEqual([]);
   });
+
+  it.each([false, true])('adds a compound dropped in Foundry once, with its parts nested (parts first: %s)', (partsFirst) => {
+    const doc = HdcDocument.parse(XML);
+    const partXml = '<POWER XMLID="HKA" ID="3001" LEVELS="1" ALIAS="Killing Attack" NAME="" />';
+    const compound: DriftItemSource = {
+      id: 'c', name: 'Longsword', type: 'equipment',
+      system: {
+        XMLID: 'COMPOUNDPOWER', ID: 3000, NAME: 'Longsword', xmlTag: 'POWER',
+        _hdcXml: `<POWER XMLID="COMPOUNDPOWER" ID="3000" NAME="Longsword">${partXml}</POWER>`,
+      },
+    };
+    const part: DriftItemSource = {
+      id: 'd', name: 'Killing Attack', type: 'equipment',
+      system: { XMLID: 'HKA', ID: 3001, PARENTID: 3000, LEVELS: 1, ALIAS: 'Killing Attack', xmlTag: 'POWER', _hdcXml: partXml },
+    };
+    const items = partsFirst ? [blast(), flight, part, compound] : [blast(), flight, compound, part];
+    const changes = detectDrift(doc, { items, actorSystem, syncedIds: ['10', '11', '20'] });
+    applyDrift(doc, changes.filter((c) => c.recommended));
+    const text = doc.toString();
+    expect(text.match(/ID="3001"/g)).toHaveLength(1);
+    expect(doc.findById('3000')!.firstElement('POWER')!.getAttr('ID')).toBe('3001');
+  });
 });

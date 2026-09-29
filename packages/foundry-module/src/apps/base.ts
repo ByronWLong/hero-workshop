@@ -70,6 +70,14 @@ export class HeroWorkshopApplication extends api.HandlebarsApplicationMixin(api.
       const value = target.type === 'checkbox' ? String(target.checked) : target.value;
       this.onFieldChange(field, value, target);
     });
+    // Rows marked role="button" open like a click on Enter/Space
+    this.element.addEventListener('keydown', (event) => {
+      const target = event.target as HTMLElement;
+      if ((event.key === 'Enter' || event.key === ' ') && target.getAttribute?.('role') === 'button' && target.dataset.action) {
+        event.preventDefault();
+        target.click();
+      }
+    });
   }
 }
 

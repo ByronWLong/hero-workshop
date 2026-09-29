@@ -32,7 +32,7 @@
   </div>
   {{/if}}
 
-  {{#if definition.inputLabel}}
+  {{#if (and isPower definition.inputLabel)}}
   <div class="form-group">
     <label>{{definition.inputLabel}}</label>
     <input type="text" data-field="input" value="{{draft.input}}">
@@ -108,6 +108,22 @@
       {{#each availableAdders}}<option value="{{value}}">{{label}}</option>{{/each}}
     </select>
     {{/if}}
+  </fieldset>
+  {{/if}}
+
+  {{#if (eq kind "compound")}}
+  <fieldset class="hw-parts">
+    <legend>Powers in this compound</legend>
+    {{#each subPowers}}
+    <div class="hw-mod-row hw-part" data-action="editPart" data-id="{{id}}" role="button" tabindex="0">
+      <span class="hw-mod-name">{{name}}{{#if detail}}<span class="hint hw-item-detail">{{detail}}</span>{{/if}}</span>
+      <span class="hw-mod-value">{{cost}}</span>
+      <a data-action="removePart" data-id="{{id}}" data-tooltip="Remove" aria-label="Remove {{name}}"><i class="fa-solid fa-xmark" inert></i></a>
+    </div>
+    {{else}}
+    <p class="hint">A compound is several powers bought together, like a sword's damage and its defence. Add its first power.</p>
+    {{/each}}
+    <button type="button" class="hw-add-part" data-action="addPart"><i class="fa-solid fa-plus" inert></i> Add power</button>
   </fieldset>
   {{/if}}
 

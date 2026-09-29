@@ -7,16 +7,19 @@ import {
   addAdder,
   addCustomModifier,
   addModifier,
+  compoundPartsCharacter,
   powerDraft,
   powerFormView,
   removeAdder,
   removeModifier,
+  removeSubPower,
   savePowerDraft,
   selectPower,
   setAdderLevels,
   setModifierLevels,
   setModifierOption,
   setModifierValue,
+  setSubPowers,
   type Character,
   type PowerDraft,
   type PowerKind,
@@ -30,6 +33,8 @@ export interface PowerDialogOptions {
   kind?: PowerKind;
   character: () => Character;
   onSave(character: Character): void;
+  /** Distinguishes dialogs for a compound's parts from the editor's own dialogs */
+  idScope?: string;
 }
 
 const TITLES: Record<PowerKind, string> = { power: 'power', list: 'power list', compound: 'compound power' };
@@ -45,6 +50,9 @@ export class PowerDialog extends HeroWorkshopApplication {
       removeAdder: PowerDialog.#onRemoveAdder,
       removeModifier: PowerDialog.#onRemoveModifier,
       addCustomModifier: PowerDialog.#onAddCustomModifier,
+      addPart: PowerDialog.#onAddPart,
+      editPart: PowerDialog.#onEditPart,
+      removePart: PowerDialog.#onRemovePart,
     },
   };
 
@@ -57,9 +65,14 @@ export class PowerDialog extends HeroWorkshopApplication {
 
   constructor(readonly config: PowerDialogOptions) {
     const draft = powerDraft(config.character(), config.section, config.itemId, config.kind);
-    const noun = config.section === 'equipment' ? 'equipment' : TITLES[draft.kind];
+    const noun = config.idScope
+      ? 'part'
+      : config.section === 'equipment'
+        ? draft.kind === 'compound' ? 'compound equipment' : 'equipment'
+        : TITLES[draft.kind];
+    const key = config.itemId ?? `new-${draft.kind}-${Date.now().toString(36)}`;
     super({
-      id: `hero-workshop-power-${config.section}-${config.itemId ?? `new-${draft.kind}-${Date.now().toString(36)}`}`,
+      id: `hero-workshop-power-${config.idScope ? `${config.idScope}-` : ''}${config.section}-${key}`,
       window: { title: `${config.itemId ? 'Edit' : 'Add'} ${noun}` },
       // Lists have only a few fields; powers need room for adders and modifiers
       ...(draft.kind === 'list' ? { position: { width: 560, height: 'auto' } } : {}),
@@ -71,7 +84,7 @@ export class PowerDialog extends HeroWorkshopApplication {
     const view = powerFormView(this.config.character(), this.config.section, this.#draft, this.config.itemId);
     return {
       ...view,
-      costs: view.isPower
+      costs: view.isPower || view.kind === 'compound'
         ? [
             { label: 'Base', value: view.costs.base },
             { label: 'Active', value: view.costs.active },
@@ -134,6 +147,34 @@ export class PowerDialog extends HeroWorkshopApplication {
       return;
     }
     this.#update(addCustomModifier(this.#draft, name, value));
+  }
+
+  // A compound's parts are edited with this same form, on a scratch character holding the parts
+
+  #openPart(itemId?: string) {
+    void new PowerDialog({
+      section: 'powers',
+      itemId,
+      idScope: this.id,
+      character: () => compoundPartsCharacter(this.config.character(), this.#draft),
+      onSave: (character) => this.#update(setSubPowers(this.#draft, character.powers)),
+    }).render({ force: true });
+  }
+
+  static #onAddPart(this: PowerDialog) {
+    this.#openPart();
+  }
+
+  static #onEditPart(this: PowerDialog, _event: Event, target: HTMLElement) {
+    const id = target.closest<HTMLElement>('[data-id]')?.dataset.id;
+    const open = (foundry.applications as unknown as { instances: Map<string, { bringToFront(): void }> }).instances
+      .get(`hero-workshop-power-${this.id}-powers-${id}`);
+    if (open) open.bringToFront();
+    else this.#openPart(id);
+  }
+
+  static #onRemovePart(this: PowerDialog, _event: Event, target: HTMLElement) {
+    this.#update(removeSubPower(this.#draft, target.dataset.id!));
   }
 
   static #onSubmit(this: PowerDialog) {

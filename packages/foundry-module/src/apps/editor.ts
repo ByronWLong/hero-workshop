@@ -179,7 +179,16 @@ export class HeroWorkshopEditor extends HeroWorkshopApplication {
     const listTab = (id: SectionId) => {
       const rows = buildItemTree(character, id);
       const count = (list: typeof rows): number => list.reduce((n, r) => n + (r.isGroup ? 0 : 1) + count(r.children), 0);
-      return { ...tabs[id], rows, section: id, noun: SECTION_NOUNS[id], count: count(rows), points: rows.reduce((n, r) => n + r.cost, 0) };
+      return {
+        ...tabs[id],
+        rows,
+        section: id,
+        noun: SECTION_NOUNS[id],
+        count: count(rows),
+        points: rows.reduce((n, r) => n + r.cost, 0),
+        // A single world item's editor saves only that item, so nothing else can be added
+        canAdd: !this.session.view?.visibleTabs,
+      };
     };
     const characteristics = buildCharacteristicsView(character);
 
@@ -472,14 +481,6 @@ export class HeroWorkshopEditor extends HeroWorkshopApplication {
       event.dataTransfer.setData('text/plain', JSON.stringify(data));
       event.dataTransfer.effectAllowed = 'copy';
       row.classList.add('hw-dragging');
-    });
-    // Rows are buttons: Enter/Space opens them like a click
-    el.addEventListener('keydown', (event) => {
-      const row = event.target as HTMLElement;
-      if ((event.key === 'Enter' || event.key === ' ') && row.classList?.contains('hw-item-row')) {
-        event.preventDefault();
-        row.click();
-      }
     });
     el.addEventListener('dragend', () => el.querySelectorAll('.hw-dragging').forEach((r) => r.classList.remove('hw-dragging')));
     el.addEventListener('dragover', (event) => {

@@ -5,6 +5,10 @@
  * built by hero6e's own parser, the same one its compendium import uses, so they come out
  * exactly as an upload would make them. Lists and frameworks become a folder holding the
  * parent item and its members, as in hero6e's compendiums.
+ *
+ * Compound powers (most equipment) stay a single world item: their parts are nested in the
+ * item's own HDC. hero6e wants the parts as separate items on an actor, so expandCompound
+ * adds them when such an item is dropped onto one.
  */
 
 import {
@@ -86,8 +90,11 @@ function worldIdFloor(): number {
 export async function createWorldItems(transfer: ItemTransfer, folderId?: string): Promise<FoundryItem[]> {
   const { xml } = insertItems(blankHdc(), transfer, { minId: worldIdFloor() });
   const ItemClass = CONFIG.Item.documentClass as unknown as HeroItemClass;
-  const items = ItemClass.parseItemsFromHeroJsonToItemDataArray(await heroJsonFromXml(xml));
-  if (!items.length) throw new Error('hero6e could not make an item from this.');
+  const parsed = ItemClass.parseItemsFromHeroJsonToItemDataArray(await heroJsonFromXml(xml));
+  if (!parsed.length) throw new Error('hero6e could not make an item from this.');
+  // A compound's parts live in its own XML; as world items they'd only clutter the sidebar
+  const compounds = new Set(parsed.filter((d) => d.system.XMLID === 'COMPOUNDPOWER').map((d) => d.system.ID));
+  const items = parsed.filter((d) => !(d.system.PARENTID && compounds.has(d.system.PARENTID)));
 
   const FolderDoc = foundry.documents.Folder as unknown as FolderClass;
   const folderOf = new Map<number, string | undefined>();
@@ -104,6 +111,44 @@ export async function createWorldItems(transfer: ItemTransfer, folderId?: string
     data.flags = { [MODULE_ID]: { syncedName: data.name } };
   }
   return ItemClass.createDocuments(items);
+}
+
+interface ActorWithItems {
+  items: { contents: FoundryItem[] };
+  createEmbeddedDocuments(type: string, data: HeroItemData[]): Promise<unknown>;
+}
+
+/**
+ * Gives a compound power on an actor its parts as child items (hero6e's representation),
+ * when it arrived without them, e.g. dropped from a Hero Workshop world item.
+ */
+export async function expandCompound(item: FoundryItem): Promise<void> {
+  const actor = item.actor as unknown as ActorWithItems | null;
+  const section = SECTION_FOR_ITEM_TYPE[item.type];
+  const fragment = item.system._hdcXml;
+  if (!actor || !section || typeof fragment !== 'string') return;
+  const element = parseXml(fragment.trim()).root;
+  if (!element.elements().some((el) => el.hasAttr('XMLID') && el.name !== 'ADDER' && el.name !== 'MODIFIER')) return;
+
+  // Fresh part IDs, above everything the actor already has
+  let floor = Date.now();
+  for (const other of actor.items.contents) floor = Math.max(floor, Number(other.system.ID) || 0);
+  const { xml, id } = insertItems(blankHdc(), { section, fragments: [fragment] }, { minId: floor });
+  const ItemClass = CONFIG.Item.documentClass as unknown as HeroItemClass;
+  const parsed = ItemClass.parseItemsFromHeroJsonToItemDataArray(await heroJsonFromXml(xml));
+  const parentId = Number(item.system.ID);
+  const parts = parsed
+    .filter((d) => d.system.PARENTID === Number(id))
+    .map((d) => ({ ...d, type: item.type, system: { ...d.system, PARENTID: parentId } }));
+  if (!parts.length) return;
+
+  // Keep the compound's stored XML in step with its parts' new IDs
+  const copy = HdcDocument.parse(xml).findById(id!);
+  if (copy) {
+    copy.setAttr('ID', String(parentId));
+    await item.update({ 'system._hdcXml': copy.toString() });
+  }
+  await actor.createEmbeddedDocuments('Item', parts);
 }
 
 interface HeroItem extends FoundryItem {

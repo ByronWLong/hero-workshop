@@ -34,6 +34,8 @@ export interface PowerDraft {
   adders: Adder[];
   modifiers: Modifier[];
   parentId: string;
+  /** A compound power's parts */
+  subPowers: Power[];
   // Equipment
   price: number;
   weight: number;
@@ -101,10 +103,34 @@ export function powerDraft(character: Character, section: PowerSection, itemId?:
     adders: p?.adders ? [...p.adders] : [],
     modifiers: p?.modifiers ? [...p.modifiers] : [],
     parentId: p?.parentId ?? '',
+    subPowers: detectedKind === 'compound' && p ? compoundParts(character, section, p) : [],
     price: p?.price ?? 0,
     weight: p?.weight ?? 0,
     carried: p?.carried ?? true,
   };
+}
+
+/** A compound's parts: nested in equipment, PARENTID-linked powers in the Powers section */
+function compoundParts(character: Character, section: PowerSection, compound: PowerLike): Power[] {
+  if (section === 'equipment') return [...(compound.subPowers ?? [])];
+  return character.powers.filter((c) => c.parentId === compound.id);
+}
+
+/** Replaces a compound's parts (e.g. with the powers a nested power form saved) */
+export function setSubPowers(draft: PowerDraft, subPowers: Power[]): PowerDraft {
+  return { ...draft, subPowers };
+}
+
+export function removeSubPower(draft: PowerDraft, id: string): PowerDraft {
+  return { ...draft, subPowers: draft.subPowers.filter((p) => p.id !== id) };
+}
+
+/**
+ * A scratch character whose Powers section holds just the compound's parts, so the ordinary
+ * power form can add and edit them; hand its powers back to `setSubPowers` on save.
+ */
+export function compoundPartsCharacter(character: Character, draft: PowerDraft): Character {
+  return { ...character, powers: draft.subPowers.map((p) => ({ ...p, parentId: undefined })) };
 }
 
 /** Picks a different power: levels/option/adders reset to the new power's defaults */
@@ -266,6 +292,11 @@ export interface PowerCosts {
 }
 
 export function powerCosts(draft: PowerDraft, inherited: Modifier[] = []): PowerCosts {
+  if (draft.kind === 'compound') {
+    const sum = (key: 'baseCost' | 'activeCost' | 'realCost' | 'endCost') =>
+      draft.subPowers.reduce((n, p) => n + (p[key] ?? 0), 0);
+    return { base: sum('activeCost'), active: sum('activeCost'), real: sum('realCost'), end: sum('endCost') };
+  }
   if (draft.kind !== 'power') return { base: 0, active: 0, real: 0, end: 0 };
   const def = getPowerDefinition(draft.xmlId);
   const adders = calculateAdderCost(draft.adders);
@@ -381,10 +412,18 @@ export function powerFormView(character: Character, section: PowerSection, draft
       };
     }),
     inherited: inherited.map((m) => `${m.name} (${fraction(m.value)})`),
+    subPowers: draft.subPowers.map((p) => ({
+      id: p.id,
+      name: p.name,
+      detail: [p.alias && p.alias !== p.name ? p.alias : '', modifierText(p.modifiers)].filter(Boolean).join(' · '),
+      cost: p.realCost ?? 0,
+    })),
     modifierChoices: modifierChoices(),
     costs,
   };
 }
+
+const modifierText = (mods: Modifier[] | undefined) => (mods ?? []).map((m) => `${m.name} (${fraction(m.value)})`).join(', ');
 
 // =============================================================================
 // Saving
@@ -414,6 +453,11 @@ function buildPower(existing: PowerLike | undefined, draft: PowerDraft, costs: P
       isContainer: true,
       levels: 0,
       notes: draft.notes || undefined,
+      parentId: draft.parentId || undefined,
+      baseCost: costs.base,
+      activeCost: costs.active,
+      realCost: costs.real,
+      endCost: costs.end,
     } as Power;
   }
   return {
@@ -467,7 +511,14 @@ export function savePowerDraft(character: Character, section: PowerSection, item
 
   if (section === 'powers') {
     const power = buildPower(existing, draft, costs, character.powers.length);
-    const powers = existing ? character.powers.map((p) => (p.id === power.id ? power : p)) : [...character.powers, power];
+    let powers = existing ? character.powers.map((p) => (p.id === power.id ? power : p)) : [...character.powers, power];
+    if (draft.kind === 'compound') {
+      // The parts follow the compound, linked to it
+      const parts = draft.subPowers.map((p) => ({ ...p, parentId: power.id }));
+      powers = powers.filter((p) => p.parentId !== power.id);
+      const at = powers.findIndex((p) => p.id === power.id);
+      powers.splice(at + 1, 0, ...parts);
+    }
     return { ...character, powers: refreshContainers(powers) };
   }
 
@@ -489,7 +540,7 @@ export function savePowerDraft(character: Character, section: PowerSection, item
     price: draft.price,
     weight: draft.weight,
     carried: draft.carried,
-    subPowers: top?.subPowers,
+    subPowers: draft.kind === 'compound' ? draft.subPowers.map((p) => ({ ...p, parentId: undefined })) : top?.subPowers,
   };
   return { ...character, equipment: top ? equipment.map((e) => (e.id === item.id ? item : e)) : [...equipment, item] };
 }

@@ -4,6 +4,9 @@ import { describe, expect, it } from 'vitest';
 import {
   HdcDocument,
   addAdder,
+  blankHdc,
+  compoundPartsCharacter,
+  setSubPowers,
   addModifier,
   decodeHdcBytes,
   parseHdcFile,
@@ -62,5 +65,36 @@ describe('power drafts', () => {
     const draft = { ...powerDraft(character, 'equipment', item.id), price: 42 };
     const { xml } = updateHdc(EVO, savePowerDraft(character, 'equipment', item.id, draft));
     expect(HdcDocument.parse(xml).findById(item.id)!.getAttr('PRICE')).toBe('42.0');
+  });
+
+  it.each(['equipment', 'powers'] as const)('builds a compound %s item from its parts', (section) => {
+    const base = blankHdc();
+    const character = parseHdcFile(base);
+    let compound = { ...powerDraft(character, section, undefined, 'compound'), name: 'Longsword' };
+    // Parts are added with the ordinary power form, on a scratch character holding just the parts
+    for (const [xmlId, levels] of [['HKA', 1], ['FORCEFIELD', 2]] as const) {
+      const scratch = compoundPartsCharacter(character, compound);
+      const part = { ...selectPower(powerDraft(scratch, 'powers'), xmlId), levels };
+      compound = setSubPowers(compound, savePowerDraft(scratch, 'powers', undefined, part).powers);
+    }
+    expect(powerCosts(compound).real).toBe(compound.subPowers.reduce((n, p) => n + (p.realCost ?? 0), 0));
+
+    const edited = savePowerDraft(character, section, undefined, compound);
+    const { xml } = updateHdc(base, edited);
+    const doc = HdcDocument.parse(xml);
+    const container = doc.section(section === 'equipment' ? 'EQUIPMENT' : 'POWERS')!;
+    const top = container.elements();
+    expect(top).toHaveLength(1);
+    expect(top[0]!.getAttr('XMLID')).toBe('COMPOUNDPOWER');
+    expect(top[0]!.elements('POWER').map((el) => el.getAttr('XMLID'))).toEqual(['HKA', 'FORCEFIELD']);
+
+    // Reopening the compound shows its parts; removing one writes the removal
+    const reparsed = parseHdcFile(xml);
+    const id = (section === 'equipment' ? reparsed.equipment![0]! : reparsed.powers.find((p) => p.type === 'COMPOUNDPOWER')!).id;
+    const reopened = powerDraft(reparsed, section, id);
+    expect(reopened.subPowers.map((p) => p.type)).toEqual(['HKA', 'FORCEFIELD']);
+    const trimmed = setSubPowers(reopened, reopened.subPowers.slice(0, 1));
+    const after = HdcDocument.parse(updateHdc(xml, savePowerDraft(reparsed, section, id, trimmed)).xml);
+    expect(after.findById(id)!.elements('POWER').map((el) => el.getAttr('XMLID'))).toEqual(['HKA']);
   });
 });

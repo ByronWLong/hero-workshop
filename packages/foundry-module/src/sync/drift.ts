@@ -340,9 +340,19 @@ function addedItemChange(item: DriftItemSource): DriftChange {
       const parentId = item.system.PARENTID ? String(item.system.PARENTID) : undefined;
       const parent = parentId ? target.findById(parentId) : undefined;
       if (parent && parent.getAttr('XMLID') === 'COMPOUNDPOWER') {
+        // A compound added alongside it already carries it, nested in the compound's own XML
+        if (target.findById(wanted, parent)) return;
         el.removeAttr('PARENTID');
         parent.appendElement(el);
       } else {
+        // Parts of this compound added before it (as separate items) are now nested in it
+        if (el.getAttr('XMLID') === 'COMPOUNDPOWER') {
+          for (const part of el.descendants()) {
+            const partId = part.getAttr('ID');
+            const loose = partId ? target.findById(partId) : undefined;
+            if (loose?.parent) loose.parent.removeElement(loose);
+          }
+        }
         target.ensureSection(sectionName as Parameters<HdcDocument['ensureSection']>[0]).appendElement(el);
       }
       target.invalidateIndex();
