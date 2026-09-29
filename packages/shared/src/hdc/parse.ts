@@ -1,4 +1,4 @@
-import { BACKGROUND_SKILL_XMLIDS } from './foundry.js';
+import { LABELLED_SKILL_XMLIDS } from './foundry.js';
 /**
  * HDC -> Character view-model parsing.
  *
@@ -800,7 +800,7 @@ function parseSkill(obj: Record<string, unknown>): Skill {
   
   // Build display name - PS: Jeweler, KS: Arcana, Language: Common, etc.
   let displayName = alias;
-  const isBackground = BACKGROUND_SKILL_XMLIDS.includes(xmlid);
+  const isBackground = LABELLED_SKILL_XMLIDS.includes(xmlid);
   if (isBackground) {
     // A custom NAME replaces the label; the label itself may be relabelled (e.g. "Magic Skill Roll")
     displayName = nameAttr || (input ? `${alias}: ${input}` : alias);

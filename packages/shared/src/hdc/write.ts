@@ -54,7 +54,7 @@ import {
   rebindRequiresARoll,
   skillIdentities,
   validateForFoundry,
-  type FoundryValidationIssue, BACKGROUND_SKILL_XMLIDS } from './foundry.js';
+  type FoundryValidationIssue, LABELLED_SKILL_XMLIDS } from './foundry.js';
 import { parseHdcDocument } from './parse.js';
 
 export interface HdcWriteReport {
@@ -915,10 +915,15 @@ const SKILL_SPEC: ItemSpec<Skill> = {
       return;
     }
     const xmlId = a.xmlid ?? el.getAttr('XMLID') ?? '';
-    if (!same(b.xmlid, a.xmlid) && a.xmlid) el.setAttr('XMLID', a.xmlid);
+    if (!same(b.xmlid, a.xmlid) && a.xmlid) {
+      el.setAttr('XMLID', a.xmlid);
+      const choices = lookupSkillCatalog(a.xmlid)?.characteristicChoices ?? [];
+      const choice = choices.find((c) => c.characteristic === (a.characteristic ?? el.getAttr('CHARACTERISTIC'))) ?? choices[0];
+      if (choice) el.setAttr('BASECOST', hdCost(choice.baseCost));
+    }
     if (!same(b.alias, a.alias) && a.alias) el.setAttr('ALIAS', a.alias);
-    if (BACKGROUND_SKILL_XMLIDS.includes(xmlId)) {
-      // Background skills carry their custom NAME explicitly; the display name is derived
+    if (LABELLED_SKILL_XMLIDS.includes(xmlId)) {
+      // Labelled skills (PS, KS, SS, Power, ...) carry their custom NAME explicitly; the display name is derived
       if (!same(b.customName, a.customName)) el.setAttr('NAME', a.customName ?? '');
       else if (!same(b.name, a.name) && !same(b.alias, a.alias)) {
         // Relabelled: the derived name follows; nothing else to write
@@ -979,7 +984,7 @@ const SKILL_SPEC: ItemSpec<Skill> = {
     // A custom name displays as "Name: ALIAS" (see parseSkill); strip that back to NAME
     const bareName = s.name.endsWith(`: ${alias}`) ? s.name.slice(0, -(alias.length + 2)) : s.name;
     const composed = parsed.input !== undefined && bareName === s.name;
-    const customName = BACKGROUND_SKILL_XMLIDS.includes(xmlId)
+    const customName = LABELLED_SKILL_XMLIDS.includes(xmlId)
       ? (s.customName ?? (!composed && bareName !== alias ? bareName : ''))
       : !isCustom && !composed && bareName !== alias && bareName !== cat?.display ? bareName : '';
 

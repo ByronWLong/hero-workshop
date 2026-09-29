@@ -3,6 +3,8 @@ import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import {
   HdcDocument,
+  addModifier,
+  blankHdc,
   decodeHdcBytes,
   itemForm,
   itemFormValues,
@@ -12,6 +14,7 @@ import {
   rollSkillChoices,
   saveItemForm,
   savePowerDraft,
+  selectPower,
   setRequiredSkill,
   updateHdc,
 } from '../src/index.js';
@@ -81,5 +84,46 @@ describe('Requires A Roll skill binding', () => {
       character = saveItemForm(character, 'skills', skill.id, itemFormValues(character, 'skills', skill.id));
     }
     expect(updateHdc(SKRALK, character).report.changes).toEqual([]);
+  });
+
+  it('converts a Professional Skill casting skill to a Power skill, turning its spells back into Skill rolls', () => {
+    // A caster built with a PS "Magic Skill" and a spell bound to it as a PS roll (like Eli)
+    const base = blankHdc();
+    let character = parseHdcFile(base);
+    character = saveItemForm(character, 'skills', undefined, {
+      xmlid: 'PROFESSIONAL_SKILL', input: 'Wizardry', name: 'Magic Skill', characteristic: 'INT', levels: 12,
+    });
+    let spell = { ...selectPower(powerDraft(character, 'powers'), 'DRAIN'), name: 'Life Sap', input: 'BODY', levels: 3 };
+    spell = addModifier(spell, 'REQUIRESASKILLROLL');
+    spell = setRequiredSkill(spell, spell.modifiers[0]!.id, 'Magic Skill', character);
+    expect(spell.modifiers[0]!.optionId).toBe('PS');
+    character = savePowerDraft(character, 'powers', undefined, spell);
+    const built = updateHdc(base, character).xml;
+
+    const parsed = parseHdcFile(built);
+    const skill = parsed.skills.find((s) => s.bindingName === 'Magic Skill')!;
+    const psCost = parsed.powers.find((p) => p.name === 'Life Sap')!.realCost!;
+    const converted = saveItemForm(parsed, 'skills', skill.id, { ...itemFormValues(parsed, 'skills', skill.id), xmlid: 'POWERSKILL' });
+
+    // The spell's roll follows the skill: a Skill roll at -1/2 (still -1 per 10 Active Points)
+    const lifeSap = converted.powers.find((p) => p.name === 'Life Sap')!;
+    const rar = lifeSap.modifiers!.find((m) => m.xmlId === 'REQUIRESASKILLROLL')!;
+    expect(rar.optionId).toBe('SKILL');
+    expect(rar.value).toBe(-0.5);
+    expect(lifeSap.realCost!).toBeLessThan(psCost);
+
+    const { xml } = updateHdc(built, converted);
+    const doc = HdcDocument.parse(xml);
+    const skillEl = doc.findById(skill.id)!;
+    expect(skillEl.getAttr('XMLID')).toBe('POWERSKILL');
+    expect(skillEl.getAttr('ALIAS')).toBe('Power');
+    expect(skillEl.getAttr('NAME')).toBe('Magic Skill');
+    expect(skillEl.getAttr('INPUT')).toBe('Wizardry');
+    expect(skillEl.getAttr('BASECOST')).toBe('3.0');
+    const rarEl = doc.findById(rar.id)!;
+    expect(rarEl.getAttr('OPTIONID')).toBe('SKILL');
+    expect(rarEl.getAttr('BASECOST')).toBe('-0.5');
+    expect(rarEl.getAttr('COMMENTS')).toBe('Magic Skill');
+    expect(parseHdcFile(xml).skills.find((s) => s.id === skill.id)!.name).toBe('Magic Skill');
   });
 });

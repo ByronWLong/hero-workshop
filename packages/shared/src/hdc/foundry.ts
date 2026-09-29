@@ -59,6 +59,12 @@ export function isCharacteristicTag(name: string): boolean {
 /** Background skills: rolled as PS/KS/SS, and labelled "PS: Subject" unless given a NAME */
 export const BACKGROUND_SKILL_XMLIDS = ['PROFESSIONAL_SKILL', 'KNOWLEDGE_SKILL', 'SCIENCE_SKILL', 'AREA_KNOWLEDGE', 'CITY_KNOWLEDGE'];
 
+/**
+ * Skills shown as "Label: Subject" with a relabelable ALIAS and an optional NAME: the
+ * background skills plus the Power skill (e.g. "Power: Wizardry", a spellcaster's magic skill).
+ */
+export const LABELLED_SKILL_XMLIDS = [...BACKGROUND_SKILL_XMLIDS, 'POWERSKILL'];
+
 export function skillRollCategory(skillXmlId: string): 'PS' | 'KS' | 'SS' | 'SKILL' {
   if (skillXmlId === 'PROFESSIONAL_SKILL') return 'PS';
   if (skillXmlId === 'SCIENCE_SKILL') return 'SS';

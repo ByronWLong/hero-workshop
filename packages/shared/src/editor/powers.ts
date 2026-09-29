@@ -50,8 +50,61 @@ function skillRollView(m: Modifier, skills: ReturnType<typeof rollSkillChoices>,
     current,
     missing: !!current && !chosen,
     // e.g. a Skill roll bound to a PS: hero6e expects a PS roll (which is worth less)
-    mismatch: wanted && wanted !== category ? { skill: chosen!.value, wanted: rollName(wanted), current: rollName(category) } : undefined,
+    mismatch: wanted && wanted !== category
+      ? {
+          skill: chosen!.value,
+          wanted: rollName(wanted),
+          current: rollName(category),
+          // A casting skill bought as a Professional Skill is usually meant to be a Power skill
+          professional: chosen!.xmlid === 'PROFESSIONAL_SKILL',
+        }
+      : undefined,
   };
+}
+
+/**
+ * After a skill changes type or name, points the Requires A Roll limitations bound to it at
+ * the skill as it is now: its current name, and the roll type the new skill type needs (a
+ * Professional Skill converted to a Power skill takes a Skill roll again). Affected powers
+ * and equipment are re-saved so their costs follow.
+ */
+export function retargetSkillRolls(
+  character: Character,
+  before: { bindingName?: string; name: string; xmlid?: string },
+  after: { bindingName?: string; name: string; xmlid?: string; input?: string },
+): Character {
+  const oldName = (before.bindingName ?? before.name).toLowerCase();
+  const newName = after.bindingName ?? after.name;
+  const newCategory = skillRollCategory(after.xmlid ?? '');
+  if (oldName === newName.toLowerCase() && skillRollCategory(before.xmlid ?? '') === newCategory) return character;
+
+  const bound = (m: Modifier) =>
+    m.xmlId === 'REQUIRESASKILLROLL' && SKILL_ROLL_OPTION.test(m.optionId ?? '') && (m.comments ?? '').trim().toLowerCase() === oldName;
+  const retarget = (m: Modifier): Modifier => {
+    if (!bound(m)) return m;
+    const variant = SKILL_ROLL_OPTION.exec(m.optionId ?? '')?.[2] ?? '';
+    const option = getModifierByXmlId('REQUIRESASKILLROLL')?.options?.find((o) => o.xmlId === newCategory + variant);
+    return refreshModifier({
+      ...m,
+      comments: newName,
+      optionId: option?.xmlId ?? m.optionId,
+      optionAlias: newCategory === 'SKILL' ? (option?.display ?? m.optionAlias) : after.input || newName,
+    });
+  };
+
+  let result = character;
+  const targets: { section: PowerSection; id: string }[] = [
+    ...character.powers.filter((p) => p.modifiers?.some(bound)).map((p) => ({ section: 'powers' as const, id: p.id })),
+    ...(character.equipment ?? []).flatMap((e) => [
+      ...(e.modifiers?.some(bound) ? [{ section: 'equipment' as const, id: e.id }] : []),
+      ...(e.subPowers ?? []).filter((p) => p.modifiers?.some(bound)).map((p) => ({ section: 'equipment' as const, id: p.id })),
+    ]),
+  ];
+  for (const { section, id } of targets) {
+    const draft = powerDraft(result, section, id);
+    result = savePowerDraft(result, section, id, { ...draft, modifiers: draft.modifiers.map(retarget) });
+  }
+  return result;
 }
 
 /**

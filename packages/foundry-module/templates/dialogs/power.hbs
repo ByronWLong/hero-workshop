@@ -178,10 +178,19 @@
     </div>
     {{#if skill.missing}}<p class="hint hw-bad">hero6e can't find a skill named "{{skill.current}}", so the roll won't work. Choose the skill.</p>{{/if}}
     {{#if skill.mismatch}}
+    {{#if (and skill.mismatch.professional ../canConvertSkills)}}
+    <p class="hint hw-mod-mismatch">
+      {{skill.mismatch.skill}} is a Professional Skill, which only supports a PS roll (worth less than this {{skill.mismatch.current}} roll).
+      A spellcaster's magic skill should be a Power skill:
+      <a data-action="convertToPowerSkill" data-id="{{id}}" data-skill="{{skill.mismatch.skill}}">make {{skill.mismatch.skill}} a Power skill</a>
+      (keeps this roll), or <a data-action="matchRollCategory" data-id="{{id}}" data-skill="{{skill.mismatch.skill}}">make this a PS roll</a>.
+    </p>
+    {{else}}
     <p class="hint hw-mod-mismatch">
       {{skill.mismatch.skill}} is a {{skill.mismatch.wanted}} skill, but this is a {{skill.mismatch.current}} roll.
       <a data-action="matchRollCategory" data-id="{{id}}" data-skill="{{skill.mismatch.skill}}">Make it a {{skill.mismatch.wanted}} roll</a>
     </p>
+    {{/if}}
     {{/if}}
     {{/if}}
     {{/each}}

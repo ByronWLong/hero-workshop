@@ -8,6 +8,8 @@ import {
   addCustomModifier,
   addModifier,
   compoundPartsCharacter,
+  itemFormValues,
+  saveItemForm,
   powerDraft,
   powerFormView,
   removeAdder,
@@ -59,6 +61,7 @@ export class PowerDialog extends HeroWorkshopApplication {
       removePart: PowerDialog.#onRemovePart,
       pickIcon: PowerDialog.#onPickIcon,
       matchRollCategory: PowerDialog.#onMatchRollCategory,
+      convertToPowerSkill: PowerDialog.#onConvertToPowerSkill,
       clearIcon: PowerDialog.#onClearIcon,
     },
   };
@@ -99,6 +102,8 @@ export class PowerDialog extends HeroWorkshopApplication {
     ];
     return {
       ...view,
+      // Skills can be changed from here only in the editor's own forms (not a compound part's)
+      canConvertSkills: !this.config.idScope,
       icon: { src: this.#draft.icon || this.config.defaultIcon || DEFAULT_ICON, custom: !!this.#draft.icon },
       kindChoices: isNew ? kinds.map((k) => ({ ...k, checked: k.value === this.#draft.kind })) : undefined,
       costs: view.isPower || view.kind === 'compound'
@@ -195,6 +200,18 @@ export class PowerDialog extends HeroWorkshopApplication {
 
   static #onRemovePart(this: PowerDialog, _event: Event, target: HTMLElement) {
     this.#update(removeSubPower(this.#draft, target.dataset.id!));
+  }
+
+  /** Converts the bound Professional Skill to a Power skill; its other bound spells follow */
+  static #onConvertToPowerSkill(this: PowerDialog, _event: Event, target: HTMLElement) {
+    const name = target.dataset.skill!;
+    const character = this.config.character();
+    const skill = character.skills.find((s) => (s.bindingName ?? s.name).toLowerCase() === name.toLowerCase());
+    if (!skill) return;
+    const converted = saveItemForm(character, 'skills', skill.id, { ...itemFormValues(character, 'skills', skill.id), xmlid: 'POWERSKILL' });
+    this.config.onSave(converted);
+    this.#update(setRequiredSkill(this.#draft, target.dataset.id!, name, converted));
+    ui.notifications.info(`${name} is now a Power skill; spells that roll it use a Skill roll.`);
   }
 
   static #onMatchRollCategory(this: PowerDialog, _event: Event, target: HTMLElement) {

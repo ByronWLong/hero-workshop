@@ -20,7 +20,8 @@ import {
   TALENT_CATALOG_6E,
 } from '../generated/catalog6e.js';
 import { SKILL_CATALOG_6E } from '../generated/skillCatalog6e.js';
-import { BACKGROUND_SKILL_XMLIDS } from '../hdc/foundry.js';
+import { LABELLED_SKILL_XMLIDS } from '../hdc/foundry.js';
+import { retargetSkillRolls } from './powers.js';
 import { sectionItems, setSectionItems, type ListItem, type SectionId } from './lists.js';
 
 export type FormSection = Exclude<SectionId, 'powers' | 'equipment'>;
@@ -73,6 +74,7 @@ const BACKGROUND_ALIAS: Record<string, string> = {
   CITY_KNOWLEDGE: 'CK',
   TRANSPORT_FAMILIARITY: 'TF',
   WEAPON_FAMILIARITY: 'WF',
+  POWERSKILL: 'Power',
 };
 
 const COMBAT_LEVEL_OPTIONS = [
@@ -100,7 +102,7 @@ const LANGUAGE_OPTIONS = [
 
 function skillValues(skill: Skill | undefined): FormValues {
   const xmlid = skill?.xmlid ?? 'CUSTOMSKILL';
-  if (BACKGROUND_SKILL_XMLIDS.includes(xmlid)) {
+  if (LABELLED_SKILL_XMLIDS.includes(xmlid)) {
     return {
       ...otherSkillValues(skill, xmlid),
       label: skill?.alias || BACKGROUND_ALIAS[xmlid] || '',
@@ -170,7 +172,7 @@ function skillForm(v: FormValues, isNew: boolean): ItemForm {
   if (entry?.inputLabel || BACKGROUND_ALIAS[xmlid]) {
     fields.push({ name: 'input', label: entry?.inputLabel ?? 'Subject', type: 'text', value: str(v.input) });
   }
-  if (BACKGROUND_SKILL_XMLIDS.includes(xmlid)) {
+  if (LABELLED_SKILL_XMLIDS.includes(xmlid)) {
     fields.push(
       { name: 'label', label: 'Label', type: 'text', value: str(v.label) || BACKGROUND_ALIAS[xmlid] || '', hint: `Shown before the subject; e.g. change ${BACKGROUND_ALIAS[xmlid] ?? 'PS'} to Magic Skill Roll` },
       { name: 'name', label: 'Name', type: 'text', value: str(v.name), hint: 'Optional; replaces "Label: Subject". Requires A Roll links to the skill by this name (or the label, if there is none)' },
@@ -211,10 +213,14 @@ function skillForm(v: FormValues, isNew: boolean): ItemForm {
   return { title: isNew ? 'Add skill' : 'Edit skill', fields, cost: skillCost(v), costLabel: 'pts' };
 }
 
-/** PS/KS/SS and area/city knowledge: "Label: Subject", or a custom name */
-function saveBackgroundSkill(existing: Skill | undefined, v: FormValues, position: number): Skill {
+/** PS/KS/SS, area/city knowledge and Power skills: "Label: Subject", or a custom name */
+function saveLabelledSkill(existing: Skill | undefined, v: FormValues, position: number): Skill {
   const xmlid = str(v.xmlid);
-  const alias = str(v.label).trim() || BACKGROUND_ALIAS[xmlid] || 'PS';
+  // A label that is just another type's standard label (PS after converting to a Power skill) follows the type
+  const typed = str(v.label).trim();
+  const standard = Object.values(BACKGROUND_ALIAS);
+  const retyped = !!existing && existing.xmlid !== xmlid;
+  const alias = (typed && !(retyped && standard.includes(typed)) ? typed : BACKGROUND_ALIAS[xmlid]) || 'PS';
   const input = str(v.input).trim() || undefined;
   const customName = str(v.name).trim() || undefined;
   const cost = skillCost(v);
@@ -240,7 +246,7 @@ function saveBackgroundSkill(existing: Skill | undefined, v: FormValues, positio
 
 function saveSkill(existing: Skill | undefined, v: FormValues, position: number): Skill {
   const xmlid = str(v.xmlid);
-  if (BACKGROUND_SKILL_XMLIDS.includes(xmlid)) return saveBackgroundSkill(existing, v, position);
+  if (LABELLED_SKILL_XMLIDS.includes(xmlid)) return saveLabelledSkill(existing, v, position);
   const entry = SKILLS_BY_ID.get(xmlid);
   const alias = BACKGROUND_ALIAS[xmlid] ?? (xmlid === 'LANGUAGES' ? 'Language' : existing?.alias ?? entry?.display);
   const input = str(v.input).trim() || undefined;
@@ -494,8 +500,12 @@ export function saveItemForm(character: Character, section: FormSection, itemId:
   }
 
   switch (section) {
-    case 'skills':
-      return { ...character, skills: put(character.skills, saveSkill(existing as Skill | undefined, values, position)) };
+    case 'skills': {
+      const before = existing as Skill | undefined;
+      const skill = saveSkill(before, values, position);
+      const saved = { ...character, skills: put(character.skills, skill) };
+      return before ? retargetSkillRolls(saved, before, skill) : saved;
+    }
 
     case 'perks': {
       const cost = num(values.cost);
