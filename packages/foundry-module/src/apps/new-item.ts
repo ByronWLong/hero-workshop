@@ -32,9 +32,7 @@ export interface NewItemKind {
 
 export const NEW_ITEM_KINDS: NewItemKind[] = [
   { id: 'equipment', label: 'Equipment', section: 'equipment' },
-  { id: 'compound-equipment', label: 'Compound equipment (e.g. a sword: damage + parry)', section: 'equipment', kind: 'compound' },
   { id: 'power', label: 'Power', section: 'powers' },
-  { id: 'compound', label: 'Compound power', section: 'powers', kind: 'compound' },
   { id: 'skill', label: 'Skill', section: 'skills' },
   { id: 'perk', label: 'Perk', section: 'perks' },
   { id: 'talent', label: 'Talent', section: 'talents' },

@@ -65,11 +65,12 @@ export class PowerDialog extends HeroWorkshopApplication {
 
   constructor(readonly config: PowerDialogOptions) {
     const draft = powerDraft(config.character(), config.section, config.itemId, config.kind);
+    // New items pick their kind in the form, so their title names only the section
     const noun = config.idScope
       ? 'part'
       : config.section === 'equipment'
-        ? draft.kind === 'compound' ? 'compound equipment' : 'equipment'
-        : TITLES[draft.kind];
+        ? draft.kind === 'compound' && config.itemId ? 'compound equipment' : 'equipment'
+        : config.itemId ? TITLES[draft.kind] : 'power';
     const key = config.itemId ?? `new-${draft.kind}-${Date.now().toString(36)}`;
     super({
       id: `hero-workshop-power-${config.idScope ? `${config.idScope}-` : ''}${config.section}-${key}`,
@@ -82,8 +83,16 @@ export class PowerDialog extends HeroWorkshopApplication {
 
   async _prepareContext() {
     const view = powerFormView(this.config.character(), this.config.section, this.#draft, this.config.itemId);
+    // A new top-level item can be one power, a compound of several, or (in Powers) a list
+    const isNew = !this.config.itemId && !this.config.idScope;
+    const kinds = [
+      { value: 'power', label: 'One power', hint: this.config.section === 'equipment' ? 'e.g. armor, a torch' : 'a single power' },
+      { value: 'compound', label: 'Compound', hint: this.config.section === 'equipment' ? 'several powers, e.g. a sword: damage + parry' : 'several powers bought together' },
+      ...(this.config.section === 'powers' ? [{ value: 'list', label: 'List', hint: 'a heading that groups powers' }] : []),
+    ];
     return {
       ...view,
+      kindChoices: isNew ? kinds.map((k) => ({ ...k, checked: k.value === this.#draft.kind })) : undefined,
       costs: view.isPower || view.kind === 'compound'
         ? [
             { label: 'Base', value: view.costs.base },
@@ -107,6 +116,8 @@ export class PowerDialog extends HeroWorkshopApplication {
     const [kind, id, prop] = field.split('.');
 
     switch (kind) {
+      case 'kind':
+        return this.#update({ ...draft, kind: value as PowerDraft['kind'] });
       case 'xmlId':
         return this.#update(selectPower(draft, value));
       case 'addAdder':

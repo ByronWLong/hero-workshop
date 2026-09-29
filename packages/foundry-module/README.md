@@ -32,7 +32,8 @@ npm run build:foundry            # from the repo root; output in packages/foundr
   - Heroic and Superheroic create a PC or NPC.
   - Vehicle, Base, Computer, Automaton and AI create hero6e's matching actor type, with only that template's characteristics.
 - **Items:** "Edit in Hero Workshop" on an item owned by an actor opens that actor's editor with the item's edit form already open.
-- **New world items:** the Items sidebar's **Hero Workshop Item** button creates equipment, compound equipment, powers, compound powers, skills, perks, talents, maneuvers or complications with the same forms. A compound's form lists its powers; **Add power** opens the power form for another part. hero6e's own parser builds the item, so it matches an uploaded one.
+- **New world items:** the Items sidebar's **Hero Workshop Item** button creates equipment, powers, skills, perks, talents, maneuvers or complications with the same forms. A new equipment or power form starts by choosing **One power** or **Compound** (or **List**, for powers); a compound's form lists its powers, and **Add power** opens the power form for another part.
+- **Dropped items:** items dropped onto a character's sheet (from the Items sidebar, a compendium or another character) are written into its Hero Designer data straight away, so the editor doesn't report them as changes made in Foundry. hero6e's own parser builds the item, so it matches an uploaded one.
 - **Drag and drop:**
   - Drag a row out of the editor onto the Items sidebar (or one of its folders) to make a world item. Lists and frameworks become a folder holding the parent item and its members, as in hero6e's compendiums.
   - Compound powers (most equipment) stay a single world item, with their parts kept in the item's Hero Designer data. Compounds dragged from a hero6e actor sheet to the sidebar are handled the same way. When one is dropped onto an actor, Hero Workshop adds its parts as child items, which is how hero6e shows compounds.
@@ -51,7 +52,7 @@ npm run build:foundry            # from the repo root; output in packages/foundr
   api.openInspector(actor);
   api.driftReport(actor); // Foundry-side changes not yet in the HDC
   api.createCharacter();
-  api.createItem('equipment'); // or power, compound, skill, perk, talent, maneuver, complication
+  api.createItem('equipment'); // or power, skill, perk, talent, maneuver, complication
   api.openItemEditor(item);
   api.openRaceLibrary();
   ```

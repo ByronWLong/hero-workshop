@@ -629,3 +629,40 @@
   margin-top: 0.5rem;
   width: auto;
 }
+
+/* ---------------------------------------------------------------- new power kind */
+
+.hero-workshop .hw-kind-choices {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
+  gap: var(--hw-gap);
+  margin-bottom: 0.75rem;
+}
+
+.hero-workshop .hw-kind-choice {
+  display: flex;
+  flex-direction: column;
+  padding: 0.4rem 0.6rem;
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.hero-workshop .hw-kind-choice:hover {
+  background: var(--hw-hover);
+}
+
+.hero-workshop .hw-kind-choice input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.hero-workshop .hw-kind-choice.active {
+  border-color: var(--color-border-highlight);
+  box-shadow: 0 0 4px var(--color-border-highlight);
+}
+
+.hero-workshop .hw-kind-choice:focus-within {
+  outline: 1px solid var(--color-border-highlight);
+}

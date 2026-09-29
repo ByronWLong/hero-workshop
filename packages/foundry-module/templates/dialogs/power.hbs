@@ -1,4 +1,16 @@
 <div class="hw-scroll standard-form hw-dialog-body">
+  {{#if kindChoices}}
+  <div class="hw-kind-choices" role="radiogroup" aria-label="What to add">
+    {{#each kindChoices}}
+    <label class="hw-kind-choice {{#if checked}}active{{/if}}">
+      <input type="radio" name="kind" data-field="kind" value="{{value}}" {{checked checked}}>
+      <strong>{{label}}</strong>
+      <span class="hint">{{hint}}</span>
+    </label>
+    {{/each}}
+  </div>
+  {{/if}}
+
   {{#if isPower}}
   <div class="form-group">
     <label>Power</label>

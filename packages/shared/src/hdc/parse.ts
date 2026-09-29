@@ -1465,9 +1465,6 @@ function parseEquipmentItem(obj: Record<string, unknown>): Equipment {
   ];
   
   for (const charType of characteristicTypes) {
-    // Skip DCV if already handled above (DCV has special handling for shields)
-    if (charType === 'DCV') continue;
-    
     const charElement = obj[charType];
     if (charElement) {
       const charArr = Array.isArray(charElement) ? charElement : [charElement];
@@ -1487,34 +1484,6 @@ function parseEquipmentItem(obj: Record<string, unknown>): Equipment {
           const displayName = powerDef?.display || `+${childPower.levels} ${charType}`;
           childPowerDescriptions.push(`${displayName} (Real Cost: ${childReal})`);
         }
-      }
-    }
-  }
-  
-  // Also check for DCV elements (shields, etc.)
-  const dcvElements = obj['DCV'];
-  if (dcvElements) {
-    const dcvArr = Array.isArray(dcvElements) ? dcvElements : [dcvElements];
-    for (const dcv of dcvArr) {
-      if (typeof dcv === 'object' && dcv !== null) {
-        const dcvObj = dcv as Record<string, unknown>;
-        const dcvMods = parseModifiers(dcvObj);
-        const dcvBase = getAttrNum(dcvObj, 'BASECOST', 0);
-        const dcvLevels = getAttrNum(dcvObj, 'LEVELS', 0);
-        const dcvLvlCost = 5; // DCV costs 5 per level
-        
-        const dcvLimTotal = dcvMods
-          .filter((m) => (m.value ?? 0) < 0)
-          .reduce((sum, m) => sum + Math.abs(m.value ?? 0), 0);
-        
-        const dcvActive = dcvBase + (dcvLevels * dcvLvlCost);
-        const dcvReal = dcvLimTotal > 0 ? heroRoundCost(dcvActive / (1 + dcvLimTotal)) : dcvActive;
-        
-        totalActiveCost += dcvActive;
-        totalRealCost += dcvReal;
-        
-        const dcvModDesc = dcvMods.map(m => m.name).join(', ');
-        childPowerDescriptions.push(`+${dcvLevels} DCV${dcvModDesc ? ` (${dcvModDesc})` : ''} (Real Cost: ${dcvReal})`);
       }
     }
   }
