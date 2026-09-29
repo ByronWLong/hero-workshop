@@ -23,6 +23,7 @@ export {
   normalizeForFoundry,
   rebindRequiresARoll,
   skillRollCategory,
+  BACKGROUND_SKILL_XMLIDS,
   REQUIRED_COMPLICATION_ADDERS,
   ATTACK_DEFENSE_DEFAULTS,
   type FoundryValidationIssue,

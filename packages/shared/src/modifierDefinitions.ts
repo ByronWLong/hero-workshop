@@ -1115,7 +1115,16 @@ export const LIMITATIONS: Record<string, ModifierDefinition> = {
 // Modifiers the hand-written definitions above don't cover come from Hero Designer's template.
 // Hand-written entries win: they carry curated cost behaviour.
 for (const entry of MODIFIER_CATALOG_6E) {
-  if (ADVANTAGES[entry.xmlId] || LIMITATIONS[entry.xmlId]) continue;
+  const existing = ADVANTAGES[entry.xmlId] ?? LIMITATIONS[entry.xmlId];
+  if (existing) {
+    // ...but pick up options they leave out (e.g. Requires A Roll's PS/KS/SS rolls)
+    const known = new Set((existing.options ?? []).map((o) => o.xmlId));
+    const missing = (entry.options ?? []).filter((o) => !known.has(o.xmlId));
+    if (existing.options && missing.length) {
+      existing.options.push(...missing.map((o) => ({ xmlId: o.xmlId, display: o.display, baseCost: o.baseCost ?? 0, lvlVal: o.lvlVal })));
+    }
+    continue;
+  }
   const definition = modifierFromCatalog(entry);
   (definition.isLimitation ? LIMITATIONS : ADVANTAGES)[entry.xmlId] = definition;
 }

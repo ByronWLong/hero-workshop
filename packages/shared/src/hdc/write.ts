@@ -54,8 +54,7 @@ import {
   rebindRequiresARoll,
   skillIdentities,
   validateForFoundry,
-  type FoundryValidationIssue,
-} from './foundry.js';
+  type FoundryValidationIssue, BACKGROUND_SKILL_XMLIDS } from './foundry.js';
 import { parseHdcDocument } from './parse.js';
 
 export interface HdcWriteReport {
@@ -689,7 +688,8 @@ function updateModifier(ctx: WriteContext, el: XmlElement, b: Modifier, a: Modif
     if (a.input) el.setAttr('INPUT', a.input);
     else el.removeAttr('INPUT');
   }
-  if (!same(b.notes, a.notes)) {
+  if (!same(b.comments, a.comments)) el.setAttr('COMMENTS', a.comments ?? '');
+  else if (!same(b.notes, a.notes)) {
     // Modifier "notes" were read from NOTES, falling back to COMMENTS (the Requires A Roll binding)
     if (el.hasAttr('COMMENTS') && !el.firstElement('NOTES')?.text.trim()) el.setAttr('COMMENTS', a.notes ?? '');
     else setNotes(el, a.notes);
@@ -722,7 +722,7 @@ function createModifier(ctx: WriteContext, m: Modifier): XmlElement {
     OPTION_ALIAS: m.optionAlias,
     NAME: '',
     INPUT: m.input,
-    COMMENTS: m.notes ?? '',
+    COMMENTS: m.comments ?? m.notes ?? '',
     PRIVATE: 'No',
     FORCEALLOW: 'No',
   });
@@ -903,9 +903,9 @@ function writeSkillName(el: XmlElement, name: string): void {
 const SKILL_SPEC: ItemSpec<Skill> = {
   handled: new Set([
     'name', 'alias', 'levels', 'characteristic', 'proficiency', 'familiarity', 'everyman',
-    'nativeTongue', 'option', 'optionAlias', 'notes', 'xmlid', 'roll', 'input',
+    'nativeTongue', 'option', 'optionAlias', 'notes', 'xmlid', 'roll', 'input', 'customName',
   ]),
-  derived: new Set(['baseCost', 'realCost', 'activeCost', 'type', 'categories', 'display', 'textOutput', 'isGroup', 'isEnhancer', 'enhancerType', 'isEverymanGroup', 'levelCost', 'abbreviation']),
+  derived: new Set(['baseCost', 'realCost', 'activeCost', 'type', 'categories', 'display', 'textOutput', 'isGroup', 'isEnhancer', 'enhancerType', 'isEverymanGroup', 'levelCost', 'abbreviation', 'bindingName']),
 
   update(_ctx, el, b, a) {
     if (a.isGroup || a.isEnhancer) {
@@ -917,7 +917,13 @@ const SKILL_SPEC: ItemSpec<Skill> = {
     const xmlId = a.xmlid ?? el.getAttr('XMLID') ?? '';
     if (!same(b.xmlid, a.xmlid) && a.xmlid) el.setAttr('XMLID', a.xmlid);
     if (!same(b.alias, a.alias) && a.alias) el.setAttr('ALIAS', a.alias);
-    if (!same(b.name, a.name)) writeSkillName(el, a.name);
+    if (BACKGROUND_SKILL_XMLIDS.includes(xmlId)) {
+      // Background skills carry their custom NAME explicitly; the display name is derived
+      if (!same(b.customName, a.customName)) el.setAttr('NAME', a.customName ?? '');
+      else if (!same(b.name, a.name) && !same(b.alias, a.alias)) {
+        // Relabelled: the derived name follows; nothing else to write
+      } else if (!same(b.name, a.name) && (el.getAttr('ALIAS') ?? '') in BACKGROUND_PREFIXES) writeSkillName(el, a.name);
+    } else if (!same(b.name, a.name)) writeSkillName(el, a.name);
     // Editors that don't carry `input` leave it undefined; only an explicit value is an edit
     if (!same(b.input, a.input) && a.input) el.setAttr('INPUT', a.input);
     if (!same(b.levels, a.levels)) el.setAttr('LEVELS', hdInt(a.levels));
@@ -973,7 +979,9 @@ const SKILL_SPEC: ItemSpec<Skill> = {
     // A custom name displays as "Name: ALIAS" (see parseSkill); strip that back to NAME
     const bareName = s.name.endsWith(`: ${alias}`) ? s.name.slice(0, -(alias.length + 2)) : s.name;
     const composed = parsed.input !== undefined && bareName === s.name;
-    const customName = !isCustom && !composed && bareName !== alias && bareName !== cat?.display ? bareName : '';
+    const customName = BACKGROUND_SKILL_XMLIDS.includes(xmlId)
+      ? (s.customName ?? (!composed && bareName !== alias ? bareName : ''))
+      : !isCustom && !composed && bareName !== alias && bareName !== cat?.display ? bareName : '';
 
     const el = createElement('SKILL', {
       XMLID: xmlId,

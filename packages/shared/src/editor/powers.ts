@@ -13,6 +13,72 @@ import {
 import { getAllModifiers, getModifierByXmlId, type ModifierDefinition } from '../modifierDefinitions.js';
 import { calculateAdderCost, heroRoundCost } from '../utils.js';
 import { fractionText as fraction } from './lists.js';
+import { skillRollCategory } from '../hdc/foundry.js';
+
+/** Requires A Roll options that roll a skill: SKILL, PS, KS, SS (each with -1 per 5/20 AP variants) */
+const SKILL_ROLL_OPTION = /^(SKILL|PS|KS|SS)(1PER5|1PER20)?$/;
+
+/** Skills that can't be rolled themselves: levels, enhancers, languages */
+const NOT_ROLLED = new Set(['COMBAT_LEVELS', 'SKILL_LEVELS', 'LANGUAGES', 'JACK_OF_ALL_TRADES', 'LINGUIST', 'SCHOLAR', 'SCIENTIST', 'TRAVELER']);
+
+/** The character's skills a Requires A Roll can use, by the name hero6e matches on */
+export function rollSkillChoices(character: Character) {
+  const skills = character.skills.filter((s) => !s.isGroup && !s.isEnhancer && !NOT_ROLLED.has(s.xmlid ?? ''));
+  const names = skills.map((s) => s.bindingName ?? s.name);
+  return skills.map((s, i) => {
+    const value = names[i]!;
+    return {
+      value,
+      label: s.name === value ? s.name : `${s.name} (as "${value}")`,
+      xmlid: s.xmlid ?? '',
+      input: s.input,
+      // hero6e can't tell apart skills that share a name; they need a name of their own first
+      ambiguous: names.filter((n) => n.toLowerCase() === value.toLowerCase()).length > 1,
+    };
+  });
+}
+
+const rollName = (category: string | undefined) => (category === 'SKILL' ? 'Skill' : (category ?? ''));
+
+/** The Requires A Roll form's skill picker, and whether the roll's category suits the skill */
+function skillRollView(m: Modifier, skills: ReturnType<typeof rollSkillChoices>, current: string) {
+  const chosen = skills.find((s) => s.value.toLowerCase() === current.toLowerCase());
+  const category = SKILL_ROLL_OPTION.exec(m.optionId ?? '')?.[1];
+  const wanted = chosen ? skillRollCategory(chosen.xmlid) : undefined;
+  return {
+    choices: skills.map((s) => ({ ...s, selected: s === chosen })),
+    current,
+    missing: !!current && !chosen,
+    // e.g. a Skill roll bound to a PS: hero6e expects a PS roll (which is worth less)
+    mismatch: wanted && wanted !== category ? { skill: chosen!.value, wanted: rollName(wanted), current: rollName(category) } : undefined,
+  };
+}
+
+/**
+ * Points a Requires A Roll at one of the character's skills: records its name (COMMENTS) and
+ * switches the roll's category to match the skill (a PS needs a PS roll), keeping any
+ * -1 per 5/20 Active Points variant.
+ */
+export function setRequiredSkill(draft: PowerDraft, id: string, skillName: string, character: Character): PowerDraft {
+  const skill = rollSkillChoices(character).find((s) => s.value === skillName);
+  return {
+    ...draft,
+    modifiers: draft.modifiers.map((m) => {
+      if (m.id !== id) return m;
+      const variant = SKILL_ROLL_OPTION.exec(m.optionId ?? '')?.[2] ?? '';
+      const def = m.xmlId ? getModifierByXmlId(m.xmlId) : undefined;
+      const wanted = skill ? skillRollCategory(skill.xmlid) + variant : m.optionId;
+      const option = def?.options?.find((o) => o.xmlId === wanted);
+      return refreshModifier({
+        ...m,
+        comments: skillName,
+        optionId: option?.xmlId ?? m.optionId,
+        // Hero Designer shows the skill's subject here for background-skill rolls
+        optionAlias: skill && skillRollCategory(skill.xmlid) !== 'SKILL' ? skill.input || skillName : (option?.display ?? m.optionAlias),
+      });
+    }),
+  };
+}
 
 export type PowerKind = 'power' | 'list' | 'compound';
 export type PowerSection = 'powers' | 'equipment';
@@ -399,7 +465,11 @@ export function powerFormView(character: Character, section: PowerSection, draft
     })),
     modifiers: draft.modifiers.map((m) => {
       const mdef = m.xmlId ? getModifierByXmlId(m.xmlId) : undefined;
+      const rollsSkill = m.xmlId === 'REQUIRESASKILLROLL' && SKILL_ROLL_OPTION.test(m.optionId ?? '');
+      const skills = rollsSkill ? rollSkillChoices(character) : [];
+      const current = m.comments?.trim() ?? '';
       return {
+        skill: rollsSkill ? skillRollView(m, skills, current) : undefined,
         id: m.id,
         name: m.name,
         value: fraction(m.value),

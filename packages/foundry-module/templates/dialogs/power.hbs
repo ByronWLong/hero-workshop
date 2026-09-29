@@ -165,6 +165,25 @@
       {{else}}<span class="hw-mod-value">{{value}}</span>{{/if}}
       <a data-action="removeModifier" data-id="{{id}}" data-tooltip="Remove"><i class="fa-solid fa-xmark" inert></i></a>
     </div>
+    {{#if skill}}
+    <div class="hw-mod-skill">
+      <label for="hw-mod-skill-{{id}}">Skill rolled</label>
+      <select id="hw-mod-skill-{{id}}" data-field="mod.{{id}}.skill">
+        <option value="" {{#unless skill.current}}selected{{/unless}}>Choose the skill…</option>
+        {{#if skill.missing}}<option value="{{skill.current}}" selected>{{skill.current}} (no skill has this name)</option>{{/if}}
+        {{#each skill.choices}}
+        <option value="{{value}}" {{#if selected}}selected{{/if}} {{#if ambiguous}}disabled{{/if}}>{{label}}{{#if ambiguous}} (shares its name; name the skill first){{/if}}</option>
+        {{/each}}
+      </select>
+    </div>
+    {{#if skill.missing}}<p class="hint hw-bad">hero6e can't find a skill named "{{skill.current}}", so the roll won't work. Choose the skill.</p>{{/if}}
+    {{#if skill.mismatch}}
+    <p class="hint hw-mod-mismatch">
+      {{skill.mismatch.skill}} is a {{skill.mismatch.wanted}} skill, but this is a {{skill.mismatch.current}} roll.
+      <a data-action="matchRollCategory" data-id="{{id}}" data-skill="{{skill.mismatch.skill}}">Make it a {{skill.mismatch.wanted}} roll</a>
+    </p>
+    {{/if}}
+    {{/if}}
     {{/each}}
     {{#if inherited.length}}<p class="hint">From the list: {{#each inherited}}{{this}}{{#unless @last}}, {{/unless}}{{/each}}</p>{{/if}}
     <div class="hw-add-modifiers">

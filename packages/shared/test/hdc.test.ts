@@ -158,8 +158,9 @@ describe('updateHdc edits', () => {
   it('rebinds Requires A Roll when the bound skill is renamed', () => {
     const { edited } = load();
     const ps = edited.skills.find((s) => s.id === '200')!;
-    expect(ps.name).toBe('Magic Skill: PS');
-    ps.name = 'Arcane Lore: PS';
+    // A background skill with its own NAME is shown by that name
+    expect(ps.name).toBe('Magic Skill');
+    ps.name = 'Arcane Lore';
 
     const { xml, report } = updateHdc(FIXTURE, edited);
     const skill = element(xml, '200');

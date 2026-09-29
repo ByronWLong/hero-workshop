@@ -131,6 +131,10 @@ export type CharacteristicType =
 // ============================================================================
 
 export interface Skill extends GenericObjectBase {
+  /** The name hero6e gives the skill's Foundry item (NAME, or ALIAS if unnamed): what Requires A Roll binds to */
+  bindingName?: string;
+  /** Background skills (PS, KS, SS, ...): the NAME attribute, which replaces "Label: Subject" */
+  customName?: string;
   type: SkillType;
   characteristic?: CharacteristicType | 'GENERAL';
   roll?: number;
@@ -343,6 +347,8 @@ export interface Modifier {
   input?: string;        // Defense name for AVAD, etc.
   optionId?: string;     // Option identifier (e.g., 'RADIUS', 'LINE' for AOE)
   optionAlias?: string;  // Display name for option (e.g., 'Radius', 'Line')
+  /** COMMENTS: for Requires A Roll, the name of the skill the roll uses */
+  comments?: string;
 }
 
 export interface Adder {

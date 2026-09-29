@@ -19,6 +19,7 @@ import {
   setModifierLevels,
   setModifierOption,
   setModifierValue,
+  setRequiredSkill,
   setSubPowers,
   type Character,
   type PowerDraft,
@@ -57,6 +58,7 @@ export class PowerDialog extends HeroWorkshopApplication {
       editPart: PowerDialog.#onEditPart,
       removePart: PowerDialog.#onRemovePart,
       pickIcon: PowerDialog.#onPickIcon,
+      matchRollCategory: PowerDialog.#onMatchRollCategory,
       clearIcon: PowerDialog.#onClearIcon,
     },
   };
@@ -136,6 +138,7 @@ export class PowerDialog extends HeroWorkshopApplication {
         if (prop === 'option') return this.#update(setModifierOption(draft, id!, value));
         if (prop === 'levels') return this.#update(setModifierLevels(draft, id!, n));
         if (prop === 'value') return this.#update(setModifierValue(draft, id!, n));
+        if (prop === 'skill') return value ? this.#update(setRequiredSkill(draft, id!, value, this.config.character())) : undefined;
         return;
       case 'barrier':
         return this.#update({ ...draft, barrier: { ...draft.barrier, [id!]: n } });
@@ -192,6 +195,10 @@ export class PowerDialog extends HeroWorkshopApplication {
 
   static #onRemovePart(this: PowerDialog, _event: Event, target: HTMLElement) {
     this.#update(removeSubPower(this.#draft, target.dataset.id!));
+  }
+
+  static #onMatchRollCategory(this: PowerDialog, _event: Event, target: HTMLElement) {
+    this.#update(setRequiredSkill(this.#draft, target.dataset.id!, target.dataset.skill!, this.config.character()));
   }
 
   static async #onPickIcon(this: PowerDialog) {

@@ -20,6 +20,7 @@ import {
   TALENT_CATALOG_6E,
 } from '../generated/catalog6e.js';
 import { SKILL_CATALOG_6E } from '../generated/skillCatalog6e.js';
+import { BACKGROUND_SKILL_XMLIDS } from '../hdc/foundry.js';
 import { sectionItems, setSectionItems, type ListItem, type SectionId } from './lists.js';
 
 export type FormSection = Exclude<SectionId, 'powers' | 'equipment'>;
@@ -99,6 +100,17 @@ const LANGUAGE_OPTIONS = [
 
 function skillValues(skill: Skill | undefined): FormValues {
   const xmlid = skill?.xmlid ?? 'CUSTOMSKILL';
+  if (BACKGROUND_SKILL_XMLIDS.includes(xmlid)) {
+    return {
+      ...otherSkillValues(skill, xmlid),
+      label: skill?.alias || BACKGROUND_ALIAS[xmlid] || '',
+      name: skill?.customName ?? '',
+    };
+  }
+  return otherSkillValues(skill, xmlid);
+}
+
+function otherSkillValues(skill: Skill | undefined, xmlid: string): FormValues {
   const alias = BACKGROUND_ALIAS[xmlid];
   const display = SKILLS_BY_ID.get(xmlid)?.display;
   // Show the user's own name only when it's more than the composed display
@@ -158,7 +170,14 @@ function skillForm(v: FormValues, isNew: boolean): ItemForm {
   if (entry?.inputLabel || BACKGROUND_ALIAS[xmlid]) {
     fields.push({ name: 'input', label: entry?.inputLabel ?? 'Subject', type: 'text', value: str(v.input) });
   }
-  fields.push({ name: 'name', label: 'Custom name', type: 'text', value: str(v.name), hint: 'Optional; shown before the skill' });
+  if (BACKGROUND_SKILL_XMLIDS.includes(xmlid)) {
+    fields.push(
+      { name: 'label', label: 'Label', type: 'text', value: str(v.label) || BACKGROUND_ALIAS[xmlid] || '', hint: `Shown before the subject; e.g. change ${BACKGROUND_ALIAS[xmlid] ?? 'PS'} to Magic Skill Roll` },
+      { name: 'name', label: 'Name', type: 'text', value: str(v.name), hint: 'Optional; replaces "Label: Subject". Requires A Roll links to the skill by this name (or the label, if there is none)' },
+    );
+  } else {
+    fields.push({ name: 'name', label: 'Custom name', type: 'text', value: str(v.name), hint: 'Optional; shown before the skill' });
+  }
 
   if (xmlid === 'COMBAT_LEVELS' || xmlid === 'SKILL_LEVELS') {
     const list = xmlid === 'COMBAT_LEVELS' ? COMBAT_LEVEL_OPTIONS : SKILL_LEVEL_OPTIONS;
@@ -192,16 +211,44 @@ function skillForm(v: FormValues, isNew: boolean): ItemForm {
   return { title: isNew ? 'Add skill' : 'Edit skill', fields, cost: skillCost(v), costLabel: 'pts' };
 }
 
+/** PS/KS/SS and area/city knowledge: "Label: Subject", or a custom name */
+function saveBackgroundSkill(existing: Skill | undefined, v: FormValues, position: number): Skill {
+  const xmlid = str(v.xmlid);
+  const alias = str(v.label).trim() || BACKGROUND_ALIAS[xmlid] || 'PS';
+  const input = str(v.input).trim() || undefined;
+  const customName = str(v.name).trim() || undefined;
+  const cost = skillCost(v);
+  const entry = SKILLS_BY_ID.get(xmlid);
+  const characteristic = (str(v.characteristic) || entry?.characteristicChoices?.[0]?.characteristic) as Skill['characteristic'];
+  return {
+    ...(existing ?? { id: newId(), type: 'GENERAL', position }),
+    name: customName ?? (input ? `${alias}: ${input}` : alias),
+    alias,
+    customName,
+    bindingName: customName ?? alias,
+    xmlid,
+    input,
+    characteristic,
+    levels: num(v.levels),
+    familiarity: bool(v.familiarity),
+    everyman: bool(v.everyman) || undefined,
+    notes: str(v.notes) || undefined,
+    baseCost: cost,
+    realCost: existing?.modifiers?.length ? existing.realCost : cost,
+  } as Skill;
+}
+
 function saveSkill(existing: Skill | undefined, v: FormValues, position: number): Skill {
   const xmlid = str(v.xmlid);
+  if (BACKGROUND_SKILL_XMLIDS.includes(xmlid)) return saveBackgroundSkill(existing, v, position);
   const entry = SKILLS_BY_ID.get(xmlid);
   const alias = BACKGROUND_ALIAS[xmlid] ?? (xmlid === 'LANGUAGES' ? 'Language' : existing?.alias ?? entry?.display);
   const input = str(v.input).trim() || undefined;
   const customName = str(v.name).trim();
   // Compose the display name the way the HDC parser does, so saving round-trips cleanly
-  const name =
-    customName ||
-    (BACKGROUND_ALIAS[xmlid] && input ? `${alias}: ${input}` : xmlid === 'LANGUAGES' && input ? `Language:  ${input}` : entry?.display ?? 'Skill');
+  const composed = BACKGROUND_ALIAS[xmlid] && input ? `${alias}: ${input}` : xmlid === 'LANGUAGES' && input ? `Language:  ${input}` : undefined;
+  // Nothing to compose it from (e.g. a Weapon Familiarity listing its weapons as adders): keep the name it has
+  const name = customName || composed || (existing && existing.xmlid === xmlid ? existing.name : entry?.display ?? 'Skill');
   const cost = skillCost(v);
   const option = str(v.option) || undefined;
   const optionLabel = [...COMBAT_LEVEL_OPTIONS, ...SKILL_LEVEL_OPTIONS, ...LANGUAGE_OPTIONS].find((o) => o.value === option)?.label;
@@ -228,7 +275,8 @@ function saveSkill(existing: Skill | undefined, v: FormValues, position: number)
     proficiency: bool(v.proficiency),
     everyman: bool(v.everyman) || undefined,
     option,
-    optionAlias: option ? optionLabel?.replace(/ \(.*\)$/, '') : existing?.optionAlias,
+    // Keep the file's own wording (e.g. "with Demonic Claw") unless the option itself changed
+    optionAlias: option && option !== existing?.option ? optionLabel?.replace(/ \(.*\)$/, '') : existing?.optionAlias,
     nativeTongue: bool(v.nativeTongue) || undefined,
     notes: str(v.notes) || undefined,
     baseCost: cost,

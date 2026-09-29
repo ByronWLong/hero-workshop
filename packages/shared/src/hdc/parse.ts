@@ -1,3 +1,4 @@
+import { BACKGROUND_SKILL_XMLIDS } from './foundry.js';
 /**
  * HDC -> Character view-model parsing.
  *
@@ -799,7 +800,11 @@ function parseSkill(obj: Record<string, unknown>): Skill {
   
   // Build display name - PS: Jeweler, KS: Arcana, Language: Common, etc.
   let displayName = alias;
-  if (input) {
+  const isBackground = BACKGROUND_SKILL_XMLIDS.includes(xmlid);
+  if (isBackground) {
+    // A custom NAME replaces the label; the label itself may be relabelled (e.g. "Magic Skill Roll")
+    displayName = nameAttr || (input ? `${alias}: ${input}` : alias);
+  } else if (input) {
     // For skills like PS, KS, AK - show as "PS: Jeweler"
     if (['PS', 'KS', 'AK', 'SS', 'TF', 'WF'].includes(alias)) {
       displayName = `${alias}: ${input}`;
@@ -817,7 +822,7 @@ function parseSkill(obj: Record<string, unknown>): Skill {
       displayName = input;
     }
   }
-  if (nameAttr && nameAttr !== alias) {
+  if (!isBackground && nameAttr && nameAttr !== alias) {
     // NAME is like "Demonic Claw Focus:" prefix
     displayName = nameAttr ? `${nameAttr}: ${alias}` : displayName;
   }
@@ -902,6 +907,8 @@ function parseSkill(obj: Record<string, unknown>): Skill {
   const parentId = getAttr(obj, 'PARENTID', '');
   
   return {
+    bindingName: (nameAttr || alias).trim() || undefined,
+    customName: isBackground ? nameAttr || undefined : undefined,
     id: getAttr(obj, 'ID') || generateId(),
     name: displayName || xmlid || 'Unknown Skill',
     alias: alias || undefined,
@@ -1655,6 +1662,7 @@ function parseModifiers(obj: Record<string, unknown>): Modifier[] {
         isAdvantage,
         isLimitation,
         notes: getAttr(mod, 'NOTES') || getAttr(mod, 'COMMENTS') || undefined,
+        comments: getAttr(mod, 'COMMENTS') || undefined,
         levels: levels || undefined,
         adders: adders,  // Use already-parsed adders
         input: input || undefined,

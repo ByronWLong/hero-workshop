@@ -56,6 +56,9 @@ export function isCharacteristicTag(name: string): boolean {
 }
 
 /** The Requires A Roll OPTIONID category a skill must be bound with */
+/** Background skills: rolled as PS/KS/SS, and labelled "PS: Subject" unless given a NAME */
+export const BACKGROUND_SKILL_XMLIDS = ['PROFESSIONAL_SKILL', 'KNOWLEDGE_SKILL', 'SCIENCE_SKILL', 'AREA_KNOWLEDGE', 'CITY_KNOWLEDGE'];
+
 export function skillRollCategory(skillXmlId: string): 'PS' | 'KS' | 'SS' | 'SKILL' {
   if (skillXmlId === 'PROFESSIONAL_SKILL') return 'PS';
   if (skillXmlId === 'SCIENCE_SKILL') return 'SS';

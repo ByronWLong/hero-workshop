@@ -703,3 +703,33 @@
   border: none;
   object-fit: cover;
 }
+
+/* ---------------------------------------------------------------- requires a roll: skill */
+
+.hero-workshop .hw-mod-skill {
+  display: flex;
+  align-items: center;
+  gap: var(--hw-gap);
+  padding: 0.2rem 0 0.4rem 1rem;
+  border-bottom: 1px solid var(--hw-rule);
+}
+
+.hero-workshop .hw-mod-skill label {
+  flex: 0 0 auto;
+  font-size: var(--font-size-12);
+  color: var(--color-form-label);
+}
+
+.hero-workshop .hw-mod-skill select {
+  flex: 1;
+}
+
+.hero-workshop .hw-mod-mismatch {
+  margin: 0.2rem 0 0.4rem 1rem;
+  color: var(--color-level-warning);
+}
+
+.hero-workshop .hw-mod-mismatch a {
+  font-weight: bold;
+  text-decoration: underline;
+}
