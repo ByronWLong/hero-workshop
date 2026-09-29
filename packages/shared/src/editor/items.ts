@@ -23,7 +23,7 @@ import {
 } from '../generated/catalog6e.js';
 import { SKILL_CATALOG_6E } from '../generated/skillCatalog6e.js';
 import { getPowerDefinition } from '../powerDefinitions.js';
-import { LABELLED_SKILL_XMLIDS } from '../hdc/foundry.js';
+import { LABELLED_SKILL_XMLIDS, skillItemName } from '../hdc/foundry.js';
 import { retargetSkillRolls } from './powers.js';
 import { sectionItems, setSectionItems, type ListItem, type SectionId } from './lists.js';
 
@@ -255,8 +255,8 @@ function skillForm(v: FormValues, isNew: boolean, character?: Character): ItemFo
   }
   if (LABELLED_SKILL_XMLIDS.includes(xmlid)) {
     fields.push(
-      { name: 'label', label: 'Label', type: 'text', value: str(v.label) || BACKGROUND_ALIAS[xmlid] || '', hint: `Shown before the subject; e.g. change ${BACKGROUND_ALIAS[xmlid] ?? 'PS'} to Magic Skill Roll` },
-      { name: 'name', label: 'Name', type: 'text', value: str(v.name), hint: 'Optional; replaces "Label: Subject". Requires A Roll links to the skill by this name (or the label, if there is none)' },
+      { name: 'label', label: 'Label', type: 'text', value: str(v.label) || BACKGROUND_ALIAS[xmlid] || '', hint: `Shown before the subject, e.g. "${str(v.label) || BACKGROUND_ALIAS[xmlid] || 'PS'}: ${str(v.input) || 'Wizardry'}"; change ${BACKGROUND_ALIAS[xmlid] ?? 'PS'} to MSR or Magic Skill Roll if you like` },
+      { name: 'name', label: 'Name', type: 'text', value: str(v.name), hint: `Optional. The skill is called "${skillItemName(str(v.name), str(v.label) || BACKGROUND_ALIAS[xmlid], str(v.input))}" in Foundry, and spells' Requires A Roll links to it by that name` },
     );
   } else {
     fields.push({ name: 'name', label: 'Custom name', type: 'text', value: str(v.name), hint: 'Optional; shown before the skill' });
@@ -329,7 +329,7 @@ function saveLabelledSkill(existing: Skill | undefined, v: FormValues, position:
     name: customName ?? (input ? `${alias}: ${input}` : alias),
     alias,
     customName,
-    bindingName: customName ?? alias,
+    bindingName: skillItemName(customName, alias, input),
     xmlid,
     input,
     characteristic,

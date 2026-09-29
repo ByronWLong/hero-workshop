@@ -37,6 +37,7 @@ export interface FoundryApplication {
   changeTab(tab: string, group: string, options?: Record<string, unknown>): void;
   bringToFront(): void;
   _onRender?(context: unknown, options: unknown): void;
+  _onClose?(options: unknown): void;
   _prepareContext?(options: unknown): Promise<Record<string, unknown>>;
 }
 
@@ -54,6 +55,54 @@ export class HeroWorkshopApplication extends api.HandlebarsApplicationMixin(api.
   };
 
   #listening = false;
+  /** Mouse button held down inside this window (a click in progress) */
+  #pointerDown = false;
+  #renderPending = false;
+  #listeners?: AbortController;
+
+  /**
+   * Re-rendering replaces the window's markup. If that happens between mouse-down and
+   * mouse-up (a field's change event fires as the user clicks Save), the click lands on a
+   * button that no longer exists and is lost. So renders requested mid-click wait until it
+   * has gone through.
+   */
+  render(options?: RenderOptions | boolean): Promise<unknown> {
+    if (this.#pointerDown && this.rendered) {
+      this.#renderPending = true;
+      return Promise.resolve(this);
+    }
+    return super.render(options);
+  }
+
+  #pointerReleased() {
+    if (!this.#pointerDown) return;
+    this.#pointerDown = false;
+    if (!this.#renderPending) return;
+    this.#renderPending = false;
+    // After the click (dispatched right after mouse-up) has been handled
+    setTimeout(() => {
+      if (this.rendered && !this.#closing) void this.render();
+    }, 0);
+  }
+
+  #closing = false;
+
+  /** A form saved by the click closes; a render still waiting on that click must not reopen it */
+  close(options?: Record<string, unknown>): Promise<unknown> {
+    this.#closing = true;
+    this.#renderPending = false;
+    return super.close(options);
+  }
+
+  _onClose(options: unknown): void {
+    (super._onClose as ((o: unknown) => void) | undefined)?.call(this, options);
+    this.#listeners?.abort();
+    // A reopened window gets a new element, which needs its listeners again
+    this.#listening = false;
+    this.#closing = false;
+    this.#pointerDown = false;
+    this.#renderPending = false;
+  }
 
   /** Called with each changed form control that has a `data-field` attribute */
   protected onFieldChange(_field: string, _value: string, _target: HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement): void {}
@@ -62,6 +111,11 @@ export class HeroWorkshopApplication extends api.HandlebarsApplicationMixin(api.
     (super._onRender as ((c: unknown, o: unknown) => void) | undefined)?.call(this, context, options);
     if (this.#listening) return;
     this.#listening = true;
+    this.#listeners = new AbortController();
+    const { signal } = this.#listeners;
+    this.element.addEventListener('pointerdown', () => (this.#pointerDown = true), { capture: true, signal });
+    document.addEventListener('pointerup', () => this.#pointerReleased(), { capture: true, signal });
+    document.addEventListener('pointercancel', () => this.#pointerReleased(), { capture: true, signal });
     // Delegated once on the window element, which survives re-renders
     this.element.addEventListener('change', (event) => {
       const target = event.target as HTMLInputElement;

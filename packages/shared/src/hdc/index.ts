@@ -23,6 +23,7 @@ export {
   normalizeForFoundry,
   rebindRequiresARoll,
   skillRollCategory,
+  skillItemName,
   BACKGROUND_SKILL_XMLIDS,
   LABELLED_SKILL_XMLIDS,
   REQUIRED_COMPLICATION_ADDERS,

@@ -1,4 +1,4 @@
-import { LABELLED_SKILL_XMLIDS } from './foundry.js';
+import { LABELLED_SKILL_XMLIDS, skillItemName } from './foundry.js';
 /**
  * HDC -> Character view-model parsing.
  *
@@ -907,7 +907,7 @@ function parseSkill(obj: Record<string, unknown>): Skill {
   const parentId = getAttr(obj, 'PARENTID', '');
   
   return {
-    bindingName: (nameAttr || alias).trim() || undefined,
+    bindingName: skillItemName(nameAttr, alias, input) || undefined,
     customName: isBackground ? nameAttr || undefined : undefined,
     id: getAttr(obj, 'ID') || generateId(),
     name: displayName || xmlid || 'Unknown Skill',

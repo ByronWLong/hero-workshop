@@ -72,16 +72,28 @@ export function skillRollCategory(skillXmlId: string): 'PS' | 'KS' | 'SS' | 'SKI
   return 'SKILL';
 }
 
-/** Foundry matches Requires A Roll bindings against a skill's NAME or ALIAS */
+/**
+ * The name hero6e gives a skill's Foundry item, which Requires A Roll matches against:
+ * its NAME, otherwise "ALIAS: INPUT" (e.g. "MSR: Wizardry", "Power: Necromancy"), otherwise ALIAS.
+ */
+export function skillItemName(name: string | undefined, alias: string | undefined, input: string | undefined): string {
+  const n = name?.trim();
+  if (n) return n;
+  const a = alias?.trim() ?? '';
+  const i = input?.trim();
+  return i ? `${a}: ${i}` : a;
+}
+
+/** Names a Requires A Roll may use for this skill: the item name hero6e gives it, plus the bare NAME/ALIAS */
 export function skillIdentities(skill: XmlElement): string[] {
-  return [skill.getAttr('NAME'), skill.getAttr('ALIAS')]
+  return [preferredSkillIdentity(skill), skill.getAttr('NAME'), skill.getAttr('ALIAS')]
     .map((v) => v?.trim() ?? '')
     .filter((v, i, all) => v && all.indexOf(v) === i);
 }
 
-/** The identity to bind to: a custom NAME if present, otherwise the ALIAS */
+/** The identity to bind to: the skill's Foundry item name */
 export function preferredSkillIdentity(skill: XmlElement): string {
-  return skill.getAttr('NAME')?.trim() || skill.getAttr('ALIAS')?.trim() || '';
+  return skillItemName(skill.getAttr('NAME'), skill.getAttr('ALIAS'), skill.getAttr('INPUT'));
 }
 
 export function findSkillsByIdentity(doc: HdcDocument, identity: string): XmlElement[] {

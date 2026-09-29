@@ -126,4 +126,30 @@ describe('Requires A Roll skill binding', () => {
     expect(rarEl.getAttr('COMMENTS')).toBe('Magic Skill');
     expect(parseHdcFile(xml).skills.find((s) => s.id === skill.id)!.name).toBe('Magic Skill');
   });
+
+  it('binds to "Label: Subject" (the item name hero6e uses), so skills sharing a label stay distinct', () => {
+    const base = blankHdc();
+    let character = parseHdcFile(base);
+    for (const input of ['Wizardry', 'Sorcery']) {
+      character = saveItemForm(character, 'skills', undefined, { xmlid: 'POWERSKILL', input, label: 'MSR', characteristic: 'INT', levels: 6 });
+    }
+    const choices = rollSkillChoices(character).filter((c) => c.xmlid === 'POWERSKILL');
+    expect(choices.map((c) => c.value)).toEqual(['MSR: Wizardry', 'MSR: Sorcery']);
+    expect(choices.some((c) => c.ambiguous)).toBe(false);
+
+    let spell = { ...selectPower(powerDraft(character, 'powers'), 'FLASH'), name: 'Glare', levels: 2 };
+    spell = addModifier(spell, 'REQUIRESASKILLROLL');
+    spell = setRequiredSkill(spell, spell.modifiers[0]!.id, 'MSR: Wizardry', character);
+    character = savePowerDraft(character, 'powers', undefined, spell);
+    const built = updateHdc(base, character).xml;
+
+    // Relabelling the skill relinks its spells to the new name
+    const parsed = parseHdcFile(built);
+    const wizardry = parsed.skills.find((s) => s.input === 'Wizardry')!;
+    const relabelled = saveItemForm(parsed, 'skills', wizardry.id, { ...itemFormValues(parsed, 'skills', wizardry.id), label: 'Magic Skill Roll' });
+    const rar = relabelled.powers.find((p) => p.name === 'Glare')!.modifiers!.find((m) => m.xmlId === 'REQUIRESASKILLROLL')!;
+    expect(rar.comments).toBe('Magic Skill Roll: Wizardry');
+    const doc = HdcDocument.parse(updateHdc(built, relabelled).xml);
+    expect(doc.findById(rar.id)!.getAttr('COMMENTS')).toBe('Magic Skill Roll: Wizardry');
+  });
 });
