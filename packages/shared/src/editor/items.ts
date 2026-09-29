@@ -7,7 +7,9 @@
  */
 
 import type {
+  Adder,
   Character,
+  Power,
   Disadvantage,
   MartialManeuver,
   Perk,
@@ -20,24 +22,30 @@ import {
   TALENT_CATALOG_6E,
 } from '../generated/catalog6e.js';
 import { SKILL_CATALOG_6E } from '../generated/skillCatalog6e.js';
+import { getPowerDefinition } from '../powerDefinitions.js';
 import { LABELLED_SKILL_XMLIDS } from '../hdc/foundry.js';
 import { retargetSkillRolls } from './powers.js';
 import { sectionItems, setSectionItems, type ListItem, type SectionId } from './lists.js';
 
 export type FormSection = Exclude<SectionId, 'powers' | 'equipment'>;
-export type FormValues = Record<string, string | number | boolean | undefined>;
+export type FormValues = Record<string, string | number | boolean | string[] | undefined>;
 
 export interface FieldOption {
   value: string;
   label: string;
   selected?: boolean;
+  /** Heading the option is listed under (checklists) */
+  group?: string;
+  /** Extra context shown after the label, e.g. the item a compound part belongs to */
+  detail?: string;
 }
 
 export interface FormField {
   name: string;
   label: string;
-  type: 'text' | 'number' | 'select' | 'checkbox' | 'textarea';
-  value: string | number | boolean;
+  /** "attacks": a checklist of the character's attacks (Combat Skill Levels and the like) */
+  type: 'text' | 'number' | 'select' | 'checkbox' | 'textarea' | 'attacks';
+  value: string | number | boolean | string[];
   options?: FieldOption[];
   hint?: string;
 }
@@ -100,6 +108,70 @@ const LANGUAGE_OPTIONS = [
   { value: 'IMITATE', label: 'Imitate dialects (4)', cost: 4 },
 ];
 
+// =============================================================================
+// Combat Skill Levels: the attacks they apply to
+// =============================================================================
+
+/**
+ * Skills whose levels apply only to chosen attacks. hero6e links them through custom adders
+ * (XMLID "ADDER", no cost) named after each attack, matched to the Foundry item's name,
+ * ALIAS or XMLID.
+ */
+const ATTACK_LINKED_SKILLS = ['COMBAT_LEVELS', 'MENTAL_COMBAT_LEVELS', 'PENALTY_SKILL_LEVELS', 'WEAPON_MASTER'];
+
+/** Whether this skill (with this option) applies to chosen attacks; "all attacks" options don't */
+export function showsAttacks(xmlid: string, option: string): boolean {
+  if (!ATTACK_LINKED_SKILLS.includes(xmlid)) return false;
+  if (option === 'ALL') return false;
+  if (xmlid === 'PENALTY_SKILL_LEVELS' && (option === 'SINGLEDCV' || option === 'GROUPDCV')) return false;
+  return true;
+}
+
+const isLinkAdder = (a: { xmlId?: string; baseCost?: number }) => (a.xmlId === 'ADDER' || !a.xmlId) && !a.baseCost;
+const list = (v: unknown): string[] => (Array.isArray(v) ? v.map(String) : []);
+
+/** Frameworks and lists stand for everything in them */
+const CONTAINERS = ['LIST', 'MULTIPOWER', 'VPP', 'ELEMENTAL_CONTROL'];
+
+/** The character's attacks a Combat Skill Level can apply to, by the name hero6e matches */
+export function cslAttackChoices(character: Character): { value: string; label: string; group: string; detail?: string }[] {
+  const out: { value: string; label: string; group: string; detail?: string }[] = [];
+  const add = (value: string | undefined, group: string, detail?: string) => {
+    if (value && !out.some((o) => o.value.toLowerCase() === value.toLowerCase())) out.push({ value, label: value, group, detail });
+  };
+  const isAttack = (p: { type?: string; xmlId?: string; doesDamage?: boolean }) => {
+    const xmlId = p.xmlId ?? p.type ?? '';
+    const def = getPowerDefinition(xmlId);
+    return xmlId === 'HANDTOHANDATTACK' || !!p.doesDamage || !!def?.types?.includes('ATTACK');
+  };
+  const LISTS = 'Lists and frameworks (everything in them)';
+  for (const p of character.powers) {
+    if (p.isContainer && CONTAINERS.includes(p.type)) add(p.name, LISTS);
+    else if (isAttack(p)) add(p.name, 'Powers');
+  }
+  for (const e of character.equipment ?? []) {
+    const powerLike = e as unknown as Power;
+    if (e.subPowers?.length) for (const part of e.subPowers.filter(isAttack)) add(part.name, 'Equipment', e.name);
+    else if (powerLike.isContainer && CONTAINERS.includes(powerLike.type)) add(e.name, LISTS);
+    else if (isAttack(powerLike)) add(e.name, 'Equipment');
+  }
+  for (const m of character.martialArts) if (!m.isGroup) add(m.name, 'Martial maneuvers');
+  const order = [LISTS, 'Powers', 'Equipment', 'Martial maneuvers'];
+  return out.sort((a, b) => order.indexOf(a.group) - order.indexOf(b.group));
+}
+
+/** The skill's attack links: keeps other adders and existing links, adds the newly chosen */
+function withAttackLinks(adders: Adder[] | undefined, chosen: string[]): Adder[] | undefined {
+  const wanted = new Set(chosen.map((n) => n.toLowerCase()));
+  const kept = (adders ?? []).filter((a) => !isLinkAdder(a) || wanted.has((a.alias ?? a.name).toLowerCase()));
+  const have = new Set(kept.filter(isLinkAdder).map((a) => (a.alias ?? a.name).toLowerCase()));
+  const added = chosen
+    .filter((n) => !have.has(n.toLowerCase()))
+    .map((n): Adder => ({ id: newId(), xmlId: 'ADDER', name: n, alias: n, baseCost: 0, selected: true }));
+  const result = [...kept, ...added];
+  return result.length ? result : undefined;
+}
+
 function skillValues(skill: Skill | undefined): FormValues {
   const xmlid = skill?.xmlid ?? 'CUSTOMSKILL';
   if (LABELLED_SKILL_XMLIDS.includes(xmlid)) {
@@ -113,13 +185,22 @@ function skillValues(skill: Skill | undefined): FormValues {
 }
 
 function otherSkillValues(skill: Skill | undefined, xmlid: string): FormValues {
+  const values = otherSkillFields(skill, xmlid);
+  return ATTACK_LINKED_SKILLS.includes(xmlid)
+    ? { ...values, attacks: (skill?.adders ?? []).filter(isLinkAdder).map((a) => a.alias ?? a.name) }
+    : values;
+}
+
+function otherSkillFields(skill: Skill | undefined, xmlid: string): FormValues {
   const alias = BACKGROUND_ALIAS[xmlid];
   const display = SKILLS_BY_ID.get(xmlid)?.display;
   // Show the user's own name only when it's more than the composed display
   const composed = alias && skill?.input ? `${alias}: ${skill.input}` : display;
+  const suffix = skill?.alias && !['CUSTOMSKILL', 'LANGUAGES'].includes(xmlid) ? `: ${skill.alias}` : undefined;
+  const custom = skill && skill.name !== composed && skill.name !== alias ? skill.name : '';
   return {
     xmlid,
-    name: skill && skill.name !== composed && skill.name !== alias ? skill.name : '',
+    name: suffix && custom.endsWith(suffix) ? custom.slice(0, -suffix.length) : custom,
     input: skill?.input ?? '',
     characteristic: skill?.characteristic ?? '',
     levels: skill?.levels ?? 0,
@@ -152,7 +233,7 @@ function skillCost(v: FormValues): number {
   return Math.ceil((choice?.baseCost ?? entry?.baseCost ?? 3) + levels * (choice?.lvlCost ?? entry?.lvlCost ?? 2));
 }
 
-function skillForm(v: FormValues, isNew: boolean): ItemForm {
+function skillForm(v: FormValues, isNew: boolean, character?: Character): ItemForm {
   const xmlid = str(v.xmlid);
   const entry = SKILLS_BY_ID.get(xmlid);
   const fields: FormField[] = [
@@ -198,6 +279,23 @@ function skillForm(v: FormValues, isNew: boolean): ItemForm {
     if (choices.length > 1) {
       fields.push({ name: 'characteristic', label: 'Based on', type: 'select', value: str(v.characteristic), options: options(choices, str(v.characteristic) || choices[0]!.value) });
     }
+  }
+  if (showsAttacks(xmlid, str(v.option))) {
+    const chosen = list(v.attacks);
+    const choices = character ? cslAttackChoices(character) : [];
+    const known = new Set(choices.map((c) => c.value.toLowerCase()));
+    fields.push({
+      name: 'attacks',
+      label: 'Attacks it applies to',
+      type: 'attacks',
+      value: chosen,
+      hint: 'hero6e uses the levels only with these. A list or framework covers everything in it.',
+      options: [
+        ...choices.map((c) => ({ ...c, selected: chosen.some((n) => n.toLowerCase() === c.value.toLowerCase()) })),
+        // Linked names that match none of the character's own items (standard maneuvers like Strike, renamed attacks)
+        ...chosen.filter((n) => !known.has(n.toLowerCase())).map((n) => ({ value: n, label: n, group: 'Other', selected: true })),
+      ],
+    });
   }
   if (xmlid === 'CUSTOMSKILL') {
     fields.push({ name: 'cost', label: 'Cost', type: 'number', value: num(v.cost) });
@@ -253,14 +351,18 @@ function saveSkill(existing: Skill | undefined, v: FormValues, position: number)
   const customName = str(v.name).trim();
   // Compose the display name the way the HDC parser does, so saving round-trips cleanly
   const composed = BACKGROUND_ALIAS[xmlid] && input ? `${alias}: ${input}` : xmlid === 'LANGUAGES' && input ? `Language:  ${input}` : undefined;
+  // A custom name is shown before the skill ("Demonic Claw Focus: Combat Skill Levels"), as the parser shows it
+  const prefixed = customName && alias && !['CUSTOMSKILL', 'LANGUAGES'].includes(xmlid) && customName !== alias;
+  const shownName = prefixed ? `${customName}: ${alias}` : customName;
   // Nothing to compose it from (e.g. a Weapon Familiarity listing its weapons as adders): keep the name it has
-  const name = customName || composed || (existing && existing.xmlid === xmlid ? existing.name : entry?.display ?? 'Skill');
+  const name = shownName || composed || (existing && existing.xmlid === xmlid ? existing.name : entry?.display ?? 'Skill');
   const cost = skillCost(v);
   const option = str(v.option) || undefined;
   const optionLabel = [...COMBAT_LEVEL_OPTIONS, ...SKILL_LEVEL_OPTIONS, ...LANGUAGE_OPTIONS].find((o) => o.value === option)?.label;
   const characteristic = (str(v.characteristic) || entry?.characteristicChoices?.[0]?.characteristic) as Skill['characteristic'];
 
   let adders = existing?.adders;
+  if (showsAttacks(xmlid, str(v.option)) && Array.isArray(v.attacks)) adders = withAttackLinks(adders, v.attacks);
   if (xmlid === 'LANGUAGES') {
     const others = (adders ?? []).filter((a) => a.xmlId !== 'LITERACY');
     const literacy = (existing?.adders ?? []).find((a) => a.xmlId === 'LITERACY') ?? {
@@ -410,7 +512,7 @@ function sectionFormValues(section: FormSection, item: ListItem | undefined): Fo
   }
 }
 
-export function itemForm(section: FormSection, values: FormValues, isNew: boolean): ItemForm {
+export function itemForm(section: FormSection, values: FormValues, isNew: boolean, character?: Character): ItemForm {
   const notes: FormField = { name: 'notes', label: 'Notes', type: 'textarea', value: str(values.notes) };
   if (values.group) {
     return {
@@ -422,7 +524,7 @@ export function itemForm(section: FormSection, values: FormValues, isNew: boolea
   }
   switch (section) {
     case 'skills':
-      return skillForm(values, isNew);
+      return skillForm(values, isNew, character);
     case 'perks':
       return {
         title: isNew ? 'Add perk' : 'Edit perk',

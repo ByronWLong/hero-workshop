@@ -35,6 +35,7 @@ export class ItemDialog extends HeroWorkshopApplication {
     window: { icon: 'fa-solid fa-pen-to-square', resizable: true },
     form: { handler: ItemDialog.#onSubmit, closeOnSubmit: true },
     actions: {
+      addAttack: ItemDialog.#onAddAttack,
       pickIcon: ItemDialog.#onPickIcon,
       clearIcon: ItemDialog.#onClearIcon,
     },
@@ -51,16 +52,29 @@ export class ItemDialog extends HeroWorkshopApplication {
     const values = itemFormValues(config.character(), config.section, config.itemId);
     super({
       id: itemDialogId(config.section, config.itemId),
-      window: { title: itemForm(config.section, values, !config.itemId).title },
+      window: { title: itemForm(config.section, values, !config.itemId, config.character()).title },
     });
     this.#values = values;
   }
 
   async _prepareContext() {
-    const form = itemForm(this.config.section, this.#values, !this.config.itemId);
+    const form = itemForm(this.config.section, this.#values, !this.config.itemId, this.config.character());
     const custom = String(this.#values.icon ?? '');
+    // Checklists are shown under their options' headings
+    const fields = form.fields.map((field) => {
+      if (field.type !== 'attacks') return field;
+      const groups: { name: string; options: typeof field.options }[] = [];
+      for (const option of field.options ?? []) {
+        const name = option.group ?? '';
+        let group = groups.find((g) => g.name === name);
+        if (!group) groups.push((group = { name, options: [] }));
+        group.options!.push(option);
+      }
+      return { ...field, groups };
+    });
     return {
       ...form,
+      fields,
       icon: { src: custom || this.config.defaultIcon || DEFAULT_ICON, custom: !!custom },
       costs: form.costLabel ? [{ label: 'Cost', value: `${form.cost} ${form.costLabel}` }] : [],
       buttons: [{ type: 'submit', icon: 'fa-solid fa-check', label: this.config.itemId ? 'Save' : 'Add', cssClass: 'bright' }],
@@ -74,6 +88,30 @@ export class ItemDialog extends HeroWorkshopApplication {
     };
     // Re-render so dependent fields (e.g. a skill's characteristic choices) and the cost update
     void this.render();
+  }
+
+  #attacks(): string[] {
+    return Array.isArray(this.#values.attacks) ? this.#values.attacks : [];
+  }
+
+  /** Ticking an attack links the skill's levels to it */
+  #toggleAttack(name: string, on: boolean) {
+    const others = this.#attacks().filter((n) => n.toLowerCase() !== name.toLowerCase());
+    this.#values = { ...this.#values, attacks: on ? [...others, name] : others };
+    void this.render();
+  }
+
+  static #onAddAttack(this: ItemDialog) {
+    const input = this.element.querySelector<HTMLInputElement>('.hw-attack-other input');
+    const name = input?.value.trim();
+    if (name) this.#toggleAttack(name, true);
+  }
+
+  _onRender(context: unknown, options: unknown): void {
+    super._onRender(context, options);
+    this.element.querySelectorAll<HTMLInputElement>('input[data-attack]').forEach((box) => {
+      box.addEventListener('change', () => this.#toggleAttack(box.dataset.attack!, box.checked));
+    });
   }
 
   static async #onPickIcon(this: ItemDialog) {
