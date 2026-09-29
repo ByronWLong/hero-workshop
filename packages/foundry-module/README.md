@@ -16,7 +16,21 @@ Every window is a native ApplicationV2 + Handlebars application, like hero6e's o
 - **Styling:** it uses Foundry's form markup and CSS variables, so light and dark themes and theme modules apply.
 - **Where the logic lives:** all character rules (costs, maxima, item forms, HDC writing) live in `@hero-workshop/shared` as framework-independent functions. The module's code only renders them (`src/apps`, `templates/`).
 
-## Build and install
+## Install
+
+In Foundry: **Add-on Modules → Install Module**, paste this manifest URL, and install:
+
+```
+https://github.com/ByronWLong/hero-workshop/releases/latest/download/module.json
+```
+
+Foundry offers updates when a new release is published.
+
+## Releasing
+
+Push a tag named `module-v<version>` (e.g. `module-v0.2.0`). The **Release Foundry module** workflow builds the module, stamps the version into `module.json`, and publishes a GitHub release with `module.json` and `hero-workshop.zip`.
+
+## Build from source
 
 ```bash
 npm run build:foundry            # from the repo root; output in packages/foundry-module/dist
