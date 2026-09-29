@@ -19,6 +19,10 @@ export interface ItemRowView {
   acceptsChildren: boolean;
   /** Custom icon, if the item has one */
   icon?: string;
+  /** Costs no points (its own or an enclosing list's/compound's multiplier is 0) */
+  free: boolean;
+  /** Cost before any multiplier (what a list's own figure includes for this row) */
+  rawCost: number;
   children: ItemRowView[];
 }
 
@@ -34,6 +38,7 @@ export interface ListItem {
   type?: string;
   xmlId?: string;
   icon?: string;
+  multiplier?: number;
   modifiers?: Modifier[];
   adders?: Adder[];
   notes?: string;
@@ -102,22 +107,51 @@ function rowCost(section: SectionId, own: number, isGroup: boolean, children: It
 export function buildItemTree(character: Character, section: SectionId): ItemRowView[] {
   const items = sectionItems(character, section);
   const ids = new Set(items.map((i) => i.id));
-  const toRow = (item: ListItem): ItemRowView => {
-    const children = [...items.filter((c) => c.parentId === item.id).map(toRow), ...(item.subPowers ?? []).map(toRow)];
+  const toRow = (item: ListItem, inherited = 1): ItemRowView => {
+    // Hero Designer: an item without its own multiplier takes its list's/compound's
+    const multiplier = (item.multiplier ?? 1) !== 1 ? item.multiplier! : inherited;
+    const children = [
+      ...items.filter((c) => c.parentId === item.id).map((c) => toRow(c, multiplier)),
+      ...(item.subPowers ?? []).map((c) => toRow(c, multiplier)),
+    ];
     const isGroup = !!(item.isGroup || item.isContainer);
     const own = costOf(section, item);
+    const inside = children.reduce((sum, c) => sum + c.cost, 0);
+    const rawInside = children.reduce((sum, c) => sum + c.rawCost, 0);
+    const kind = item.xmlId ?? item.type ?? '';
+    let cost: number;
+    let rawCost: number;
+    if (section === 'disadvantages') cost = rawCost = own;
+    else if (children.length && (item.isGroup || kind === 'LIST' || kind === 'COMPOUNDPOWER')) {
+      // Lists and compounds: Hero Designer's figure (with any list adders) less what's free inside;
+      // skill lists have no figure of their own and cost what's in them
+      rawCost = own || rawInside;
+      cost = own ? own * multiplier - (rawInside * multiplier - inside) : inside;
+    }
+    // Skill enhancers (Scholar, ...) cost their own price plus their skills
+    else if (children.length && section !== 'powers' && section !== 'equipment') {
+      rawCost = own + rawInside;
+      cost = own * multiplier + inside;
+    }
+    // Frameworks and single items: their own cost
+    else {
+      rawCost = rowCost(section, own, isGroup, []);
+      cost = rawCost * multiplier;
+    }
     return {
       id: item.id,
       name: item.name,
       detail: detailFor(section, item),
-      cost: rowCost(section, own, isGroup, children),
+      cost: Math.round(cost * 2) / 2 || 0, // no "-0" for a free penalty
+      free: section !== 'disadvantages' && multiplier === 0,
+      rawCost,
       isGroup,
       icon: item.icon,
       acceptsChildren: !!item.isGroup || item.type === 'LIST' || FRAMEWORKS.includes(item.xmlId ?? item.type ?? ''),
       children,
     };
   };
-  return items.filter((i) => !i.parentId || !ids.has(i.parentId)).map(toRow);
+  return items.filter((i) => !i.parentId || !ids.has(i.parentId)).map((i) => toRow(i));
 }
 
 export interface PointSummaryView {
@@ -171,7 +205,20 @@ export function removeItem(character: Character, section: SectionId, id: string)
       }
     }
   }
-  return setSectionItems(character, section, items.filter((i) => !doomed.has(i.id)));
+  // The removed item's cost comes off the lists/compounds it was in (their cost is Hero Designer's figure)
+  const removed = items.find((i) => i.id === id);
+  let kept = items.filter((i) => !doomed.has(i.id));
+  for (let parentId = removed?.parentId, seen = new Set<string>(); parentId && !seen.has(parentId); ) {
+    seen.add(parentId);
+    const pid: string = parentId;
+    kept = kept.map((i) =>
+      i.id === pid && (i.isContainer || i.type === 'LIST' || i.type === 'COMPOUNDPOWER')
+        ? { ...i, realCost: (i.realCost ?? 0) - (removed?.realCost ?? 0) }
+        : i,
+    );
+    parentId = kept.find((i) => i.id === pid)?.parentId;
+  }
+  return setSectionItems(character, section, kept);
 }
 
 /** Replaces a section's items (items must belong to that section) */

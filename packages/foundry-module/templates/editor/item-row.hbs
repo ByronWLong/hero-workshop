@@ -3,7 +3,7 @@
     data-item-id="{{row.id}}" {{#if row.acceptsChildren}}data-accepts-children{{/if}}>
     <img class="hw-item-icon" src="{{row.img}}" alt="" loading="lazy">
     <div class="hw-item-text">
-      <span class="hw-item-name">{{row.name}}</span>
+      <span class="hw-item-name">{{row.name}}{{#if row.free}} <span class="hw-tag hw-tag-free" data-tooltip="Given by the GM: costs no points">Free</span>{{/if}}</span>
       {{#if row.detail}}<span class="hint hw-item-detail">{{row.detail}}</span>{{/if}}
     </div>
     <span class="hw-item-cost">{{row.cost}}</span>

@@ -470,7 +470,7 @@ const signedText = (n: number) => (n >= 0 ? `+${n}` : String(n));
 
 export function itemFormValues(character: Character, section: FormSection, itemId?: string): FormValues {
   const item = itemId ? sectionItems(character, section).find((i) => i.id === itemId) : undefined;
-  return { ...sectionFormValues(section, item), icon: item?.icon ?? '' };
+  return { ...sectionFormValues(section, item), icon: item?.icon ?? '', free: item?.multiplier === 0 };
 }
 
 function sectionFormValues(section: FormSection, item: ListItem | undefined): FormValues {
@@ -512,7 +512,30 @@ function sectionFormValues(section: FormSection, item: ListItem | undefined): Fo
   }
 }
 
+/** A form's multiplier: 0 when free; otherwise whatever other multiplier it had (1 if it was free) */
+export function freeMultiplier(free: boolean, previous: number | undefined): number | undefined {
+  if (free) return 0;
+  return previous === 0 ? undefined : previous;
+}
+
+/** Offered on every item form except complications */
+export const FREE_FIELD = {
+  name: 'free',
+  label: 'Free (given by the GM)',
+  hint: 'Costs no points; Active Points, END and rolls are unchanged. A free item with a penalty gives no points back.',
+} as const;
+
 export function itemForm(section: FormSection, values: FormValues, isNew: boolean, character?: Character): ItemForm {
+  const form = sectionForm(section, values, isNew, character);
+  if (section === 'disadvantages' || values.group) return form;
+  const free: FormField = { ...FREE_FIELD, type: 'checkbox', value: bool(values.free) };
+  const notesAt = form.fields.findIndex((f) => f.name === 'notes');
+  const fields = [...form.fields];
+  fields.splice(notesAt < 0 ? fields.length : notesAt, 0, free);
+  return { ...form, fields, cost: bool(values.free) ? 0 : form.cost };
+}
+
+function sectionForm(section: FormSection, values: FormValues, isNew: boolean, character?: Character): ItemForm {
   const notes: FormField = { name: 'notes', label: 'Notes', type: 'textarea', value: str(values.notes) };
   if (values.group) {
     return {
@@ -589,10 +612,11 @@ export function saveItemForm(character: Character, section: FormSection, itemId:
   const list = sectionItems(character, section);
   const existing = itemId ? list.find((i) => i.id === itemId) : undefined;
   const position = list.length;
-  // Every section's save keeps the form's icon
+  // Every section's save keeps the form's icon, and free (multiplier 0) or not
   const icon = str(values.icon) || undefined;
-  const put = <T extends { id: string; icon?: string }>(items: T[], saved: T) => {
-    const item = { ...saved, icon };
+  const multiplier = freeMultiplier(bool(values.free), existing?.multiplier);
+  const put = <T extends { id: string; icon?: string; multiplier?: number }>(items: T[], saved: T) => {
+    const item = { ...saved, icon, multiplier };
     return existing ? items.map((i) => (i.id === item.id ? item : i)) : [...items, item];
   };
 

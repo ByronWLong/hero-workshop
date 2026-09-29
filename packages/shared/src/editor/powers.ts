@@ -157,6 +157,8 @@ export interface PowerDraft {
   subPowers: Power[];
   /** Custom icon (image path), or empty for the default */
   icon: string;
+  /** Free (cost multiplier 0): given by the GM, costs no points */
+  free: boolean;
   // Equipment
   price: number;
   weight: number;
@@ -226,6 +228,7 @@ export function powerDraft(character: Character, section: PowerSection, itemId?:
     parentId: p?.parentId ?? '',
     subPowers: detectedKind === 'compound' && p ? compoundParts(character, section, p) : [],
     icon: p?.icon ?? '',
+    free: p?.multiplier === 0,
     price: p?.price ?? 0,
     weight: p?.weight ?? 0,
     carried: p?.carried ?? true,
@@ -557,7 +560,11 @@ const modifierText = (mods: Modifier[] | undefined) => (mods ?? []).map((m) => `
 
 function buildPower(existing: PowerLike | undefined, draft: PowerDraft, costs: PowerCosts, position: number): Power {
   const def = getPowerDefinition(draft.xmlId);
-  const base = { ...(existing ?? ({ id: newId(), position } as Power)), icon: draft.icon || undefined };
+  const base = {
+    ...(existing ?? ({ id: newId(), position } as Power)),
+    icon: draft.icon || undefined,
+    multiplier: draft.free ? 0 : existing?.multiplier === 0 ? undefined : existing?.multiplier,
+  };
   if (draft.kind === 'list') {
     return {
       ...base,
@@ -619,15 +626,24 @@ function buildPower(existing: PowerLike | undefined, draft: PowerDraft, costs: P
   } as Power;
 }
 
-/** Sums children into LIST and compound containers, as the lists display them */
-function refreshContainers(powers: Power[]): Power[] {
-  return powers.map((p) => {
-    if (!(p.type === 'LIST' || p.type === 'COMPOUNDPOWER' || p.isContainer)) return p;
-    const children = powers.filter((c) => c.parentId === p.id);
-    const active = children.reduce((s, c) => s + (c.activeCost ?? 0), 0);
-    const real = children.reduce((s, c) => s + (c.realCost ?? 0), 0);
-    return { ...p, activeCost: active, baseCost: active, realCost: real };
-  });
+/**
+ * Passes a power's change in cost up to the lists/compounds it sits in. Their costs come from
+ * Hero Designer's own figures (which include list adders such as a Common Adder), so they are
+ * adjusted by the difference rather than re-added up from their contents.
+ */
+export function propagateCost<T extends { id: string; parentId?: string; realCost?: number; activeCost?: number; baseCost?: number }>(
+  items: T[],
+  parentId: string | undefined,
+  delta: { real: number; active: number },
+): T[] {
+  if (!parentId || (!delta.real && !delta.active)) return items;
+  const ancestors = new Set<string>();
+  for (let id: string | undefined = parentId; id && !ancestors.has(id); id = items.find((i) => i.id === id)?.parentId) ancestors.add(id);
+  return items.map((i) =>
+    ancestors.has(i.id)
+      ? { ...i, realCost: (i.realCost ?? 0) + delta.real, activeCost: (i.activeCost ?? 0) + delta.active, baseCost: (i.baseCost ?? 0) + delta.active }
+      : i,
+  );
 }
 
 export function savePowerDraft(character: Character, section: PowerSection, itemId: string | undefined, draft: PowerDraft): Character {
@@ -645,7 +661,16 @@ export function savePowerDraft(character: Character, section: PowerSection, item
       const at = powers.findIndex((p) => p.id === power.id);
       powers.splice(at + 1, 0, ...parts);
     }
-    return { ...character, powers: refreshContainers(powers) };
+    // Lists it left lose its old cost; lists it's in gain the new one
+    const was = { real: existing?.realCost ?? 0, active: existing?.activeCost ?? 0 };
+    const now = { real: power.realCost ?? 0, active: power.activeCost ?? 0 };
+    if (existing?.parentId !== power.parentId) {
+      powers = propagateCost(powers, existing?.parentId, { real: -was.real, active: -was.active });
+      powers = propagateCost(powers, power.parentId, now);
+    } else {
+      powers = propagateCost(powers, power.parentId, { real: now.real - was.real, active: now.active - was.active });
+    }
+    return { ...character, powers };
   }
 
   // Equipment: top-level items, or a sub-power inside a compound item

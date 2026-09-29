@@ -170,6 +170,7 @@ export function applyCharacterChanges(
   reconcileItems(ctx, 'EQUIPMENT', before.equipment ?? [], after.equipment ?? [], EQUIPMENT_SPEC);
   writeImage(ctx, before, after);
   writeRules(ctx, before.rules, after.rules);
+  allowMultipliers(ctx, after);
 
   if (options.foundryCompatible !== false) {
     for (const [el, section] of ctx.touched) {
@@ -188,6 +189,8 @@ class WriteContext {
   /** Top-level item elements edited or created, with their section */
   readonly touched = new Map<XmlElement, HdcItemSection>();
   readonly created = new Set<XmlElement>();
+  /** An item's cost multiplier (free or not) changed in this save */
+  multipliersChanged = false;
 
   constructor(readonly doc: HdcDocument) {}
 
@@ -252,7 +255,9 @@ function normalize(value: unknown): unknown {
   if (typeof value === 'object') {
     const out: Record<string, unknown> = {};
     for (const key of Object.keys(value as object).sort()) {
-      const v = normalize((value as Record<string, unknown>)[key]);
+      const raw = (value as Record<string, unknown>)[key];
+      // A cost multiplier of 0 (a free item) is a value, not an absent one
+      const v = key === 'multiplier' && raw === 0 ? 0 : normalize(raw);
       if (v !== undefined) out[key] = v;
     }
     return Object.keys(out).length ? out : undefined;
@@ -548,6 +553,11 @@ function reconcileItems<T extends ItemModel>(
     const section = doc.ensureSection(sectionName);
     const el = spec.create(ctx, a, sectionName);
     if ((a as { icon?: string }).icon) el.setAttr(ICON_ATTR, (a as { icon?: string }).icon!);
+    const multiplier = (a as { multiplier?: number }).multiplier;
+    if (multiplier !== undefined && multiplier !== 1) {
+      el.setAttr('MULTIPLIER', hdMultiplier(multiplier));
+      ctx.multipliersChanged = true;
+    }
     const id = doc.nextId();
     el.setAttr('ID', id);
     if (a.id !== id) ctx.report.idMap[a.id] = id;
@@ -600,10 +610,10 @@ function orderParentsFirst<T extends ItemModel>(items: T[]): T[] {
   return out;
 }
 
-const COMMON_FIELDS = new Set(['parentId', 'position', 'modifiers', 'adders', 'id', 'icon']);
+const COMMON_FIELDS = new Set(['parentId', 'position', 'modifiers', 'adders', 'id', 'icon', 'multiplier']);
 
 /** Grouping, ordering, modifiers and adders work the same way for every item type */
-function writeCommonFields<T extends ItemModel & { modifiers?: Modifier[]; adders?: Adder[]; icon?: string }>(
+function writeCommonFields<T extends ItemModel & { modifiers?: Modifier[]; adders?: Adder[]; icon?: string; multiplier?: number }>(
   ctx: WriteContext,
   el: XmlElement,
   b: T,
@@ -630,6 +640,36 @@ function writeCommonFields<T extends ItemModel & { modifiers?: Modifier[]; adder
     if (a.icon) el.setAttr(ICON_ATTR, a.icon);
     else el.removeAttr(ICON_ATTR);
   }
+  if (!same(b.multiplier ?? 1, a.multiplier ?? 1)) {
+    el.setAttr('MULTIPLIER', hdMultiplier(a.multiplier ?? 1));
+    ctx.multipliersChanged = true;
+  }
+}
+
+/** Hero Designer writes the multiplier as a Java double: "1.0", "0.0", "0.5" */
+function hdMultiplier(m: number): string {
+  return Number.isInteger(m) ? m.toFixed(1) : String(m);
+}
+
+/**
+ * Hero Designer only applies cost multipliers when the campaign rules allow them; turn that
+ * on in the character's own rules when it has free (or otherwise multiplied) items.
+ */
+function allowMultipliers(ctx: WriteContext, after: Character): void {
+  const all = [...after.skills, ...after.perks, ...after.talents, ...after.martialArts, ...after.powers, ...(after.equipment ?? []),
+    ...(after.equipment ?? []).flatMap((e) => e.subPowers ?? [])] as { multiplier?: number }[];
+  if (!all.some((i) => (i.multiplier ?? 1) !== 1)) return;
+  const rules = ctx.doc.root.firstElement('RULES');
+  if (!rules) {
+    // No campaign rules in the file: Hero Designer uses its own, which must allow multipliers
+    if (ctx.multipliersChanged) {
+      ctx.change('Note: in desktop Hero Designer, turn on cost multipliers in the campaign rules so free items count as free');
+    }
+    return;
+  }
+  if (rules.getAttr('MULTIPLIERALLOWED') === 'Yes') return;
+  rules.setAttr('MULTIPLIERALLOWED', 'Yes');
+  ctx.change('Campaign rules: allow cost multipliers (so Hero Designer counts free items as free)');
 }
 
 // =============================================================================

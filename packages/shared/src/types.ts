@@ -102,6 +102,12 @@ export interface GenericObjectBase {
   parentId?: string; // Reference to parent LIST element if in a group
   /** Custom icon (an image path in Foundry), kept in the element's FOUNDRY_ICON attribute */
   icon?: string;
+  /**
+   * Hero Designer's cost multiplier (MULTIPLIER), applied to the Real Cost only. 0 marks a
+   * free item (e.g. given by the GM): no points, Active Points unchanged. Items in a list or
+   * compound inherit it unless they set their own. Undefined means 1.
+   */
+  multiplier?: number;
 }
 
 // ============================================================================

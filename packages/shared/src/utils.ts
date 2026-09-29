@@ -90,14 +90,56 @@ export function calculateCharacteristicTotal(characteristics: Characteristic[]):
   }, 0);
 }
 
+/** An item's own cost multiplier (Hero Designer's MULTIPLIER; 0 = free) */
+export const multiplierOf = (item: { multiplier?: number }): number => item.multiplier ?? 1;
+
+interface Costed {
+  id: string;
+  parentId?: string;
+  realCost?: number;
+  baseCost?: number;
+  multiplier?: number;
+  subPowers?: Costed[];
+}
+
+/**
+ * Points to take off a section's plain total for multiplied (free) items: each item with its
+ * own multiplier, unless an enclosing list or compound already has one (it covers them).
+ * Negative costs count too, so a free penalty gives no points back.
+ */
+export function multiplierDiscount(items: Costed[]): number {
+  const byId = new Map(items.map((i) => [i.id, i]));
+  const coveredByParent = (item: Costed) => {
+    const seen = new Set<string>();
+    for (let p = item.parentId ? byId.get(item.parentId) : undefined; p && !seen.has(p.id); p = p.parentId ? byId.get(p.parentId) : undefined) {
+      seen.add(p.id);
+      if (multiplierOf(p) !== 1) return true;
+    }
+    return false;
+  };
+  let discount = 0;
+  for (const item of items) {
+    const own = multiplierOf(item);
+    if (own !== 1 && !coveredByParent(item)) discount += (item.realCost ?? item.baseCost ?? 0) * (1 - own);
+    if (own === 1 && !coveredByParent(item)) {
+      for (const part of item.subPowers ?? []) {
+        const m = multiplierOf(part);
+        if (m !== 1) discount += (part.realCost ?? part.baseCost ?? 0) * (1 - m);
+      }
+    }
+  }
+  return discount;
+}
+
+const plainSum = (items: { realCost?: number; baseCost?: number }[]) => items.reduce((t, i) => t + (i.realCost ?? i.baseCost ?? 0), 0);
+/** A section's points: plain costs less what free items would have cost */
+const sectionPoints = (items: Costed[]) => plainSum(items) - multiplierDiscount(items);
+
 /**
  * Calculate total skill points spent
  */
 export function calculateSkillTotal(skills: Skill[]): number {
-  return skills.reduce((total, skill) => {
-    const cost = skill.realCost ?? skill.baseCost ?? 0;
-    return total + cost;
-  }, 0);
+  return sectionPoints(skills);
 }
 
 /**
@@ -115,7 +157,7 @@ export function calculatePowerTotal(powers: Power[]): number {
     }
     const cost = power.realCost ?? power.baseCost ?? 0;
     return total + cost;
-  }, 0);
+  }, 0) - multiplierDiscount(powers);
 }
 
 /**
@@ -133,12 +175,9 @@ export function calculateDisadvantageTotal(disadvantages: Disadvantage[]): numbe
 export function calculateTotalPointsSpent(character: Character): number {
   const chars = calculateCharacteristicTotal(character.characteristics);
   const skills = calculateSkillTotal(character.skills);
-  const perks = character.perks.reduce((t, p) => t + (p.realCost ?? p.baseCost ?? 0), 0);
-  const talents = character.talents.reduce((t, t2) => t + (t2.realCost ?? t2.baseCost ?? 0), 0);
-  const martialArts = character.martialArts.reduce(
-    (t, m) => t + (m.realCost ?? m.baseCost ?? 0),
-    0
-  );
+  const perks = sectionPoints(character.perks);
+  const talents = sectionPoints(character.talents);
+  const martialArts = sectionPoints(character.martialArts);
   const powers = calculatePowerTotal(character.powers);
 
   return chars + skills + perks + talents + martialArts + powers;
@@ -160,12 +199,9 @@ export interface CostBreakdown {
 export function calculateCostBreakdown(character: Character): CostBreakdown {
   const characteristics = calculateCharacteristicTotal(character.characteristics);
   const skills = calculateSkillTotal(character.skills);
-  const perks = character.perks.reduce((t, p) => t + (p.realCost ?? p.baseCost ?? 0), 0);
-  const talents = character.talents.reduce((t, t2) => t + (t2.realCost ?? t2.baseCost ?? 0), 0);
-  const martialArts = character.martialArts.reduce(
-    (t, m) => t + (m.realCost ?? m.baseCost ?? 0),
-    0
-  );
+  const perks = sectionPoints(character.perks);
+  const talents = sectionPoints(character.talents);
+  const martialArts = sectionPoints(character.martialArts);
   const powers = calculatePowerTotal(character.powers);
   
   return {

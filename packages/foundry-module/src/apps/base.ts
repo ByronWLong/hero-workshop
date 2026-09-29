@@ -109,6 +109,7 @@ export class HeroWorkshopApplication extends api.HandlebarsApplicationMixin(api.
 
   _onRender(context: unknown, options: unknown): void {
     (super._onRender as ((c: unknown, o: unknown) => void) | undefined)?.call(this, context, options);
+    addSteppers(this.element);
     if (this.#listening) return;
     this.#listening = true;
     this.#listeners = new AbortController();
@@ -143,6 +144,36 @@ export function pickImage(current: string): Promise<string> {
   return new Promise((resolve) => {
     void new FilePicker({ type: 'image', current, callback: (path: string) => resolve(path) }).render(true);
   });
+}
+
+/**
+ * Puts - and + buttons around every number field, for quick increments (and decrements into
+ * negatives, e.g. a GM-given item's -2 DEX). They step the field and fire its change event,
+ * so the window reacts exactly as if the value had been typed.
+ */
+function addSteppers(root: HTMLElement): void {
+  for (const input of root.querySelectorAll<HTMLInputElement>('input[type="number"]:not([data-stepper])')) {
+    if (input.disabled || input.readOnly) continue;
+    input.dataset.stepper = '';
+    const wrap = document.createElement('span');
+    wrap.className = 'hw-stepper';
+    input.replaceWith(wrap);
+    const button = (label: string, direction: 1 | -1) => {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'hw-step';
+      b.tabIndex = -1;
+      b.textContent = label;
+      b.setAttribute('aria-label', direction > 0 ? 'Increase' : 'Decrease');
+      b.addEventListener('click', () => {
+        if (direction > 0) input.stepUp();
+        else input.stepDown();
+        input.dispatchEvent(new Event('change', { bubbles: true }));
+      });
+      return b;
+    };
+    wrap.append(button('−', -1), input, button('+', 1));
+  }
 }
 
 /** Renders a template to an HTML string (for dialogs) */

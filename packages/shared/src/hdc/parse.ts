@@ -77,12 +77,17 @@ export function parseHdcDocument(doc: HdcDocument): Character {
   return withIcons(parseDocument(doc), doc);
 }
 
-/** Custom icons, read from each item element's FOUNDRY_ICON attribute */
+/** Custom icons (FOUNDRY_ICON) and cost multipliers (MULTIPLIER), read from each item element */
 function withIcons(character: Character, doc: HdcDocument): Character {
-  const icon = <T extends { id: string; icon?: string; subPowers?: T[] }>(item: T): T => {
-    const value = doc.findById(item.id)?.getAttr(ICON_ATTR);
+  const icon = <T extends { id: string; icon?: string; multiplier?: number; subPowers?: T[] }>(item: T): T => {
+    const el = doc.findById(item.id);
+    const value = el?.getAttr(ICON_ATTR);
+    const multiplier = Number(el?.getAttr('MULTIPLIER') ?? '1');
     const subPowers = item.subPowers?.map(icon);
-    return value || subPowers ? { ...item, ...(value ? { icon: value } : {}), ...(subPowers ? { subPowers } : {}) } : item;
+    const hasMultiplier = Number.isFinite(multiplier) && multiplier !== 1;
+    return value || subPowers || hasMultiplier
+      ? { ...item, ...(value ? { icon: value } : {}), ...(hasMultiplier ? { multiplier } : {}), ...(subPowers ? { subPowers } : {}) }
+      : item;
   };
   return {
     ...character,

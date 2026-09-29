@@ -73,7 +73,7 @@
   {{#if definition.hasLevels}}{{#unless isBarrier}}
   <div class="form-group">
     <label>Dice / levels</label>
-    <input type="number" data-field="levels" value="{{draft.levels}}" min="0">
+    <input type="number" data-field="levels" value="{{draft.levels}}">
     {{#if definition.levelLabel}}<p class="hint">{{definition.levelLabel}}</p>{{/if}}
   </div>
   {{/unless}}{{/if}}
@@ -211,6 +211,15 @@
       <button type="button" data-action="addCustomModifier"><i class="fa-solid fa-plus" inert></i> Add custom</button>
     </div>
   </fieldset>
+  {{/unless}}
+
+  {{#unless (eq kind "list")}}
+  <div class="form-group">
+    <label class="checkbox hw-free">
+      <input type="checkbox" data-field="free" {{checked draft.free}}> Free (given by the GM)
+    </label>
+    <p class="hint">Costs no points; Active Points, END and rolls are unchanged. A free item with a penalty gives no points back.</p>
+  </div>
   {{/unless}}
 
   <div class="form-group stacked">

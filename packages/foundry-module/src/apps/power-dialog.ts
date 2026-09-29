@@ -112,6 +112,7 @@ export class PowerDialog extends HeroWorkshopApplication {
             { label: 'Active', value: view.costs.active },
             { label: 'Real', value: view.costs.real },
             { label: 'END', value: view.costs.end },
+            ...(this.#draft.free ? [{ label: 'Points', value: '0 (free)' }] : []),
           ]
         : [],
       buttons: [{ type: 'submit', icon: 'fa-solid fa-check', label: this.config.itemId ? 'Save' : 'Add', cssClass: 'bright' }],
