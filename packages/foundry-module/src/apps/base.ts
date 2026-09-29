@@ -153,6 +153,8 @@ export function pickImage(current: string): Promise<string> {
  */
 function addSteppers(root: HTMLElement): void {
   for (const input of root.querySelectorAll<HTMLInputElement>('input[type="number"]:not([data-stepper])')) {
+    // Dense grids (the race library) keep plain fields
+    if (input.closest('[data-no-steppers]')) continue;
     if (input.disabled || input.readOnly) continue;
     input.dataset.stepper = '';
     const wrap = document.createElement('span');

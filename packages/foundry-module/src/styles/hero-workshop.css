@@ -824,15 +824,13 @@
   border-bottom-left-radius: 0;
 }
 
-/* Compact fields (characteristics, levels, maxima) keep their width */
+/* Compact fields (characteristics, levels) keep their width */
 .hero-workshop .hw-char-table .hw-stepper,
-.hero-workshop .hw-mod-row .hw-stepper,
-.hero-workshop .hw-race-table .hw-stepper {
+.hero-workshop .hw-mod-row .hw-stepper {
   flex: 0 0 auto;
 }
 
-.hero-workshop .hw-char-table .hw-stepper input,
-.hero-workshop .hw-race-table .hw-stepper input {
+.hero-workshop .hw-char-table .hw-stepper input {
   width: 3rem;
   flex: 0 0 3rem;
 }

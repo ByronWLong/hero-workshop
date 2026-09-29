@@ -759,15 +759,20 @@ function parsePowersList(container: unknown): Power[] {
     }
   }
   
-  // Calculate container costs (sum of child real costs) for LIST and COMPOUNDPOWER
-  for (const power of powers) {
-    if (power.type === 'LIST' || power.type === 'COMPOUNDPOWER' || power.isContainer) {
-      const childPowers = powers.filter(p => p.parentId === power.id);
-      power.realCost = childPowers.reduce((sum, child) => sum + (child.realCost ?? 0), 0);
-      power.activeCost = childPowers.reduce((sum, child) => sum + (child.activeCost ?? 0), 0);
-      power.baseCost = power.activeCost;
-    }
-  }
+  // Calculate container costs (sum of child real costs) for LIST and COMPOUNDPOWER.
+  // Innermost first, so a list holding a compound adds up the compound's own total.
+  const totalled = new Set<string>();
+  const total = (power: Power): void => {
+    if (totalled.has(power.id)) return;
+    totalled.add(power.id);
+    if (!(power.type === 'LIST' || power.type === 'COMPOUNDPOWER' || power.isContainer)) return;
+    const childPowers = powers.filter(p => p.parentId === power.id);
+    childPowers.forEach(total);
+    power.realCost = childPowers.reduce((sum, child) => sum + (child.realCost ?? 0), 0);
+    power.activeCost = childPowers.reduce((sum, child) => sum + (child.activeCost ?? 0), 0);
+    power.baseCost = power.activeCost;
+  };
+  powers.forEach(total);
   
   return powers;
 }

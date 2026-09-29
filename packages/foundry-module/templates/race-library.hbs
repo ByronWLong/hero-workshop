@@ -1,7 +1,7 @@
 <div class="hw-scroll standard-form hw-races">
   <p class="hint">
     Enter each race's listed characteristics. A character's maxima are these +10 (SPD +1, OCV/DCV/OMCV/DMCV +2),
-    averaged across the character's races and rounded up. Leave a value blank if the race doesn't list it.
+    averaged across the character's races and rounded up. Leave a value blank if the race doesn't list it. Import a Hero Designer rules file (its maxima), or a creature's .hdc (its characteristics).
   </p>
 
   {{#if editable}}
@@ -13,12 +13,12 @@
       {{#each actors}}<option value="{{id}}">{{name}}</option>{{/each}}
     </select>
     <button type="button" data-action="importActor"><i class="fa-solid fa-user" inert></i> Import</button>
-    <button type="button" data-action="importFile"><i class="fa-solid fa-file-import" inert></i> Import rules file…</button>
+    <button type="button" data-action="importFile"><i class="fa-solid fa-file-import" inert></i> Import .hdc file…</button>
   </div>
   {{/if}}
 
   {{#if races.length}}
-  <table class="hw-race-table">
+  <table class="hw-race-table" data-no-steppers>
     <thead>
       <tr>
         <th>Race</th>

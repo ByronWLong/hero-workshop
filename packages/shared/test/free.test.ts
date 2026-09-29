@@ -97,6 +97,25 @@ describe('free items (cost multiplier 0)', () => {
     expect(HdcDocument.parse(updateHdc(SKRALK, freed).xml).findById(skill.id)!.getAttr('MULTIPLIER')).toBe('0.0');
   });
 
+  it('a list holding a free compound totals its children after a save and re-read', () => {
+    // A list is written before the compound inside it, which is written before its parts
+    const xml = blankHdc().replace(
+      '<POWERS />',
+      `<POWERS>
+    <LIST XMLID="GENERIC_OBJECT" ID="9100" BASECOST="0.0" LEVELS="0" ALIAS="Spells" POSITION="0" NAME="" />
+    <POWER XMLID="FLIGHT" ID="9101" PARENTID="9100" BASECOST="0.0" LEVELS="10" ALIAS="Flight" POSITION="1" NAME="Wings" />
+    <POWER XMLID="COMPOUNDPOWER" ID="9102" PARENTID="9100" BASECOST="0.0" LEVELS="0" ALIAS="Compound Power" POSITION="2" MULTIPLIER="0.0" NAME="Gift" />
+    <POWER XMLID="FLIGHT" ID="9103" PARENTID="9102" BASECOST="0.0" LEVELS="6" ALIAS="Flight" POSITION="3" NAME="Glide" />
+  </POWERS>`,
+    );
+    const character = parseHdcFile(xml);
+    const list = rowFor(buildItemTree(character, 'powers'), 'Spells')!;
+    expect(list.children.find((c) => c.name === 'Gift')!.cost).toBe(0);
+    expect(list.cost).toBe(list.children.reduce((n, c) => n + c.cost, 0));
+    expect(list.cost).toBeGreaterThan(0);
+    expect(calculateCostBreakdown(character).powers).toBe(list.cost);
+  });
+
   it('keeps list totals right when a power in a list is re-saved or deleted', () => {
     const character = parseHdcFile(SKRALK);
     const ids = new Set(character.powers.map((p) => p.id));

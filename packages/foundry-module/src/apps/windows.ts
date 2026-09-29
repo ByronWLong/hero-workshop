@@ -267,7 +267,7 @@ export class RaceLibraryWindow extends HeroWorkshopApplication {
       const file = input.files?.[0];
       if (!file) return;
       try {
-        this.#add(raceFromRulesFile(new Uint8Array(await file.arrayBuffer())));
+        this.#add(raceFromRulesFile(new Uint8Array(await file.arrayBuffer()), file.name));
       } catch (e) {
         this.#error = e instanceof Error ? e.message : String(e);
         void this.render();
