@@ -1,50 +1,55 @@
 import { useMemo } from 'react';
-import type { Character, Characteristic as CharacteristicType } from '@hero-workshop/shared';
-import { calculateStatModifications, getStatModificationTotal } from '@hero-workshop/shared';
+import type {
+  Character,
+  Characteristic as CharacteristicType,
+  CharacteristicType as CharacteristicKey,
+  RaceDefinition,
+} from '@hero-workshop/shared';
+import {
+  calculateStatModifications,
+  characteristicCost,
+  characteristicRulesFor,
+  getStatModificationTotal,
+  templateUsesMaxima,
+} from '@hero-workshop/shared';
+import { MaximaPanel } from './MaximaPanel';
 
 interface CharacteristicsTabProps {
   character: Character;
   onUpdate: (character: Character) => void;
+  raceLibrary?: RaceDefinition[];
+  onManageRaces?: () => void;
 }
-
-// HERO System 6th Edition characteristic costs
-const CHAR_COSTS: Record<string, { baseCost: number; baseValue: number }> = {
-  STR: { baseCost: 1, baseValue: 10 },
-  DEX: { baseCost: 2, baseValue: 10 },
-  CON: { baseCost: 2, baseValue: 10 },
-  INT: { baseCost: 1, baseValue: 10 },
-  EGO: { baseCost: 1, baseValue: 10 },
-  PRE: { baseCost: 1, baseValue: 10 },
-  OCV: { baseCost: 5, baseValue: 3 },
-  DCV: { baseCost: 5, baseValue: 3 },
-  OMCV: { baseCost: 3, baseValue: 3 },
-  DMCV: { baseCost: 3, baseValue: 3 },
-  SPD: { baseCost: 10, baseValue: 2 },
-  PD: { baseCost: 1, baseValue: 2 },
-  ED: { baseCost: 1, baseValue: 2 },
-  REC: { baseCost: 1, baseValue: 4 },
-  END: { baseCost: 0.2, baseValue: 20 },
-  BODY: { baseCost: 1, baseValue: 10 },
-  STUN: { baseCost: 0.5, baseValue: 20 },
-  RUNNING: { baseCost: 1, baseValue: 12 },
-  SWIMMING: { baseCost: 1, baseValue: 4 },
-  LEAPING: { baseCost: 1, baseValue: 4 },
-};
 
 // Calculate STR-based values
 function calculateLift(str: number): string {
   if (str <= 0) return '0 kg';
   if (str <= 5) return `${Math.round(str * 10)} kg`;
-  
+
   // HERO System lifting table
   const liftTable: [number, string][] = [
-    [5, '50 kg'], [10, '100 kg'], [15, '200 kg'], [20, '400 kg'],
-    [25, '800 kg'], [30, '1,600 kg'], [35, '3,200 kg'], [40, '6,400 kg'],
-    [45, '12.5 tons'], [50, '25 tons'], [55, '50 tons'], [60, '100 tons'],
-    [65, '200 tons'], [70, '400 tons'], [75, '800 tons'], [80, '1,600 tons'],
-    [85, '3,200 tons'], [90, '6,400 tons'], [95, '12,800 tons'], [100, '25,600 tons'],
+    [5, '50 kg'],
+    [10, '100 kg'],
+    [15, '200 kg'],
+    [20, '400 kg'],
+    [25, '800 kg'],
+    [30, '1,600 kg'],
+    [35, '3,200 kg'],
+    [40, '6,400 kg'],
+    [45, '12.5 tons'],
+    [50, '25 tons'],
+    [55, '50 tons'],
+    [60, '100 tons'],
+    [65, '200 tons'],
+    [70, '400 tons'],
+    [75, '800 tons'],
+    [80, '1,600 tons'],
+    [85, '3,200 tons'],
+    [90, '6,400 tons'],
+    [95, '12,800 tons'],
+    [100, '25,600 tons'],
   ];
-  
+
   for (const [threshold, lift] of liftTable) {
     if (str <= threshold) return lift;
   }
@@ -55,9 +60,10 @@ function calculateDamageDice(str: number): string {
   if (str <= 0) return '0d6';
   const fullDice = Math.floor(str / 5);
   const remainder = str % 5;
-  
+
   if (remainder === 0) return `${fullDice}d6`;
-  if (remainder === 1 || remainder === 2) return fullDice > 0 ? `${fullDice}d6+${remainder}` : `+${remainder}`;
+  if (remainder === 1 || remainder === 2)
+    return fullDice > 0 ? `${fullDice}d6+${remainder}` : `+${remainder}`;
   if (remainder === 3) return `${fullDice}½d6`;
   return `${fullDice + 1}d6-1`; // remainder === 4
 }
@@ -67,10 +73,21 @@ function calculateCharacteristicRoll(value: number): string {
   return `${roll}-`;
 }
 
-export function CharacteristicsTab({ character, onUpdate }: CharacteristicsTabProps) {
+export function CharacteristicsTab({
+  character,
+  onUpdate,
+  raceLibrary,
+  onManageRaces,
+}: CharacteristicsTabProps) {
+  const maxima = character.rules?.characteristicMaxima ?? {};
+  // Vehicles, bases, computers etc. have their own characteristics and costs
+  const templateRules = characteristicRulesFor(character.hdcTemplate);
+  const ruleOf = (type: string) => templateRules[type as CharacteristicKey];
+  const baseOf = (type: string) => ruleOf(type)?.base ?? 0;
+  const isAvailable = (type: string) => ruleOf(type) !== undefined;
   // Calculate all stat modifications from powers and equipment once
   const statModifications = useMemo(() => calculateStatModifications(character), [character]);
-  
+
   // Helper to get effective value for a stat
   const getEffectiveBonus = (type: string): number => {
     return getStatModificationTotal(statModifications, type);
@@ -83,14 +100,14 @@ export function CharacteristicsTab({ character, onUpdate }: CharacteristicsTabPr
     { type: 'INT', label: 'Intelligence', color: 'var(--stat-int)', showRoll: true },
     { type: 'EGO', label: 'Ego', color: 'var(--stat-ego)', showRoll: true },
     { type: 'PRE', label: 'Presence', color: 'var(--stat-pre)', showRoll: true },
-  ];
+  ].filter((stat) => isAvailable(stat.type));
 
   const combatStats = [
     { type: 'OCV', label: 'OCV' },
     { type: 'DCV', label: 'DCV' },
     { type: 'OMCV', label: 'OMCV' },
     { type: 'DMCV', label: 'DMCV' },
-  ];
+  ].filter((stat) => isAvailable(stat.type));
 
   const derivedStats = [
     { type: 'SPD', label: 'Speed' },
@@ -100,28 +117,48 @@ export function CharacteristicsTab({ character, onUpdate }: CharacteristicsTabPr
     { type: 'END', label: 'Endurance' },
     { type: 'BODY', label: 'Body' },
     { type: 'STUN', label: 'Stun' },
-  ];
+  ].filter((stat) => isAvailable(stat.type));
+
+  const sizeStats = [
+    { type: 'SIZE', label: 'Size' },
+    { type: 'BASESIZE', label: 'Size' },
+  ].filter((stat) => isAvailable(stat.type));
 
   const movementStats = [
     { type: 'RUNNING', label: 'Running', unit: 'm' },
     { type: 'SWIMMING', label: 'Swimming', unit: 'm' },
     { type: 'LEAPING', label: 'Leaping', unit: 'm' },
-  ];
+  ].filter((stat) => isAvailable(stat.type));
 
   const getCharacteristic = (type: string): CharacteristicType | undefined => {
     return character.characteristics.find((c) => c.type === type);
   };
 
-  const calculateCost = (type: string, value: number): number => {
-    const config = CHAR_COSTS[type];
-    if (!config) return 0;
-    const levelsBought = value - config.baseValue;
-    return Math.ceil(levelsBought * config.baseCost);
+  const calculateCost = (type: string, value: number): number =>
+    characteristicCost(
+      type as CharacteristicKey,
+      value - baseOf(type),
+      maxima[type as CharacteristicKey],
+      ruleOf(type)
+    );
+
+  /** "Max 24", plus the surcharge when the value is over it */
+  const renderMaximum = (type: string, value: number) => {
+    const maximum = maxima[type as CharacteristicKey];
+    if (maximum === undefined) return null;
+    const levels = value - baseOf(type);
+    const surcharge =
+      calculateCost(type, value) -
+      characteristicCost(type as CharacteristicKey, levels, undefined, ruleOf(type));
+    return (
+      <div className={`characteristic-max ${value > maximum ? 'over' : ''}`}>
+        Max {maximum}
+        {surcharge > 0 && <> · +{surcharge} pts over</>}
+      </div>
+    );
   };
 
   const handleValueChange = (type: string, newValue: number) => {
-    const config = CHAR_COSTS[type];
-    const baseValue = config?.baseValue ?? 10;
     const cost = calculateCost(type, newValue);
 
     const updatedChars = character.characteristics.map((c) => {
@@ -129,7 +166,7 @@ export function CharacteristicsTab({ character, onUpdate }: CharacteristicsTabPr
         return {
           ...c,
           totalValue: newValue,
-          levels: newValue - baseValue,
+          levels: newValue - baseOf(type),
           baseCost: cost,
           realCost: cost,
         };
@@ -149,289 +186,421 @@ export function CharacteristicsTab({ character, onUpdate }: CharacteristicsTabPr
   return (
     <div className="characteristics-tab">
       {/* STR Derived Values */}
-      <section style={{ marginBottom: '2rem' }}>
-        <div className="card" style={{ background: 'var(--surface-light)', padding: '1rem' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-around', textAlign: 'center' }}>
-            <div>
-              <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', textTransform: 'uppercase' }}>
-                Lift
+      {isAvailable('STR') && (
+        <section style={{ marginBottom: '2rem' }}>
+          <div className="card" style={{ background: 'var(--surface-light)', padding: '1rem' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-around', textAlign: 'center' }}>
+              <div>
+                <div
+                  style={{
+                    fontSize: '0.75rem',
+                    color: 'var(--text-secondary)',
+                    textTransform: 'uppercase',
+                  }}
+                >
+                  Lift
+                </div>
+                <div style={{ fontSize: '1.25rem', fontWeight: 600, color: 'var(--stat-str)' }}>
+                  {calculateLift(effectiveStr)}
+                </div>
               </div>
-              <div style={{ fontSize: '1.25rem', fontWeight: 600, color: 'var(--stat-str)' }}>
-                {calculateLift(effectiveStr)}
+              <div>
+                <div
+                  style={{
+                    fontSize: '0.75rem',
+                    color: 'var(--text-secondary)',
+                    textTransform: 'uppercase',
+                  }}
+                >
+                  HTH Damage
+                </div>
+                <div style={{ fontSize: '1.25rem', fontWeight: 600, color: 'var(--stat-str)' }}>
+                  {calculateDamageDice(effectiveStr)}
+                </div>
               </div>
-            </div>
-            <div>
-              <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', textTransform: 'uppercase' }}>
-                HTH Damage
-              </div>
-              <div style={{ fontSize: '1.25rem', fontWeight: 600, color: 'var(--stat-str)' }}>
-                {calculateDamageDice(effectiveStr)}
-              </div>
-            </div>
-            <div>
-              <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', textTransform: 'uppercase' }}>
-                Throw Distance
-              </div>
-              <div style={{ fontSize: '1.25rem', fontWeight: 600, color: 'var(--stat-str)' }}>
-                {effectiveStr * 2}m
+              <div>
+                <div
+                  style={{
+                    fontSize: '0.75rem',
+                    color: 'var(--text-secondary)',
+                    textTransform: 'uppercase',
+                  }}
+                >
+                  Throw Distance
+                </div>
+                <div style={{ fontSize: '1.25rem', fontWeight: 600, color: 'var(--stat-str)' }}>
+                  {effectiveStr * 2}m
+                </div>
               </div>
             </div>
           </div>
-        </div>
-      </section>
+        </section>
+      )}
 
-      <section style={{ marginBottom: '2rem' }}>
-        <h3 style={{ marginBottom: '1rem', color: 'var(--text-secondary)' }}>Primary Characteristics</h3>
-        <div className="characteristics-grid">
-          {primaryStats.map(({ type, label, color, showRoll }) => {
-            const char = getCharacteristic(type);
-            const value = char?.totalValue ?? (CHAR_COSTS[type]?.baseValue ?? 10);
-            const cost = calculateCost(type, value);
-            const bonus = getEffectiveBonus(type);
-            const effectiveValue = value + bonus;
-            const hasBonus = bonus !== 0;
-            return (
-              <div key={type} className="characteristic-item">
-                <div className="characteristic-name">{label}</div>
-                <div 
-                  className="characteristic-effective-value"
-                  style={{
-                    fontSize: '2rem',
-                    fontWeight: 'bold',
-                    textAlign: 'center',
-                    color: color,
-                  }}
-                >
-                  {effectiveValue}
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.25rem', marginTop: '-0.25rem' }}>
-                  <input
-                    type="number"
-                    className="characteristic-base-value"
-                    value={value}
-                    onChange={(e) => handleValueChange(type, parseInt(e.target.value) || 0)}
+      {templateUsesMaxima(character.hdcTemplate) && (
+        <MaximaPanel
+          character={character}
+          onUpdate={onUpdate}
+          raceLibrary={raceLibrary}
+          onManageRaces={onManageRaces}
+        />
+      )}
+
+      {primaryStats.length > 0 && (
+        <section style={{ marginBottom: '2rem' }}>
+          <h3 style={{ marginBottom: '1rem', color: 'var(--text-secondary)' }}>
+            Primary Characteristics
+          </h3>
+          <div className="characteristics-grid">
+            {primaryStats.map(({ type, label, color, showRoll }) => {
+              const char = getCharacteristic(type);
+              const value = char?.totalValue ?? baseOf(type);
+              const cost = calculateCost(type, value);
+              const bonus = getEffectiveBonus(type);
+              const effectiveValue = value + bonus;
+              const hasBonus = bonus !== 0;
+              return (
+                <div key={type} className="characteristic-item">
+                  <div className="characteristic-name">{label}</div>
+                  <div
+                    className="characteristic-effective-value"
                     style={{
-                      background: 'transparent',
-                      border: 'none',
-                      color: 'var(--text-secondary)',
-                      width: '3rem',
-                      textAlign: 'right',
-                      fontSize: '1.1rem',
+                      fontSize: '2rem',
+                      fontWeight: 'bold',
+                      textAlign: 'center',
+                      color: color,
                     }}
-                  />
-                  {hasBonus && (
-                    <span style={{ 
-                      fontSize: '1.1rem', 
-                      color: bonus > 0 ? 'var(--success)' : 'var(--error)',
-                    }}>
-                      ({bonus > 0 ? '+' : ''}{bonus})
-                    </span>
-                  )}
-                </div>
-                {showRoll && (
-                  <div className="characteristic-roll">
-                    Roll: {calculateCharacteristicRoll(effectiveValue)}
+                  >
+                    {effectiveValue}
                   </div>
-                )}
-                <div className="characteristic-cost">
-                  {cost} pts
+                  <div
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '0.25rem',
+                      marginTop: '-0.25rem',
+                    }}
+                  >
+                    <input
+                      type="number"
+                      className="characteristic-base-value"
+                      value={value}
+                      onChange={(e) => handleValueChange(type, parseInt(e.target.value) || 0)}
+                      style={{
+                        background: 'transparent',
+                        border: 'none',
+                        color: 'var(--text-secondary)',
+                        width: '3rem',
+                        textAlign: 'right',
+                        fontSize: '1.1rem',
+                      }}
+                    />
+                    {hasBonus && (
+                      <span
+                        style={{
+                          fontSize: '1.1rem',
+                          color: bonus > 0 ? 'var(--success)' : 'var(--error)',
+                        }}
+                      >
+                        ({bonus > 0 ? '+' : ''}
+                        {bonus})
+                      </span>
+                    )}
+                  </div>
+                  {showRoll && (
+                    <div className="characteristic-roll">
+                      Roll: {calculateCharacteristicRoll(effectiveValue)}
+                    </div>
+                  )}
+                  {renderMaximum(type, value)}
+                  <div className="characteristic-cost">{cost} pts</div>
                 </div>
-              </div>
-            );
-          })}
-        </div>
-      </section>
+              );
+            })}
+          </div>
+        </section>
+      )}
 
-      <section style={{ marginBottom: '2rem' }}>
-        <h3 style={{ marginBottom: '1rem', color: 'var(--text-secondary)' }}>Combat Values</h3>
-        <div className="characteristics-grid">
-          {combatStats.map(({ type, label }) => {
-            const char = getCharacteristic(type);
-            const value = char?.totalValue ?? (CHAR_COSTS[type]?.baseValue ?? 3);
-            const cost = calculateCost(type, value);
-            const bonus = getEffectiveBonus(type);
-            const effectiveValue = value + bonus;
-            const hasBonus = bonus !== 0;
-            return (
-              <div key={type} className="characteristic-item">
-                <div className="characteristic-name">{label}</div>
-                <div 
-                  className="characteristic-effective-value"
-                  style={{
-                    fontSize: '2rem',
-                    fontWeight: 'bold',
-                    textAlign: 'center',
-                    color: 'var(--text-primary)',
-                  }}
-                >
-                  {effectiveValue}
+      {combatStats.length > 0 && (
+        <section style={{ marginBottom: '2rem' }}>
+          <h3 style={{ marginBottom: '1rem', color: 'var(--text-secondary)' }}>Combat Values</h3>
+          <div className="characteristics-grid">
+            {combatStats.map(({ type, label }) => {
+              const char = getCharacteristic(type);
+              const value = char?.totalValue ?? baseOf(type);
+              const cost = calculateCost(type, value);
+              const bonus = getEffectiveBonus(type);
+              const effectiveValue = value + bonus;
+              const hasBonus = bonus !== 0;
+              return (
+                <div key={type} className="characteristic-item">
+                  <div className="characteristic-name">{label}</div>
+                  <div
+                    className="characteristic-effective-value"
+                    style={{
+                      fontSize: '2rem',
+                      fontWeight: 'bold',
+                      textAlign: 'center',
+                      color: 'var(--text-primary)',
+                    }}
+                  >
+                    {effectiveValue}
+                  </div>
+                  <div
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '0.25rem',
+                      marginTop: '-0.25rem',
+                    }}
+                  >
+                    <input
+                      type="number"
+                      className="characteristic-base-value"
+                      value={value}
+                      onChange={(e) => handleValueChange(type, parseInt(e.target.value) || 0)}
+                      style={{
+                        background: 'transparent',
+                        border: 'none',
+                        color: 'var(--text-secondary)',
+                        width: '3rem',
+                        textAlign: 'right',
+                        fontSize: '1.1rem',
+                      }}
+                    />
+                    {hasBonus && (
+                      <span
+                        style={{
+                          fontSize: '1.1rem',
+                          color: bonus > 0 ? 'var(--success)' : 'var(--error)',
+                        }}
+                      >
+                        ({bonus > 0 ? '+' : ''}
+                        {bonus})
+                      </span>
+                    )}
+                  </div>
+                  {renderMaximum(type, value)}
+                  <div className="characteristic-cost">{cost} pts</div>
                 </div>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.25rem', marginTop: '-0.25rem' }}>
+              );
+            })}
+          </div>
+        </section>
+      )}
+
+      {derivedStats.length > 0 && (
+        <section style={{ marginBottom: '2rem' }}>
+          <h3 style={{ marginBottom: '1rem', color: 'var(--text-secondary)' }}>
+            Secondary Characteristics
+          </h3>
+          <div className="characteristics-grid">
+            {derivedStats.map(({ type, label }) => {
+              const char = getCharacteristic(type);
+              const value = char?.totalValue ?? baseOf(type);
+              const cost = calculateCost(type, value);
+              const bonus = getEffectiveBonus(type);
+              const effectiveValue = value + bonus;
+              const hasBonus = bonus !== 0;
+
+              // For PD/ED, get the resistant defense values from equipment (same logic as EffectiveStatsCard)
+              const rValue =
+                type === 'PD'
+                  ? getEffectiveBonus('rPD')
+                  : type === 'ED'
+                    ? getEffectiveBonus('rED')
+                    : 0;
+
+              return (
+                <div key={type} className="characteristic-item">
+                  <div className="characteristic-name">{label}</div>
+                  <div
+                    className="characteristic-effective-value"
+                    style={{
+                      fontSize: '2rem',
+                      fontWeight: 'bold',
+                      textAlign: 'center',
+                      color: 'var(--text-primary)',
+                    }}
+                  >
+                    {/* For PD/ED, show compound format: total / (total + resistant) */}
+                    {(type === 'PD' || type === 'ED') && rValue > 0 ? (
+                      <>
+                        {effectiveValue}
+                        <span style={{ color: 'var(--primary-light)' }}>
+                          /{effectiveValue + rValue}
+                        </span>
+                      </>
+                    ) : (
+                      effectiveValue
+                    )}
+                  </div>
+                  <div
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '0.25rem',
+                      marginTop: '-0.25rem',
+                    }}
+                  >
+                    <input
+                      type="number"
+                      className="characteristic-base-value"
+                      value={value}
+                      onChange={(e) => handleValueChange(type, parseInt(e.target.value) || 0)}
+                      style={{
+                        background: 'transparent',
+                        border: 'none',
+                        color: 'var(--text-secondary)',
+                        width: '3rem',
+                        textAlign: 'right',
+                        fontSize: '1.1rem',
+                      }}
+                    />
+                    {hasBonus && (
+                      <span
+                        style={{
+                          fontSize: '1.1rem',
+                          color: bonus > 0 ? 'var(--success)' : 'var(--error)',
+                        }}
+                      >
+                        ({bonus > 0 ? '+' : ''}
+                        {bonus})
+                      </span>
+                    )}
+                    {/* Show rPD/rED separately for PD/ED */}
+                    {(type === 'PD' || type === 'ED') && rValue > 0 && (
+                      <span
+                        style={{
+                          fontSize: '1.1rem',
+                          color: 'var(--primary-light)',
+                        }}
+                      >
+                        ({rValue} r{type})
+                      </span>
+                    )}
+                  </div>
+                  {renderMaximum(type, value)}
+                  <div className="characteristic-cost">{cost} pts</div>
+                </div>
+              );
+            })}
+          </div>
+        </section>
+      )}
+
+      {movementStats.length > 0 && (
+        <section>
+          <h3 style={{ marginBottom: '1rem', color: 'var(--text-secondary)' }}>Movement</h3>
+          <div className="characteristics-grid">
+            {movementStats.map(({ type, label, unit }) => {
+              const char = getCharacteristic(type);
+              const value = char?.totalValue ?? baseOf(type);
+              const cost = calculateCost(type, value);
+              const bonus = getEffectiveBonus(type);
+              const effectiveValue = value + bonus;
+              const hasBonus = bonus !== 0;
+              return (
+                <div key={type} className="characteristic-item">
+                  <div className="characteristic-name">{label}</div>
+                  <div
+                    className="characteristic-effective-value"
+                    style={{
+                      fontSize: '2rem',
+                      fontWeight: 'bold',
+                      textAlign: 'center',
+                      color: 'var(--text-primary)',
+                    }}
+                  >
+                    {effectiveValue}
+                    <span
+                      style={{
+                        fontSize: '1rem',
+                        fontWeight: 'normal',
+                        color: 'var(--text-secondary)',
+                      }}
+                    >
+                      {unit}
+                    </span>
+                  </div>
+                  <div
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '0.25rem',
+                      marginTop: '-0.25rem',
+                    }}
+                  >
+                    <input
+                      type="number"
+                      className="characteristic-base-value"
+                      value={value}
+                      onChange={(e) => handleValueChange(type, parseInt(e.target.value) || 0)}
+                      style={{
+                        background: 'transparent',
+                        border: 'none',
+                        color: 'var(--text-secondary)',
+                        width: '3rem',
+                        textAlign: 'right',
+                        fontSize: '1.1rem',
+                      }}
+                    />
+                    {hasBonus && (
+                      <span
+                        style={{
+                          fontSize: '1.1rem',
+                          color: bonus > 0 ? 'var(--success)' : 'var(--error)',
+                        }}
+                      >
+                        ({bonus > 0 ? '+' : ''}
+                        {bonus})
+                      </span>
+                    )}
+                  </div>
+                  <div className="characteristic-cost">{cost} pts</div>
+                </div>
+              );
+            })}
+          </div>
+        </section>
+      )}
+
+      {sizeStats.length > 0 && (
+        <section style={{ marginTop: '2rem' }}>
+          <h3 style={{ marginBottom: '1rem', color: 'var(--text-secondary)' }}>Size</h3>
+          <div className="characteristics-grid">
+            {sizeStats.map(({ type, label }) => {
+              const value = getCharacteristic(type)?.totalValue ?? baseOf(type);
+              return (
+                <div key={type} className="characteristic-item">
+                  <div className="characteristic-name">{label}</div>
                   <input
                     type="number"
                     className="characteristic-base-value"
                     value={value}
+                    min={0}
                     onChange={(e) => handleValueChange(type, parseInt(e.target.value) || 0)}
                     style={{
                       background: 'transparent',
                       border: 'none',
-                      color: 'var(--text-secondary)',
-                      width: '3rem',
-                      textAlign: 'right',
-                      fontSize: '1.1rem',
+                      color: 'var(--text-primary)',
+                      width: '4rem',
+                      textAlign: 'center',
+                      fontSize: '2rem',
+                      fontWeight: 'bold',
                     }}
                   />
-                  {hasBonus && (
-                    <span style={{ 
-                      fontSize: '1.1rem', 
-                      color: bonus > 0 ? 'var(--success)' : 'var(--error)',
-                    }}>
-                      ({bonus > 0 ? '+' : ''}{bonus})
-                    </span>
-                  )}
+                  <div className="characteristic-cost">{calculateCost(type, value)} pts</div>
                 </div>
-                <div className="characteristic-cost">
-                  {cost} pts
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </section>
-
-      <section style={{ marginBottom: '2rem' }}>
-        <h3 style={{ marginBottom: '1rem', color: 'var(--text-secondary)' }}>Secondary Characteristics</h3>
-        <div className="characteristics-grid">
-          {derivedStats.map(({ type, label }) => {
-            const char = getCharacteristic(type);
-            const value = char?.totalValue ?? (CHAR_COSTS[type]?.baseValue ?? 0);
-            const cost = calculateCost(type, value);
-            const bonus = getEffectiveBonus(type);
-            const effectiveValue = value + bonus;
-            const hasBonus = bonus !== 0;
-            
-            // For PD/ED, get the resistant defense values from equipment (same logic as EffectiveStatsCard)
-            const rValue = type === 'PD' ? getEffectiveBonus('rPD') 
-              : type === 'ED' ? getEffectiveBonus('rED')
-              : 0;
-            
-            return (
-              <div key={type} className="characteristic-item">
-                <div className="characteristic-name">{label}</div>
-                <div 
-                  className="characteristic-effective-value"
-                  style={{
-                    fontSize: '2rem',
-                    fontWeight: 'bold',
-                    textAlign: 'center',
-                    color: 'var(--text-primary)',
-                  }}
-                >
-                  {/* For PD/ED, show compound format: total / (total + resistant) */}
-                  {(type === 'PD' || type === 'ED') && rValue > 0 ? (
-                    <>{effectiveValue}<span style={{ color: 'var(--primary-light)' }}>/{effectiveValue + rValue}</span></>
-                  ) : (
-                    effectiveValue
-                  )}
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.25rem', marginTop: '-0.25rem' }}>
-                  <input
-                    type="number"
-                    className="characteristic-base-value"
-                    value={value}
-                    onChange={(e) => handleValueChange(type, parseInt(e.target.value) || 0)}
-                    style={{
-                      background: 'transparent',
-                      border: 'none',
-                      color: 'var(--text-secondary)',
-                      width: '3rem',
-                      textAlign: 'right',
-                      fontSize: '1.1rem',
-                    }}
-                  />
-                  {hasBonus && (
-                    <span style={{ 
-                      fontSize: '1.1rem', 
-                      color: bonus > 0 ? 'var(--success)' : 'var(--error)',
-                    }}>
-                      ({bonus > 0 ? '+' : ''}{bonus})
-                    </span>
-                  )}
-                  {/* Show rPD/rED separately for PD/ED */}
-                  {(type === 'PD' || type === 'ED') && rValue > 0 && (
-                    <span style={{ 
-                      fontSize: '1.1rem', 
-                      color: 'var(--primary-light)',
-                    }}>
-                      ({rValue} r{type})
-                    </span>
-                  )}
-                </div>
-                <div className="characteristic-cost">
-                  {cost} pts
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </section>
-
-      <section>
-        <h3 style={{ marginBottom: '1rem', color: 'var(--text-secondary)' }}>Movement</h3>
-        <div className="characteristics-grid">
-          {movementStats.map(({ type, label, unit }) => {
-            const char = getCharacteristic(type);
-            const value = char?.totalValue ?? (CHAR_COSTS[type]?.baseValue ?? 0);
-            const cost = calculateCost(type, value);
-            const bonus = getEffectiveBonus(type);
-            const effectiveValue = value + bonus;
-            const hasBonus = bonus !== 0;
-            return (
-              <div key={type} className="characteristic-item">
-                <div className="characteristic-name">{label}</div>
-                <div 
-                  className="characteristic-effective-value"
-                  style={{
-                    fontSize: '2rem',
-                    fontWeight: 'bold',
-                    textAlign: 'center',
-                    color: 'var(--text-primary)',
-                  }}
-                >
-                  {effectiveValue}<span style={{ fontSize: '1rem', fontWeight: 'normal', color: 'var(--text-secondary)' }}>{unit}</span>
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.25rem', marginTop: '-0.25rem' }}>
-                  <input
-                    type="number"
-                    className="characteristic-base-value"
-                    value={value}
-                    onChange={(e) => handleValueChange(type, parseInt(e.target.value) || 0)}
-                    style={{
-                      background: 'transparent',
-                      border: 'none',
-                      color: 'var(--text-secondary)',
-                      width: '3rem',
-                      textAlign: 'right',
-                      fontSize: '1.1rem',
-                    }}
-                  />
-                  {hasBonus && (
-                    <span style={{ 
-                      fontSize: '1.1rem', 
-                      color: bonus > 0 ? 'var(--success)' : 'var(--error)',
-                    }}>
-                      ({bonus > 0 ? '+' : ''}{bonus})
-                    </span>
-                  )}
-                </div>
-                <div className="characteristic-cost">
-                  {cost} pts
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </section>
+              );
+            })}
+          </div>
+        </section>
+      )}
     </div>
   );
 }

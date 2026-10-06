@@ -1,0 +1,37 @@
+<div class="hw-scroll standard-form hw-dialog-body">
+  <div class="form-group">
+    <label for="hw-new-name">Name</label>
+    <input id="hw-new-name" type="text" name="name" data-field="name" value="{{name}}" autofocus required>
+  </div>
+
+  <fieldset>
+    <legend>Template</legend>
+    <div class="hw-template-choices">
+      {{#each templates}}
+      <label class="hw-template-choice {{#if checked}}active{{/if}}">
+        <input type="radio" name="template" data-field="template" value="{{id}}" {{checked checked}}>
+        <strong>{{label}}</strong>
+        <span class="hint">{{hint}}</span>
+      </label>
+      {{/each}}
+    </div>
+  </fieldset>
+
+  <div class="form-group">
+    <label>Total points</label>
+    <input type="number" name="basePoints" data-field="basePoints" value="{{basePoints}}" min="0">
+  </div>
+  <div class="form-group">
+    <label>Complication points</label>
+    <input type="number" name="disadPoints" data-field="disadPoints" value="{{disadPoints}}" min="0">
+  </div>
+  {{#if isPerson}}
+  <div class="form-group">
+    <label>Actor type</label>
+    <select name="actorType" data-field="actorType">
+      <option value="pc" {{#if (eq actorType "pc")}}selected{{/if}}>Player character</option>
+      <option value="npc" {{#if (eq actorType "npc")}}selected{{/if}}>NPC</option>
+    </select>
+  </div>
+  {{/if}}
+</div>

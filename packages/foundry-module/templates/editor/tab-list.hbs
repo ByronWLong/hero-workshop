@@ -1,0 +1,17 @@
+<section class="tab hw-list-tab {{tab.cssClass}}" data-group="primary" data-tab="{{tab.id}}">
+  <div class="hw-list-toolbar">
+    <span class="hint">{{tab.count}} {{#if (eq tab.count 1)}}entry{{else}}entries{{/if}} · {{tab.points}} pts</span>
+    {{#if tab.canAdd}}
+    <div class="hw-inline-buttons">
+      <button type="button" data-action="addItem" data-section="{{tab.section}}"><i class="fa-solid fa-plus" inert></i> Add {{tab.noun}}</button>
+    </div>
+    {{/if}}
+  </div>
+  {{#if tab.rows.length}}
+  <ol class="hw-items">
+    {{#each tab.rows as |row|}}{{> "modules/hero-workshop/templates/editor/item-row.hbs" row=row section=../tab.section}}{{/each}}
+  </ol>
+  {{else}}
+  <p class="hint hw-empty">Nothing here yet. Add one, or drag items in from the Items sidebar.</p>
+  {{/if}}
+</section>

@@ -1,0 +1,13 @@
+<section class="hw-summary">
+  <div class="hw-remaining {{#if (lt summary.remaining 0)}}hw-bad{{/if}}">
+    <span class="hw-remaining-value">{{summary.remaining}}</span>
+    <span class="hint">points left</span>
+  </div>
+  <dl class="hw-totals">
+    <dt>Spent</dt><dd>{{summary.spent}} <span class="hint">/ {{summary.available}}</span></dd>
+    {{#each summary.breakdown}}<dt class="hw-sub">{{label}}</dt><dd class="hw-sub">{{points}}</dd>{{/each}}
+    <dt>Complications</dt>
+    <dd class="{{#unless summary.complicationsOk}}hw-bad{{/unless}}">{{summary.complicationsTaken}} <span class="hint">/ {{summary.disadPoints}}</span></dd>
+  </dl>
+  <p class="hint">{{summary.basePoints}} base + {{summary.experience}} experience. Change these on the Info tab.</p>
+</section>

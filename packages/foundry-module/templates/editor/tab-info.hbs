@@ -1,0 +1,24 @@
+<section class="tab hw-info {{tab.cssClass}}" data-group="primary" data-tab="info">
+  <fieldset>
+    <legend>Character</legend>
+    <div class="hw-field-grid">
+      {{#each tab.fields as |field|}}{{#unless field.multiline}}
+      <label>{{field.label}}<input type="text" data-field="info.{{field.key}}" value="{{field.value}}"></label>
+      {{/unless}}{{/each}}
+    </div>
+  </fieldset>
+  <fieldset>
+    <legend>Points</legend>
+    <div class="hw-field-grid">
+      <label>Base points<input type="number" data-field="config.basePoints" value="{{tab.config.basePoints}}" min="0"></label>
+      <label>Complication points<input type="number" data-field="config.disadPoints" value="{{tab.config.disadPoints}}" min="0"></label>
+      <label>Experience<input type="number" data-field="config.experience" value="{{tab.config.experience}}" min="0"></label>
+    </div>
+  </fieldset>
+  <fieldset>
+    <legend>Description</legend>
+    {{#each tab.fields as |field|}}{{#if field.multiline}}
+    <label class="hw-stacked">{{field.label}}<textarea rows="3" data-field="info.{{field.key}}">{{field.value}}</textarea></label>
+    {{/if}}{{/each}}
+  </fieldset>
+</section>

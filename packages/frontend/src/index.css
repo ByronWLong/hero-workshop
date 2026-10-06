@@ -224,6 +224,10 @@ button {
   gap: 1.5rem;
 }
 
+.editor-layout-single {
+  grid-template-columns: 1fr;
+}
+
 .editor-sidebar {
   display: flex;
   flex-direction: column;
@@ -733,3 +737,54 @@ button {
   color: var(--text-secondary);
 }
 
+
+/* Characteristic maxima */
+.characteristic-max {
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  text-align: center;
+}
+
+.characteristic-max.over {
+  color: var(--warning);
+  font-weight: 600;
+}
+
+.maxima-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(90px, 1fr));
+  gap: 0.5rem;
+  margin-top: 1rem;
+}
+
+.maxima-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+}
+
+.maxima-cell input {
+  padding: 0.3rem 0.5rem;
+}
+
+.race-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.3rem 0.7rem;
+  border: 1px solid var(--border-color);
+  border-radius: 999px;
+  cursor: pointer;
+  font-size: 0.875rem;
+}
+
+.race-chip input {
+  display: none;
+}
+
+.race-chip.active {
+  border-color: var(--primary-light);
+  background: color-mix(in srgb, var(--primary-color) 25%, transparent);
+}

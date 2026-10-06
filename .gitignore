@@ -46,3 +46,6 @@ samples/
 java
 java/
 
+
+# Local portable Foundry VTT install used for module testing
+/foundry/

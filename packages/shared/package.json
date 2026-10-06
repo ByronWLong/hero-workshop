@@ -8,9 +8,13 @@
   "scripts": {
     "build": "tsc",
     "typecheck": "tsc --noEmit",
-    "dev": "tsc --watch"
+    "dev": "tsc --watch",
+    "test": "vitest run",
+    "generate:catalog": "node scripts/generate-catalogs.mjs"
   },
   "devDependencies": {
-    "typescript": "^5.8.0"
+    "fast-xml-parser": "^5.11.1",
+    "typescript": "^5.8.0",
+    "vitest": "^5.0.3"
   }
 }

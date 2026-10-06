@@ -1,0 +1,17 @@
+<li class="hw-item {{#if row.isGroup}}hw-item-group{{/if}}">
+  <div class="hw-item-row" draggable="true" tabindex="0" role="button" data-action="editItem" data-section="{{section}}"
+    data-item-id="{{row.id}}" {{#if row.acceptsChildren}}data-accepts-children{{/if}}>
+    <img class="hw-item-icon" src="{{row.img}}" alt="" loading="lazy">
+    <div class="hw-item-text">
+      <span class="hw-item-name">{{row.name}}{{#if row.free}} <span class="hw-tag hw-tag-free" data-tooltip="Given by the GM: costs no points">Free</span>{{/if}}</span>
+      {{#if row.detail}}<span class="hint hw-item-detail">{{row.detail}}</span>{{/if}}
+    </div>
+    <span class="hw-item-cost">{{row.cost}}</span>
+    <a class="hw-item-delete" data-action="deleteItem" data-section="{{section}}" data-item-id="{{row.id}}" data-tooltip="Delete" aria-label="Delete {{row.name}}"><i class="fa-solid fa-trash" inert></i></a>
+  </div>
+  {{#if row.children.length}}
+  <ol class="hw-items hw-children">
+    {{#each row.children as |child|}}{{> "modules/hero-workshop/templates/editor/item-row.hbs" row=child section=../section}}{{/each}}
+  </ol>
+  {{/if}}
+</li>

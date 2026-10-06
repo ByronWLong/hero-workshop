@@ -1,0 +1,241 @@
+<div class="hw-scroll standard-form hw-dialog-body">
+  {{#if kindChoices}}
+  <div class="hw-kind-choices" role="radiogroup" aria-label="What to add">
+    {{#each kindChoices}}
+    <label class="hw-kind-choice {{#if checked}}active{{/if}}">
+      <input type="radio" name="kind" data-field="kind" value="{{value}}" {{checked checked}}>
+      <strong>{{label}}</strong>
+      <span class="hint">{{hint}}</span>
+    </label>
+    {{/each}}
+  </div>
+  {{/if}}
+
+  <div class="hw-icon-field">
+    <button type="button" class="hw-icon-pick" data-action="pickIcon" data-tooltip="Choose icon" aria-label="Choose icon">
+      <img src="{{icon.src}}" alt="">
+    </button>
+    <div>
+      <span class="hint">{{#if icon.custom}}Custom icon{{else}}Default icon{{/if}}</span>
+      {{#if icon.custom}}<a class="hw-icon-clear" data-action="clearIcon">Use default</a>{{/if}}
+    </div>
+  </div>
+
+  {{#if isPower}}
+  <div class="form-group">
+    <label>Power</label>
+    <div class="form-fields">
+      <select data-field="xmlId">
+        <option value="CUSTOM" {{#if isCustom}}selected{{/if}}>— Custom power —</option>
+        {{#each powerChoices as |group|}}
+        <optgroup label="{{group.label}}">
+          {{#each group.options}}<option value="{{value}}" {{#if selected}}selected{{/if}}>{{label}}</option>{{/each}}
+        </optgroup>
+        {{/each}}
+      </select>
+    </div>
+    {{#if definition.description}}<p class="hint">{{definition.description}}</p>{{/if}}
+  </div>
+  {{/if}}
+
+  <div class="form-group">
+    <label>{{#if isCustom}}Name{{else if isPower}}Custom name{{else}}Name{{/if}}</label>
+    <input type="text" data-field="name" value="{{draft.name}}" placeholder="{{definition.display}}">
+  </div>
+
+  {{#if isCustom}}
+  <div class="form-group">
+    <label>Description</label>
+    <input type="text" data-field="alias" value="{{draft.alias}}">
+  </div>
+  <div class="form-group">
+    <label>Base cost</label>
+    <input type="number" data-field="customCost" value="{{draft.customCost}}">
+  </div>
+  {{/if}}
+
+  {{#if (and isPower definition.inputLabel)}}
+  <div class="form-group">
+    <label>{{definition.inputLabel}}</label>
+    <input type="text" data-field="input" value="{{draft.input}}">
+  </div>
+  {{/if}}
+
+  {{#if isPower}}
+  {{#if definition.options}}
+  <div class="form-group">
+    <label>Option</label>
+    <select data-field="option">
+      {{#each definition.options}}<option value="{{value}}" {{#if selected}}selected{{/if}}>{{label}}</option>{{/each}}
+    </select>
+  </div>
+  {{/if}}
+  {{#if definition.hasLevels}}{{#unless isBarrier}}
+  <div class="form-group">
+    <label>Dice / levels</label>
+    <input type="number" data-field="levels" value="{{draft.levels}}">
+    {{#if definition.levelLabel}}<p class="hint">{{definition.levelLabel}}</p>{{/if}}
+  </div>
+  {{/unless}}{{/if}}
+  {{/if}}
+
+  {{#if isBarrier}}
+  <fieldset>
+    <legend>Barrier</legend>
+    <div class="hw-barrier-grid">
+      <label>Length (m)<input type="number" data-field="barrier.length" value="{{draft.barrier.length}}" min="1"></label>
+      <label>Height (m)<input type="number" data-field="barrier.height" value="{{draft.barrier.height}}" min="1"></label>
+      <label>Thickness (m)<input type="number" step="0.5" data-field="barrier.width" value="{{draft.barrier.width}}" min="0.5"></label>
+      <label>BODY<input type="number" data-field="barrier.body" value="{{draft.barrier.body}}" min="0"></label>
+      <label>PD<input type="number" data-field="barrier.pd" value="{{draft.barrier.pd}}" min="0"></label>
+      <label>ED<input type="number" data-field="barrier.ed" value="{{draft.barrier.ed}}" min="0"></label>
+      <label>MD<input type="number" data-field="barrier.md" value="{{draft.barrier.md}}" min="0"></label>
+      <label>Power Defense<input type="number" data-field="barrier.powd" value="{{draft.barrier.powd}}" min="0"></label>
+    </div>
+  </fieldset>
+  {{/if}}
+
+  {{#if containers.length}}
+  <div class="form-group">
+    <label>In</label>
+    <select data-field="parentId">
+      <option value="">— Not in a list —</option>
+      {{#each containers}}<option value="{{id}}" {{#if selected}}selected{{/if}}>{{name}} ({{kind}})</option>{{/each}}
+    </select>
+  </div>
+  {{/if}}
+
+  {{#if isEquipment}}
+  <div class="hw-equipment-grid">
+    <label>Price<input type="number" data-field="price" value="{{draft.price}}" min="0"></label>
+    <label>Weight (kg)<input type="number" step="0.1" data-field="weight" value="{{draft.weight}}" min="0"></label>
+    <label class="checkbox"><input type="checkbox" data-field="carried" {{checked draft.carried}}> Carried</label>
+  </div>
+  {{/if}}
+
+  {{#if isPower}}
+  <fieldset>
+    <legend>Adders</legend>
+    {{#each adders}}
+    <div class="hw-mod-row">
+      <span class="hw-mod-name">{{name}}</span>
+      {{#if hasLevels}}<input type="number" class="hw-small" data-field="adder.{{id}}" value="{{levels}}" min="0" data-tooltip="Levels">{{/if}}
+      <span class="hw-mod-value">+{{cost}}</span>
+      <a data-action="removeAdder" data-id="{{id}}" data-tooltip="Remove"><i class="fa-solid fa-xmark" inert></i></a>
+    </div>
+    {{/each}}
+    {{#if availableAdders.length}}
+    <select data-field="addAdder">
+      <option value="">Add an adder…</option>
+      {{#each availableAdders}}<option value="{{value}}">{{label}}</option>{{/each}}
+    </select>
+    {{/if}}
+  </fieldset>
+  {{/if}}
+
+  {{#if (eq kind "compound")}}
+  <fieldset class="hw-parts">
+    <legend>Powers in this compound</legend>
+    {{#each subPowers}}
+    <div class="hw-mod-row hw-part" data-action="editPart" data-id="{{id}}" role="button" tabindex="0">
+      <span class="hw-mod-name">{{name}}{{#if detail}}<span class="hint hw-item-detail">{{detail}}</span>{{/if}}</span>
+      <span class="hw-mod-value">{{cost}}</span>
+      <a data-action="removePart" data-id="{{id}}" data-tooltip="Remove" aria-label="Remove {{name}}"><i class="fa-solid fa-xmark" inert></i></a>
+    </div>
+    {{else}}
+    <p class="hint">A compound is several powers bought together, like a sword's damage and its defence. Add its first power.</p>
+    {{/each}}
+    <button type="button" class="hw-add-part" data-action="addPart"><i class="fa-solid fa-plus" inert></i> Add power</button>
+  </fieldset>
+  {{/if}}
+
+  {{#unless (eq kind "compound")}}
+  <fieldset>
+    <legend>{{#if (eq kind "list")}}Modifiers for everything in the list{{else}}Advantages &amp; limitations{{/if}}</legend>
+    {{#each modifiers}}
+    <div class="hw-mod-row {{#if isAdvantage}}hw-advantage{{else}}hw-limitation{{/if}}">
+      <span class="hw-mod-name">{{name}}</span>
+      {{#if options}}
+      <select class="hw-mod-option" data-field="mod.{{id}}.option">
+        {{#each options}}<option value="{{value}}" {{#if selected}}selected{{/if}}>{{label}}</option>{{/each}}
+      </select>
+      {{/if}}
+      {{#if hasLevels}}<input type="number" class="hw-small" data-field="mod.{{id}}.levels" value="{{levels}}" min="1" data-tooltip="{{#if isAoe}}Area (m){{else}}Levels{{/if}}">{{/if}}
+      {{#if isCustom}}<input type="number" step="0.25" class="hw-small" data-field="mod.{{id}}.value" value="{{rawValue}}" aria-label="Value">
+      {{else}}<span class="hw-mod-value">{{value}}</span>{{/if}}
+      <a data-action="removeModifier" data-id="{{id}}" data-tooltip="Remove"><i class="fa-solid fa-xmark" inert></i></a>
+    </div>
+    {{#if skill}}
+    <div class="hw-mod-skill">
+      <label for="hw-mod-skill-{{id}}">Skill rolled</label>
+      <select id="hw-mod-skill-{{id}}" data-field="mod.{{id}}.skill">
+        <option value="" {{#unless skill.current}}selected{{/unless}}>Choose the skill…</option>
+        {{#if skill.missing}}<option value="{{skill.current}}" selected>{{skill.current}} (no skill has this name)</option>{{/if}}
+        {{#each skill.choices}}
+        <option value="{{value}}" {{#if selected}}selected{{/if}} {{#if ambiguous}}disabled{{/if}}>{{label}}{{#if ambiguous}} (shares its name; name the skill first){{/if}}</option>
+        {{/each}}
+      </select>
+    </div>
+    {{#if skill.missing}}<p class="hint hw-bad">hero6e can't find a skill named "{{skill.current}}", so the roll won't work. Choose the skill.</p>{{/if}}
+    {{#if skill.mismatch}}
+    {{#if (and skill.mismatch.professional ../canConvertSkills)}}
+    <p class="hint hw-mod-mismatch">
+      {{skill.mismatch.skill}} is a Professional Skill, which only supports a PS roll (worth less than this {{skill.mismatch.current}} roll).
+      A spellcaster's magic skill should be a Power skill:
+      <a data-action="convertToPowerSkill" data-id="{{id}}" data-skill="{{skill.mismatch.skill}}">make {{skill.mismatch.skill}} a Power skill</a>
+      (keeps this roll), or <a data-action="matchRollCategory" data-id="{{id}}" data-skill="{{skill.mismatch.skill}}">make this a PS roll</a>.
+    </p>
+    {{else}}
+    <p class="hint hw-mod-mismatch">
+      {{skill.mismatch.skill}} is a {{skill.mismatch.wanted}} skill, but this is a {{skill.mismatch.current}} roll.
+      <a data-action="matchRollCategory" data-id="{{id}}" data-skill="{{skill.mismatch.skill}}">Make it a {{skill.mismatch.wanted}} roll</a>
+    </p>
+    {{/if}}
+    {{/if}}
+    {{/if}}
+    {{/each}}
+    {{#if inherited.length}}<p class="hint">From the list: {{#each inherited}}{{this}}{{#unless @last}}, {{/unless}}{{/each}}</p>{{/if}}
+    <div class="hw-add-modifiers">
+      <select data-field="addModifier">
+        <option value="">Add an advantage…</option>
+        {{#each modifierChoices.advantages}}<option value="{{value}}">{{label}}</option>{{/each}}
+      </select>
+      <select data-field="addModifier">
+        <option value="">Add a limitation…</option>
+        {{#each modifierChoices.limitations}}<option value="{{value}}">{{label}}</option>{{/each}}
+      </select>
+    </div>
+    <div class="hw-add-custom">
+      <input type="text" data-field="custom.name" placeholder="Custom modifier name">
+      <input type="number" step="0.25" class="hw-small" data-field="custom.value" placeholder="-½" data-tooltip="Value, e.g. 0.25 or -0.5">
+      <button type="button" data-action="addCustomModifier"><i class="fa-solid fa-plus" inert></i> Add custom</button>
+    </div>
+  </fieldset>
+  {{/unless}}
+
+  {{#unless (eq kind "list")}}
+  <div class="form-group">
+    <label class="checkbox hw-free">
+      <input type="checkbox" data-field="free" {{checked draft.free}}> Free (given by the GM)
+    </label>
+    <p class="hint">Costs no points; Active Points, END and rolls are unchanged. A free item with a penalty gives no points back.</p>
+  </div>
+  {{/unless}}
+
+  <div class="form-group stacked">
+    <label>Notes</label>
+    <textarea rows="3" data-field="notes">{{draft.notes}}</textarea>
+  </div>
+
+  {{#if isPower}}
+  <details class="hw-advanced">
+    <summary>Characteristic contribution</summary>
+    <p class="hint">For powers that add to a characteristic: whether they count toward its primary and total values.</p>
+    <div class="form-fields">
+      <label class="checkbox"><input type="checkbox" data-field="affectsPrimary" {{checked draft.affectsPrimary}}> Primary</label>
+      <label class="checkbox"><input type="checkbox" data-field="affectsTotal" {{checked draft.affectsTotal}}> Total</label>
+    </div>
+  </details>
+  {{/if}}
+
+</div>

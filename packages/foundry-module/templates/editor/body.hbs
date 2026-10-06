@@ -1,0 +1,68 @@
+<div class="hw-body">
+  {{#if (eq stage "drift")}}
+  <section class="hw-panel hw-scroll">
+    <h2>Changes made in Foundry</h2>
+    <p class="hint">
+      This was edited on its Foundry sheet since its Hero Designer data was last saved. Selected changes are copied
+      into the character before you edit it, so saving from Hero Workshop won't undo them.
+    </p>
+    {{#each drift.groups as |group|}}
+    <fieldset>
+      <legend>{{group.itemName}}</legend>
+      {{#each group.changes as |change|}}
+      <label class="checkbox hw-drift-change">
+        <input type="checkbox" data-field="drift.{{change.key}}" {{checked change.selected}}>
+        <span class="hw-tag hw-tag-{{change.kind}}">{{change.kind}}</span>
+        <span>{{change.summary}}</span>
+      </label>
+      {{/each}}
+    </fieldset>
+    {{/each}}
+  </section>
+
+  {{else if (eq stage "review")}}
+  <section class="hw-panel hw-scroll">
+    <h2>Review changes</h2>
+    {{#each review.errors}}<p class="notification error">{{this}}</p>{{/each}}
+    {{#if (or review.changes.length review.imported.length)}}
+    <ul class="hw-change-list">
+      {{#each review.imported}}<li>Added {{this}}</li>{{/each}}
+      {{#each review.changes}}<li>{{this}}</li>{{/each}}
+    </ul>
+    {{else}}
+    <p class="hint">Only the changes kept from the Foundry sheet will be applied.</p>
+    {{/if}}
+    {{#if review.keptFromFoundry}}<p class="hint">Also applies {{review.keptFromFoundry}} change(s) kept from the Foundry sheet.</p>{{/if}}
+    {{#if review.warnings.length}}
+    <h3>Not saved</h3>
+    <ul class="hw-change-list hw-warn">{{#each review.warnings}}<li>{{this}}</li>{{/each}}</ul>
+    {{/if}}
+    {{#if review.notes.length}}
+    <details class="hw-notes">
+      <summary>{{review.notes.length}} Foundry compatibility note(s)</summary>
+      <ul class="hw-change-list hint">{{#each review.notes}}<li>{{this}}</li>{{/each}}</ul>
+    </details>
+    {{/if}}
+  </section>
+
+  {{else if (eq stage "applying")}}
+  <section class="hw-panel hw-empty">
+    <i class="fa-solid fa-spinner fa-spin"></i> {{#if isNew}}Creating{{else}}Updating{{/if}} {{title}}…
+  </section>
+
+  {{else}}
+  <div class="hw-layout {{#if hideSidebar}}hw-layout-single{{/if}}">
+    {{#unless hideSidebar}}
+    <aside class="hw-sidebar hw-scroll">{{> "modules/hero-workshop/templates/editor/summary.hbs" summary=summary}}</aside>
+    {{/unless}}
+    <div class="hw-content">
+      {{> "templates/generic/tab-navigation.hbs" tabs=tabs}}
+      <div class="hw-scroll hw-tabs-body">
+        {{#if info}}{{> "modules/hero-workshop/templates/editor/tab-info.hbs" tab=info}}{{/if}}
+        {{#if characteristics}}{{> "modules/hero-workshop/templates/editor/tab-characteristics.hbs" tab=characteristics}}{{/if}}
+        {{#each lists as |list|}}{{> "modules/hero-workshop/templates/editor/tab-list.hbs" tab=list}}{{/each}}
+      </div>
+    </div>
+  </div>
+  {{/if}}
+</div>

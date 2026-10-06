@@ -1,31 +1,162 @@
 import React, { useState, useMemo, useCallback, useEffect } from 'react';
+import { useFocusItem } from './useFocusItem';
 import type { Character, MartialManeuver, Adder } from '@hero-workshop/shared';
 import { Modal } from './Modal';
 
 interface MartialArtsTabProps {
   character: Character;
   onUpdate: (character: Character) => void;
+  /** Opens this item's edit form on load (HDC ID) */
+  focusItemId?: string;
 }
 
 // Common martial maneuvers from HERO System 6E
 const COMMON_MANEUVERS = [
   { name: 'Block', phase: '1/2', ocv: '+0', dcv: '+0', dc: 0, effect: 'Block, Abort', baseCost: 4 },
-  { name: 'Disarm', phase: '1/2', ocv: '-2', dcv: '+0', dc: 0, effect: 'Disarm, STR vs STR', baseCost: 4 },
-  { name: 'Dodge', phase: '1/2', ocv: '--', dcv: '+3', dc: 0, effect: 'Abort, vs. all attacks', baseCost: 4 },
-  { name: 'Escape', phase: '1/2', ocv: '+0', dcv: '+0', dc: 0, effect: '+15 STR vs. Grabs', baseCost: 4 },
-  { name: 'Fast Strike', phase: '1/2', ocv: '+2', dcv: '+0', dc: 2, effect: 'STR +2d6 Strike', baseCost: 4 },
-  { name: 'Flying Dodge', phase: '1/2', ocv: '--', dcv: '+4', dc: 0, effect: 'Abort, FMove', baseCost: 5 },
-  { name: 'Flying Grab', phase: '1/2', ocv: '-2', dcv: '-1', dc: 0, effect: 'Grab, FMove', baseCost: 4 },
-  { name: 'Grab', phase: '1/2', ocv: '-1', dcv: '-2', dc: 0, effect: 'Grab, +10 STR for holding', baseCost: 3 },
-  { name: 'Kick', phase: '1/2', ocv: '-2', dcv: '+1', dc: 4, effect: 'STR +4d6 Strike', baseCost: 5 },
-  { name: 'Killing Strike', phase: '1/2', ocv: '-2', dcv: '+0', dc: 0, effect: '1/2 STR HKA', baseCost: 4 },
-  { name: 'Legsweep', phase: '1/2', ocv: '+2', dcv: '-1', dc: 1, effect: 'STR +1d6 Strike, Target Falls', baseCost: 3 },
-  { name: 'Martial Throw', phase: '1/2', ocv: '+0', dcv: '+2', dc: 2, effect: 'STR +2d6 Strike, Target Falls', baseCost: 3 },
-  { name: 'Nerve Strike', phase: '1/2', ocv: '-1', dcv: '+1', dc: 2, effect: '2d6 NND', baseCost: 4 },
-  { name: 'Offensive Strike', phase: '1/2', ocv: '-2', dcv: '+1', dc: 4, effect: 'STR +4d6 Strike', baseCost: 5 },
-  { name: 'Passing Strike', phase: '1/2', ocv: '+1', dcv: '+0', dc: 2, effect: 'STR +2d6 Strike, FMove', baseCost: 5 },
-  { name: 'Sacrifice Throw', phase: '1/2', ocv: '+2', dcv: '+1', dc: 0, effect: 'STR Strike, Both Fall', baseCost: 3 },
-  { name: 'Strike', phase: '1/2', ocv: '+0', dcv: '+2', dc: 2, effect: 'STR +2d6 Strike', baseCost: 4 },
+  {
+    name: 'Disarm',
+    phase: '1/2',
+    ocv: '-2',
+    dcv: '+0',
+    dc: 0,
+    effect: 'Disarm, STR vs STR',
+    baseCost: 4,
+  },
+  {
+    name: 'Dodge',
+    phase: '1/2',
+    ocv: '--',
+    dcv: '+3',
+    dc: 0,
+    effect: 'Abort, vs. all attacks',
+    baseCost: 4,
+  },
+  {
+    name: 'Escape',
+    phase: '1/2',
+    ocv: '+0',
+    dcv: '+0',
+    dc: 0,
+    effect: '+15 STR vs. Grabs',
+    baseCost: 4,
+  },
+  {
+    name: 'Fast Strike',
+    phase: '1/2',
+    ocv: '+2',
+    dcv: '+0',
+    dc: 2,
+    effect: 'STR +2d6 Strike',
+    baseCost: 4,
+  },
+  {
+    name: 'Flying Dodge',
+    phase: '1/2',
+    ocv: '--',
+    dcv: '+4',
+    dc: 0,
+    effect: 'Abort, FMove',
+    baseCost: 5,
+  },
+  {
+    name: 'Flying Grab',
+    phase: '1/2',
+    ocv: '-2',
+    dcv: '-1',
+    dc: 0,
+    effect: 'Grab, FMove',
+    baseCost: 4,
+  },
+  {
+    name: 'Grab',
+    phase: '1/2',
+    ocv: '-1',
+    dcv: '-2',
+    dc: 0,
+    effect: 'Grab, +10 STR for holding',
+    baseCost: 3,
+  },
+  {
+    name: 'Kick',
+    phase: '1/2',
+    ocv: '-2',
+    dcv: '+1',
+    dc: 4,
+    effect: 'STR +4d6 Strike',
+    baseCost: 5,
+  },
+  {
+    name: 'Killing Strike',
+    phase: '1/2',
+    ocv: '-2',
+    dcv: '+0',
+    dc: 0,
+    effect: '1/2 STR HKA',
+    baseCost: 4,
+  },
+  {
+    name: 'Legsweep',
+    phase: '1/2',
+    ocv: '+2',
+    dcv: '-1',
+    dc: 1,
+    effect: 'STR +1d6 Strike, Target Falls',
+    baseCost: 3,
+  },
+  {
+    name: 'Martial Throw',
+    phase: '1/2',
+    ocv: '+0',
+    dcv: '+2',
+    dc: 2,
+    effect: 'STR +2d6 Strike, Target Falls',
+    baseCost: 3,
+  },
+  {
+    name: 'Nerve Strike',
+    phase: '1/2',
+    ocv: '-1',
+    dcv: '+1',
+    dc: 2,
+    effect: '2d6 NND',
+    baseCost: 4,
+  },
+  {
+    name: 'Offensive Strike',
+    phase: '1/2',
+    ocv: '-2',
+    dcv: '+1',
+    dc: 4,
+    effect: 'STR +4d6 Strike',
+    baseCost: 5,
+  },
+  {
+    name: 'Passing Strike',
+    phase: '1/2',
+    ocv: '+1',
+    dcv: '+0',
+    dc: 2,
+    effect: 'STR +2d6 Strike, FMove',
+    baseCost: 5,
+  },
+  {
+    name: 'Sacrifice Throw',
+    phase: '1/2',
+    ocv: '+2',
+    dcv: '+1',
+    dc: 0,
+    effect: 'STR Strike, Both Fall',
+    baseCost: 3,
+  },
+  {
+    name: 'Strike',
+    phase: '1/2',
+    ocv: '+0',
+    dcv: '+2',
+    dc: 2,
+    effect: 'STR +2d6 Strike',
+    baseCost: 4,
+  },
 ];
 
 // Weapon Element categories and weapons from HERO System 6E
@@ -41,7 +172,7 @@ const WEAPON_CATEGORIES: WeaponCategory[] = [
     id: 'BAREHAND',
     name: 'Empty Hand',
     type: 'HTH',
-    weapons: []
+    weapons: [],
   },
   {
     id: 'COMMONMELEE',
@@ -54,7 +185,7 @@ const WEAPON_CATEGORIES: WeaponCategory[] = [
       { id: 'FISTLOADS', name: 'Fist-Loads' },
       { id: 'POLEARMS', name: 'Polearms and Spears' },
       { id: 'TWOHANDED', name: 'Two-Handed Weapons' },
-    ]
+    ],
   },
   {
     id: 'UNCOMMONMELEE',
@@ -73,7 +204,7 @@ const WEAPON_CATEGORIES: WeaponCategory[] = [
       { id: 'ENERGYBLADES', name: 'Energy Blades' },
       { id: 'INERTIALGLOVES', name: 'Inertial Gloves' },
       { id: 'STUNRODS', name: 'Stun Rods' },
-    ]
+    ],
   },
   {
     id: 'COMMONMARTIAL',
@@ -87,7 +218,7 @@ const WEAPON_CATEGORIES: WeaponCategory[] = [
       { id: 'RINGS', name: 'Rings' },
       { id: 'STAFFS', name: 'Staffs' },
       { id: 'WARFAN', name: 'War Fan' },
-    ]
+    ],
   },
   {
     id: 'UNCOMMONMARTIAL',
@@ -103,7 +234,7 @@ const WEAPON_CATEGORIES: WeaponCategory[] = [
       { id: 'THREESECTIONSTAFF', name: 'Three-Section Staff' },
       { id: 'URUMI', name: 'Urumi' },
       { id: 'WINDANDFIRE', name: 'Wind and Fire Wheels' },
-    ]
+    ],
   },
   {
     id: 'COMMONMISSILE',
@@ -115,7 +246,7 @@ const WEAPON_CATEGORIES: WeaponCategory[] = [
       { id: 'CROSSBOWS', name: 'Crossbows' },
       { id: 'JAVELINS', name: 'Javelins and Thrown Spears' },
       { id: 'THROWNKNIVES', name: 'Thrown Knives, Axes, and Darts' },
-    ]
+    ],
   },
   {
     id: 'UNCOMMONMISSILEWEAPONS',
@@ -138,7 +269,7 @@ const WEAPON_CATEGORIES: WeaponCategory[] = [
       { id: 'THROWNCHAIN', name: 'Thrown Chain & Rope Weapons' },
       { id: 'THROWNSWORD', name: 'Thrown Sword' },
       { id: 'WISHFULBALL', name: 'Wishful Steel Ball' },
-    ]
+    ],
   },
   {
     id: 'SMALLARMS',
@@ -159,7 +290,7 @@ const WEAPON_CATEGORIES: WeaponCategory[] = [
       { id: 'MISSILEGUNS', name: 'Missile Guns' },
       { id: 'SONICSTUNNER', name: 'Sonic Stunners' },
       { id: 'TRANQGUNS', name: 'Tranquilizer Dart Guns' },
-    ]
+    ],
   },
   {
     id: 'BEAMWEAPONS',
@@ -170,7 +301,7 @@ const WEAPON_CATEGORIES: WeaponCategory[] = [
       { id: 'LASERRIFLE', name: 'Laser Rifles' },
       { id: 'ELECTRONBEAM', name: 'Electron Beam Weapons' },
       { id: 'PARTICLEGUNS', name: 'Particle Guns' },
-    ]
+    ],
   },
   {
     id: 'ENERGYWEAPONS',
@@ -180,7 +311,7 @@ const WEAPON_CATEGORIES: WeaponCategory[] = [
       { id: 'IONBLASTER', name: 'Ion Blasters' },
       { id: 'PLASMAGUNS', name: 'Plasma Guns' },
       { id: 'DISINTEGRATORS', name: 'Disintegrators' },
-    ]
+    ],
   },
 ];
 
@@ -199,7 +330,7 @@ interface MartialDisplayItem {
   children: MartialManeuver[];
 }
 
-export function MartialArtsTab({ character, onUpdate }: MartialArtsTabProps) {
+export function MartialArtsTab({ character, onUpdate, focusItemId }: MartialArtsTabProps) {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isGroupModalOpen, setIsGroupModalOpen] = useState(false);
   const [isWeaponModalOpen, setIsWeaponModalOpen] = useState(false);
@@ -233,6 +364,13 @@ export function MartialArtsTab({ character, onUpdate }: MartialArtsTabProps) {
   });
 
   const maneuvers = useMemo(() => character.martialArts ?? [], [character.martialArts]);
+  useFocusItem(focusItemId, maneuvers, (m) =>
+    m.isGroup
+      ? openEditGroupModal(m)
+      : m.isWeaponElement
+        ? openEditWeaponModal(m)
+        : openEditModal(m)
+  );
 
   // Close move menu when clicking outside
   const handleClickOutside = useCallback((e: MouseEvent) => {
@@ -251,12 +389,12 @@ export function MartialArtsTab({ character, onUpdate }: MartialArtsTabProps) {
 
   // Get available groups (styles) for moving an item
   const getAvailableGroups = (item: MartialManeuver): MartialManeuver[] => {
-    return maneuvers.filter(m => m.isGroup && m.id !== item.id);
+    return maneuvers.filter((m) => m.isGroup && m.id !== item.id);
   };
 
   // Move an item to a group (or remove from group)
   const handleMoveToGroup = (itemId: string, parentId: string | null) => {
-    const updatedManeuvers = maneuvers.map(m => {
+    const updatedManeuvers = maneuvers.map((m) => {
       if (m.id === itemId) {
         return {
           ...m,
@@ -265,11 +403,11 @@ export function MartialArtsTab({ character, onUpdate }: MartialArtsTabProps) {
       }
       return m;
     });
-    
+
     onUpdate({ ...character, martialArts: updatedManeuvers });
     setMoveMenuOpenFor(null);
   };
-  
+
   // Calculate total cost (only count non-group items)
   const totalCost = maneuvers.reduce((sum, m) => {
     if (m.isGroup) return sum;
@@ -280,14 +418,14 @@ export function MartialArtsTab({ character, onUpdate }: MartialArtsTabProps) {
   const displayItems = useMemo(() => {
     const items: MartialDisplayItem[] = [];
     const childrenMap = new Map<string, MartialManeuver[]>();
-    
+
     // First pass: identify parents
     for (const item of maneuvers) {
       if (item.isGroup) {
         childrenMap.set(item.id, []);
       }
     }
-    
+
     // Second pass: assign children to parents
     for (const item of maneuvers) {
       if (!item.isGroup && item.parentId) {
@@ -297,7 +435,7 @@ export function MartialArtsTab({ character, onUpdate }: MartialArtsTabProps) {
         }
       }
     }
-    
+
     // Build display items
     for (const item of maneuvers) {
       if (item.isGroup) {
@@ -312,12 +450,12 @@ export function MartialArtsTab({ character, onUpdate }: MartialArtsTabProps) {
         });
       }
     }
-    
+
     return items;
   }, [maneuvers]);
 
   const toggleGroup = (groupId: string) => {
-    setCollapsedGroups(prev => {
+    setCollapsedGroups((prev) => {
       const next = new Set(prev);
       if (next.has(groupId)) {
         next.delete(groupId);
@@ -387,7 +525,7 @@ export function MartialArtsTab({ character, onUpdate }: MartialArtsTabProps) {
 
   const openEditWeaponModal = (weaponElement: MartialManeuver) => {
     setEditingWeaponElement(weaponElement);
-    
+
     // Parse existing adders to populate selected weapons
     // Use xmlId to match against WEAPON_CATEGORIES since id is the instance ID
     const selected = new Map<string, Set<string>>();
@@ -395,7 +533,7 @@ export function MartialArtsTab({ character, onUpdate }: MartialArtsTabProps) {
       for (const categoryAdder of weaponElement.adders) {
         const categoryXmlId = categoryAdder.xmlId || categoryAdder.name;
         if (!categoryXmlId) continue;
-        
+
         const weaponSet = new Set<string>();
         // Check if category itself is selected (for single-item categories like BAREHAND)
         if (categoryAdder.selected) {
@@ -417,7 +555,7 @@ export function MartialArtsTab({ character, onUpdate }: MartialArtsTabProps) {
         }
       }
     }
-    
+
     setWeaponFormData({
       alias: weaponElement.alias || 'Weapon Element',
       selectedWeapons: selected,
@@ -444,6 +582,8 @@ export function MartialArtsTab({ character, onUpdate }: MartialArtsTabProps) {
 
   const handleSave = () => {
     const newManeuver: MartialManeuver = {
+      // Keep what the form doesn't edit (modifiers, adders, style membership)
+      ...editingManeuver,
       id: editingManeuver?.id ?? generateId(),
       name: formData.name || 'Maneuver',
       alias: formData.alias || undefined,
@@ -473,7 +613,7 @@ export function MartialArtsTab({ character, onUpdate }: MartialArtsTabProps) {
 
   const handleSaveGroup = () => {
     if (editingGroup) {
-      const updatedManeuvers = maneuvers.map(m => {
+      const updatedManeuvers = maneuvers.map((m) => {
         if (m.id === editingGroup.id) {
           return {
             ...m,
@@ -505,11 +645,11 @@ export function MartialArtsTab({ character, onUpdate }: MartialArtsTabProps) {
     // Build adders from selected weapons
     const adders: Adder[] = [];
     let totalCost = 0;
-    
+
     for (const category of WEAPON_CATEGORIES) {
       const selectedInCategory = weaponFormData.selectedWeapons.get(category.id);
       if (!selectedInCategory || selectedInCategory.size === 0) continue;
-      
+
       if (category.weapons.length === 0) {
         // Single item category (like Empty Hand)
         totalCost += 1;
@@ -568,7 +708,7 @@ export function MartialArtsTab({ character, onUpdate }: MartialArtsTabProps) {
     const alias = weaponFormData.alias || 'Weapon Element: ' + selectedNames.join(', ');
 
     if (editingWeaponElement) {
-      const updatedManeuvers = maneuvers.map(m => {
+      const updatedManeuvers = maneuvers.map((m) => {
         if (m.id === editingWeaponElement.id) {
           return {
             ...m,
@@ -602,22 +742,22 @@ export function MartialArtsTab({ character, onUpdate }: MartialArtsTabProps) {
   };
 
   const toggleWeaponSelection = (categoryId: string, weaponId: string) => {
-    setWeaponFormData(prev => {
+    setWeaponFormData((prev) => {
       const newSelected = new Map(prev.selectedWeapons);
       const categorySet = new Set(newSelected.get(categoryId) ?? []);
-      
+
       if (categorySet.has(weaponId)) {
         categorySet.delete(weaponId);
       } else {
         categorySet.add(weaponId);
       }
-      
+
       if (categorySet.size === 0) {
         newSelected.delete(categoryId);
       } else {
         newSelected.set(categoryId, categorySet);
       }
-      
+
       return { ...prev, selectedWeapons: newSelected };
     });
   };
@@ -631,8 +771,8 @@ export function MartialArtsTab({ character, onUpdate }: MartialArtsTabProps) {
 
   const handleDeleteGroup = (groupId: string) => {
     const updatedManeuvers = maneuvers
-      .filter(m => m.id !== groupId)
-      .map(m => {
+      .filter((m) => m.id !== groupId)
+      .map((m) => {
         if (m.parentId === groupId) {
           return { ...m, parentId: undefined };
         }
@@ -652,7 +792,9 @@ export function MartialArtsTab({ character, onUpdate }: MartialArtsTabProps) {
         <div className="empty-state-icon">🥋</div>
         <div className="empty-state-title">No Martial Arts</div>
         <p>This character has no martial maneuvers.</p>
-        <div style={{ display: 'flex', gap: '0.5rem', marginTop: '1rem', justifyContent: 'center' }}>
+        <div
+          style={{ display: 'flex', gap: '0.5rem', marginTop: '1rem', justifyContent: 'center' }}
+        >
           <button className="btn btn-secondary" onClick={openAddGroupModal}>
             Add Style
           </button>
@@ -669,7 +811,7 @@ export function MartialArtsTab({ character, onUpdate }: MartialArtsTabProps) {
 
   const renderManeuverRow = (maneuver: MartialManeuver, indent: boolean = false) => {
     const availableGroups = getAvailableGroups(maneuver);
-    
+
     // Move menu component (reused for weapon elements and regular maneuvers)
     const moveMenu = (availableGroups.length > 0 || maneuver.parentId) && (
       <div data-move-menu style={{ position: 'relative', display: 'inline-block' }}>
@@ -680,50 +822,69 @@ export function MartialArtsTab({ character, onUpdate }: MartialArtsTabProps) {
             setMoveMenuOpenFor(moveMenuOpenFor === maneuver.id ? null : maneuver.id);
           }}
           title="Move to style"
-          style={{ 
+          style={{
             background: moveMenuOpenFor === maneuver.id ? 'var(--surface)' : undefined,
             display: 'inline-flex',
             alignItems: 'center',
-            gap: '2px'
+            gap: '2px',
           }}
         >
-          <span>📂</span><span style={{ fontSize: '0.65em' }}>▾</span>
+          <span>📂</span>
+          <span style={{ fontSize: '0.65em' }}>▾</span>
         </button>
         {moveMenuOpenFor === maneuver.id && (
-          <div style={{
-            position: 'absolute',
-            top: '100%',
-            right: 0,
-            zIndex: 1000,
-            background: 'var(--surface)',
-            border: '1px solid var(--border-color)',
-            borderRadius: '0.375rem',
-            boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
-            minWidth: '180px',
-            maxHeight: '250px',
-            overflowY: 'auto',
-          }}>
+          <div
+            style={{
+              position: 'absolute',
+              top: '100%',
+              right: 0,
+              zIndex: 1000,
+              background: 'var(--surface)',
+              border: '1px solid var(--border-color)',
+              borderRadius: '0.375rem',
+              boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
+              minWidth: '180px',
+              maxHeight: '250px',
+              overflowY: 'auto',
+            }}
+          >
             {maneuver.parentId && (
               <div
                 style={{ padding: '0.5rem 0.75rem', cursor: 'pointer' }}
-                onClick={(e) => { e.stopPropagation(); handleMoveToGroup(maneuver.id, null); }}
-                onMouseEnter={e => { e.currentTarget.style.background = 'var(--surface-hover)'; }}
-                onMouseLeave={e => { e.currentTarget.style.background = ''; }}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleMoveToGroup(maneuver.id, null);
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.background = 'var(--surface-hover)';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.background = '';
+                }}
               >
                 — None —
               </div>
             )}
-            {availableGroups.filter(g => g.id !== maneuver.parentId).map(group => (
-              <div
-                key={group.id}
-                style={{ padding: '0.5rem 0.75rem', cursor: 'pointer' }}
-                onClick={(e) => { e.stopPropagation(); handleMoveToGroup(maneuver.id, group.id); }}
-                onMouseEnter={e => { e.currentTarget.style.background = 'var(--surface-hover)'; }}
-                onMouseLeave={e => { e.currentTarget.style.background = ''; }}
-              >
-                {group.name}
-              </div>
-            ))}
+            {availableGroups
+              .filter((g) => g.id !== maneuver.parentId)
+              .map((group) => (
+                <div
+                  key={group.id}
+                  style={{ padding: '0.5rem 0.75rem', cursor: 'pointer' }}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleMoveToGroup(maneuver.id, group.id);
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.background = 'var(--surface-hover)';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.background = '';
+                  }}
+                >
+                  {group.name}
+                </div>
+              ))}
           </div>
         )}
       </div>
@@ -735,8 +896,8 @@ export function MartialArtsTab({ character, onUpdate }: MartialArtsTabProps) {
       if (maneuver.adders) {
         for (const categoryAdder of maneuver.adders) {
           const categoryXmlId = categoryAdder.xmlId || categoryAdder.name;
-          const category = WEAPON_CATEGORIES.find(c => c.id === categoryXmlId);
-          
+          const category = WEAPON_CATEGORIES.find((c) => c.id === categoryXmlId);
+
           if (category && category.weapons.length === 0 && categoryAdder.selected) {
             // Single-item category like Empty Hand
             selectedWeaponNames.push(category.name);
@@ -750,8 +911,9 @@ export function MartialArtsTab({ character, onUpdate }: MartialArtsTabProps) {
           }
         }
       }
-      const weaponList = selectedWeaponNames.length > 0 ? selectedWeaponNames.join(', ') : '(none selected)';
-      
+      const weaponList =
+        selectedWeaponNames.length > 0 ? selectedWeaponNames.join(', ') : '(none selected)';
+
       // Weapon Element row
       return (
         <tr key={maneuver.id}>
@@ -760,9 +922,7 @@ export function MartialArtsTab({ character, onUpdate }: MartialArtsTabProps) {
               {indent && <span style={{ marginRight: '0.5rem' }}>›</span>}
               ⚔️ Weapon Element
             </div>
-            <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
-              {weaponList}
-            </div>
+            <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>{weaponList}</div>
           </td>
           <td style={{ textAlign: 'center' }}>—</td>
           <td style={{ textAlign: 'center' }}>—</td>
@@ -771,7 +931,10 @@ export function MartialArtsTab({ character, onUpdate }: MartialArtsTabProps) {
           <td style={{ fontSize: '0.875rem' }}>Use martial maneuvers with weapons</td>
           <td style={{ textAlign: 'right' }}>{maneuver.realCost ?? maneuver.baseCost ?? 0}</td>
           <td>
-            <div className="item-actions" style={{ display: 'flex', gap: '0.25rem', alignItems: 'center' }}>
+            <div
+              className="item-actions"
+              style={{ display: 'flex', gap: '0.25rem', alignItems: 'center' }}
+            >
               {moveMenu}
               <button
                 className="btn-icon-small"
@@ -792,7 +955,7 @@ export function MartialArtsTab({ character, onUpdate }: MartialArtsTabProps) {
         </tr>
       );
     }
-    
+
     // Regular maneuver row
     return (
       <tr key={maneuver.id}>
@@ -814,13 +977,12 @@ export function MartialArtsTab({ character, onUpdate }: MartialArtsTabProps) {
         <td style={{ fontSize: '0.875rem' }}>{maneuver.effect ?? '—'}</td>
         <td style={{ textAlign: 'right' }}>{maneuver.realCost ?? maneuver.baseCost ?? 0}</td>
         <td>
-          <div className="item-actions" style={{ display: 'flex', gap: '0.25rem', alignItems: 'center' }}>
+          <div
+            className="item-actions"
+            style={{ display: 'flex', gap: '0.25rem', alignItems: 'center' }}
+          >
             {moveMenu}
-            <button
-              className="btn-icon-small"
-              onClick={() => openEditModal(maneuver)}
-              title="Edit"
-            >
+            <button className="btn-icon-small" onClick={() => openEditModal(maneuver)} title="Edit">
               ✏️
             </button>
             <button
@@ -842,9 +1004,15 @@ export function MartialArtsTab({ character, onUpdate }: MartialArtsTabProps) {
         <div className="card-header">
           <h3 className="card-title">Martial Arts ({totalCost} pts)</h3>
           <div style={{ display: 'flex', gap: '0.5rem' }}>
-            <button className="btn btn-secondary" onClick={openAddGroupModal}>Add Style</button>
-            <button className="btn btn-secondary" onClick={openAddWeaponModal}>Add Weapon Element</button>
-            <button className="btn btn-primary" onClick={openAddModal}>Add Maneuver</button>
+            <button className="btn btn-secondary" onClick={openAddGroupModal}>
+              Add Style
+            </button>
+            <button className="btn btn-secondary" onClick={openAddWeaponModal}>
+              Add Weapon Element
+            </button>
+            <button className="btn btn-primary" onClick={openAddModal}>
+              Add Maneuver
+            </button>
           </div>
         </div>
         <table className="data-table">
@@ -864,13 +1032,16 @@ export function MartialArtsTab({ character, onUpdate }: MartialArtsTabProps) {
             {displayItems.map((displayItem) => {
               const { item, children } = displayItem;
               const isCollapsed = collapsedGroups.has(item.id);
-              
+
               if (item.isGroup) {
                 // Render group header
-                const groupTotal = children.reduce((sum, c) => sum + (c.realCost ?? c.baseCost ?? 0), 0);
+                const groupTotal = children.reduce(
+                  (sum, c) => sum + (c.realCost ?? c.baseCost ?? 0),
+                  0
+                );
                 return (
                   <React.Fragment key={item.id}>
-                    <tr 
+                    <tr
                       className="group-header"
                       onClick={() => toggleGroup(item.id)}
                       style={{ cursor: 'pointer', backgroundColor: 'var(--bg-secondary)' }}
@@ -887,14 +1058,20 @@ export function MartialArtsTab({ character, onUpdate }: MartialArtsTabProps) {
                         <div className="item-actions">
                           <button
                             className="btn-icon-small"
-                            onClick={(e) => { e.stopPropagation(); openEditGroupModal(item); }}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              openEditGroupModal(item);
+                            }}
                             title="Edit Style"
                           >
                             ✏️
                           </button>
                           <button
                             className="btn-icon-small"
-                            onClick={(e) => { e.stopPropagation(); handleDeleteGroup(item.id); }}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDeleteGroup(item.id);
+                            }}
                             title="Delete Style"
                           >
                             🗑️
@@ -902,11 +1079,11 @@ export function MartialArtsTab({ character, onUpdate }: MartialArtsTabProps) {
                         </div>
                       </td>
                     </tr>
-                    {!isCollapsed && children.map(child => renderManeuverRow(child, true))}
+                    {!isCollapsed && children.map((child) => renderManeuverRow(child, true))}
                   </React.Fragment>
                 );
               }
-              
+
               // Render standalone maneuver
               return renderManeuverRow(item);
             })}
@@ -1008,7 +1185,9 @@ export function MartialArtsTab({ character, onUpdate }: MartialArtsTabProps) {
               className="form-input"
               min={0}
               value={formData.baseCost}
-              onChange={(e) => setFormData({ ...formData, baseCost: parseInt(e.target.value, 10) || 0 })}
+              onChange={(e) =>
+                setFormData({ ...formData, baseCost: parseInt(e.target.value, 10) || 0 })
+              }
             />
           </div>
         </div>
@@ -1087,42 +1266,83 @@ export function MartialArtsTab({ character, onUpdate }: MartialArtsTabProps) {
             placeholder="e.g., Claws, Blades, etc."
           />
         </div>
-        
+
         <div className="form-group">
           <label className="form-label">Select Weapons (1 pt each)</label>
-          <div style={{ maxHeight: '300px', overflowY: 'auto', border: '1px solid var(--border-color)', borderRadius: '4px', padding: '0.5rem' }}>
-            {WEAPON_CATEGORIES.map(category => {
+          <div
+            style={{
+              maxHeight: '300px',
+              overflowY: 'auto',
+              border: '1px solid var(--border-color)',
+              borderRadius: '4px',
+              padding: '0.5rem',
+            }}
+          >
+            {WEAPON_CATEGORIES.map((category) => {
               const selectedInCategory = weaponFormData.selectedWeapons.get(category.id);
-              
+
               if (category.weapons.length === 0) {
                 // Single item category
                 const isSelected = selectedInCategory?.has(category.id) ?? false;
                 return (
                   <div key={category.id} style={{ marginBottom: '0.25rem' }}>
-                    <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
+                    <label
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.5rem',
+                        cursor: 'pointer',
+                      }}
+                    >
                       <input
                         type="checkbox"
                         checked={isSelected}
                         onChange={() => toggleWeaponSelection(category.id, category.id)}
                       />
                       <span>{category.name}</span>
-                      <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>({category.type})</span>
+                      <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+                        ({category.type})
+                      </span>
                     </label>
                   </div>
                 );
               }
-              
+
               return (
                 <div key={category.id} style={{ marginBottom: '0.5rem' }}>
-                  <div style={{ fontWeight: 500, marginBottom: '0.25rem', borderBottom: '1px solid var(--border-color)', paddingBottom: '0.25rem' }}>
+                  <div
+                    style={{
+                      fontWeight: 500,
+                      marginBottom: '0.25rem',
+                      borderBottom: '1px solid var(--border-color)',
+                      paddingBottom: '0.25rem',
+                    }}
+                  >
                     {category.name}
-                    <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginLeft: '0.5rem' }}>({category.type})</span>
+                    <span
+                      style={{
+                        fontSize: '0.75rem',
+                        color: 'var(--text-secondary)',
+                        marginLeft: '0.5rem',
+                      }}
+                    >
+                      ({category.type})
+                    </span>
                   </div>
                   <div style={{ paddingLeft: '1rem' }}>
-                    {category.weapons.map(weapon => {
+                    {category.weapons.map((weapon) => {
                       const isSelected = selectedInCategory?.has(weapon.id) ?? false;
                       return (
-                        <label key={weapon.id} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', marginBottom: '0.125rem' }}>
+                        <label
+                          key={weapon.id}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '0.5rem',
+                            cursor: 'pointer',
+                            marginBottom: '0.125rem',
+                          }}
+                        >
                           <input
                             type="checkbox"
                             checked={isSelected}
@@ -1139,10 +1359,20 @@ export function MartialArtsTab({ character, onUpdate }: MartialArtsTabProps) {
           </div>
         </div>
 
-        <div style={{ marginTop: '0.5rem', padding: '0.5rem', backgroundColor: 'var(--bg-secondary)', borderRadius: '4px' }}>
-          <strong>Total Cost:</strong> {
-            Array.from(weaponFormData.selectedWeapons.values()).reduce((sum, set) => sum + set.size, 0)
-          } pts
+        <div
+          style={{
+            marginTop: '0.5rem',
+            padding: '0.5rem',
+            backgroundColor: 'var(--bg-secondary)',
+            borderRadius: '4px',
+          }}
+        >
+          <strong>Total Cost:</strong>{' '}
+          {Array.from(weaponFormData.selectedWeapons.values()).reduce(
+            (sum, set) => sum + set.size,
+            0
+          )}{' '}
+          pts
         </div>
 
         <div className="modal-footer">

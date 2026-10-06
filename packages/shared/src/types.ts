@@ -23,6 +23,8 @@ export interface Character {
   image?: CharacterImage;
   rules?: Rules;
   template?: Template;
+  /** Hero Designer template the file was built on, e.g. "builtIn.Vehicle6E.hdt" */
+  hdcTemplate?: string;
 }
 
 export interface BasicConfiguration {
@@ -98,6 +100,14 @@ export interface GenericObjectBase {
   modifiers?: Modifier[];
   adders?: Adder[];
   parentId?: string; // Reference to parent LIST element if in a group
+  /** Custom icon (an image path in Foundry), kept in the element's FOUNDRY_ICON attribute */
+  icon?: string;
+  /**
+   * Hero Designer's cost multiplier (MULTIPLIER), applied to the Real Cost only. 0 marks a
+   * free item (e.g. given by the GM): no points, Active Points unchanged. Items in a list or
+   * compound inherit it unless they set their own. Undefined means 1.
+   */
+  multiplier?: number;
 }
 
 // ============================================================================
@@ -119,13 +129,18 @@ export type CharacteristicType =
   | 'STR' | 'DEX' | 'CON' | 'INT' | 'EGO' | 'PRE'  // Primary
   | 'OCV' | 'DCV' | 'OMCV' | 'DMCV'                 // Combat
   | 'SPD' | 'PD' | 'ED' | 'REC' | 'END' | 'BODY' | 'STUN'  // Secondary
-  | 'RUNNING' | 'SWIMMING' | 'LEAPING';             // Movement
+  | 'RUNNING' | 'SWIMMING' | 'LEAPING'              // Movement
+  | 'SIZE' | 'BASESIZE';                            // Vehicles and bases
 
 // ============================================================================
 // Skills
 // ============================================================================
 
 export interface Skill extends GenericObjectBase {
+  /** The name hero6e gives the skill's Foundry item (NAME, or ALIAS if unnamed): what Requires A Roll binds to */
+  bindingName?: string;
+  /** Background skills (PS, KS, SS, ...): the NAME attribute, which replaces "Label: Subject" */
+  customName?: string;
   type: SkillType;
   characteristic?: CharacteristicType | 'GENERAL';
   roll?: number;
@@ -314,6 +329,10 @@ export interface Equipment extends GenericObjectBase {
   realCost?: number;
   endCost?: number;
   subPowers?: Power[];
+  option?: string;
+  optionAlias?: string;
+  affectsPrimary?: boolean;
+  affectsTotal?: boolean;
 }
 
 // ============================================================================
@@ -334,6 +353,8 @@ export interface Modifier {
   input?: string;        // Defense name for AVAD, etc.
   optionId?: string;     // Option identifier (e.g., 'RADIUS', 'LINE' for AOE)
   optionAlias?: string;  // Display name for option (e.g., 'Radius', 'Line')
+  /** COMMENTS: for Requires A Roll, the name of the skill the roll uses */
+  comments?: string;
 }
 
 export interface Adder {
@@ -371,8 +392,13 @@ export interface Rules {
   disadCategoryMaxValue: number;
   disadCategoryMaxResponse: number;
   
-  // Characteristic maximums
-  characteristicMaxima: Record<CharacteristicType, number>;
+  /**
+   * Characteristic maxima (<CHAR>_MAX). A missing entry means no limit; levels above a
+   * maximum cost double (see characteristics.ts).
+   */
+  characteristicMaxima: Partial<Record<CharacteristicType, number>>;
+  /** Original race(s) the maxima derive from, recorded in the RULES name: "TONS (Skaven/Kitsune)" */
+  races?: string[];
   
   // Options
   standardEffectAllowed: boolean;

@@ -1,0 +1,62 @@
+# Publishes the Foundry module when a tag like module-v0.2.0 is pushed.
+#
+# The release carries module.json (the manifest Foundry installs from) and hero-workshop.zip.
+# module.json's "manifest" points at the latest release, so Foundry sees each new release as
+# an update; each release's own copy downloads that release's zip.
+name: Release Foundry module
+
+on:
+  push:
+    tags: ['module-v*']
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - run: npm ci
+
+      - run: npm run build:shared
+
+      # The shared tests read character files that aren't in the repo; the module's are self-contained
+      - name: Check
+        run: |
+          npm run typecheck -w @hero-workshop/shared
+          npm run typecheck -w @hero-workshop/foundry-module
+          npm test -w @hero-workshop/foundry-module
+
+      - run: npm run build:foundry
+
+      - name: Stamp version and download URL
+        run: |
+          node -e '
+            const fs = require("fs");
+            const path = "packages/foundry-module/dist/module.json";
+            const manifest = JSON.parse(fs.readFileSync(path, "utf8"));
+            const tag = process.env.GITHUB_REF_NAME;
+            manifest.version = tag.replace(/^module-v/, "");
+            manifest.download = `https://github.com/${process.env.GITHUB_REPOSITORY}/releases/download/${tag}/hero-workshop.zip`;
+            fs.writeFileSync(path, JSON.stringify(manifest, null, 2) + "\n");
+            console.log(`Hero Workshop ${manifest.version}`);
+          '
+
+      - name: Package
+        working-directory: packages/foundry-module/dist
+        run: zip -r "$GITHUB_WORKSPACE/hero-workshop.zip" . -x '*.map'
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          name: Hero Workshop ${{ github.ref_name }}
+          generate_release_notes: true
+          files: |
+            hero-workshop.zip
+            packages/foundry-module/dist/module.json

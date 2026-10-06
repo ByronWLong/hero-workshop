@@ -1,0 +1,24 @@
+{
+  "HERO_WORKSHOP": {
+    "EditCharacter": "Edit in Hero Workshop",
+    "InspectHdc": "Inspect HDC",
+    "DownloadHdc": "Download .hdc",
+    "NoHdc": "{name} has no Hero Designer data yet. Upload an HDC file with the system's Upload button first.",
+    "NotOwner": "You need owner permission on {name} to edit it.",
+    "TokenActor": "Hero Workshop edits the base actor. Open {name} from the Actors sidebar to edit it.",
+    "Applied": "{name} updated from Hero Workshop.",
+    "ApplyFailed": "Hero Workshop could not update {name}. The actor was not changed; see the console for details.",
+    "NewCharacter": "Hero Workshop Character",
+    "Created": "{name} created with Hero Workshop.",
+    "EditItem": "Edit in Hero Workshop",
+    "ItemNotEditable": "Hero Workshop cannot edit {name} (no Hero Designer data for this item type).",
+    "RaceLibrary": "Race library",
+    "ManageRaces": "Manage races",
+    "RaceLibraryHint": "Races and their listed characteristics, used to derive each character's characteristic maxima.",
+    "RacesSaved": "Race library saved ({count} races).",
+    "NewItem": "Hero Workshop Item",
+    "ItemCreated": "{name} created with Hero Workshop.",
+    "ItemsCopied": "Created {name} in the Items sidebar.",
+    "NoSection": "Hero Workshop can't add {name} to a character."
+  }
+}

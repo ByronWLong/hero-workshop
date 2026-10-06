@@ -1,0 +1,13 @@
+<footer class="hw-footer">
+  <div class="hw-footer-status">
+    {{#each costs}}<span class="hw-stat"><span class="hint">{{label}}</span> <strong>{{value}}</strong></span>{{/each}}
+    {{#if error}}<span class="hw-bad hw-footer-error">{{error}}</span>{{else if status}}<span class="hint">{{status}}</span>{{/if}}
+  </div>
+  <div class="hw-footer-buttons">
+    {{#each buttons}}
+    <button type="{{#if type}}{{type}}{{else}}button{{/if}}" {{#if action}}data-action="{{action}}"{{/if}} class="{{cssClass}}" {{disabled disabled}}>
+      {{#if icon}}<i class="{{icon}}" inert></i>{{/if}} {{label}}
+    </button>
+    {{/each}}
+  </div>
+</footer>

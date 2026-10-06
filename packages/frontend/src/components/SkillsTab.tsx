@@ -1,4 +1,5 @@
 import { useState, useMemo, useCallback, useEffect } from 'react';
+import { useFocusItem } from './useFocusItem';
 import type { Character, Skill, SkillType, CharacteristicType, Adder, SkillEnhancerType } from '@hero-workshop/shared';
 import { calculateStatModifications, getStatModificationTotal } from '@hero-workshop/shared';
 import { Modal } from './Modal';
@@ -21,6 +22,8 @@ const SKILL_TO_ENHANCER_MAP: Record<string, SkillEnhancerType> = {
 interface SkillsTabProps {
   character: Character;
   onUpdate: (character: Character) => void;
+  /** Opens this item's edit form on load (HDC ID) */
+  focusItemId?: string;
 }
 
 const SKILL_TYPES: { value: SkillType; label: string; xmlid?: string }[] = [
@@ -117,7 +120,7 @@ interface SkillDisplayItem {
   depth: number;
 }
 
-export function SkillsTab({ character, onUpdate }: SkillsTabProps) {
+export function SkillsTab({ character, onUpdate, focusItemId }: SkillsTabProps) {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isEnhancerModalOpen, setIsEnhancerModalOpen] = useState(false);
   const [isGroupModalOpen, setIsGroupModalOpen] = useState(false);
@@ -154,6 +157,7 @@ export function SkillsTab({ character, onUpdate }: SkillsTabProps) {
   const [moveMenuOpenFor, setMoveMenuOpenFor] = useState<string | null>(null);
 
   const skills = useMemo(() => character.skills ?? [], [character.skills]);
+  useFocusItem(focusItemId, skills, (s) => (s.isGroup ? openEditGroupModal(s) : openEditModal(s)));
   
   // Calculate stat modifications from powers and equipment
   const statModifications = useMemo(() => calculateStatModifications(character), [character]);
@@ -1115,7 +1119,7 @@ export function SkillsTab({ character, onUpdate }: SkillsTabProps) {
                   : 'e.g., "with Stealth", "with INT-based Skills"'}
               />
               <small style={{ color: 'var(--text-secondary)', fontSize: '0.75rem' }}>
-                Custom description shown in skill list (e.g., "+3 with Claws")
+                Custom description shown in skill list (e.g., &quot;+3 with Claws&quot;)
               </small>
             </div>
           </>
