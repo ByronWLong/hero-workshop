@@ -5,6 +5,7 @@
 
 import type { Character, Modifier, Adder } from '../types.js';
 import type { HdcItemSection } from '../hdc/document.js';
+import { isFramework } from '../frameworks.js';
 import { calculateCostBreakdown, calculateDisadvantageTotal } from '../utils.js';
 
 export type SectionId = 'skills' | 'perks' | 'talents' | 'martialarts' | 'powers' | 'disadvantages' | 'equipment';
@@ -122,8 +123,9 @@ export function buildItemTree(character: Character, section: SectionId): ItemRow
     let cost: number;
     let rawCost: number;
     if (section === 'disadvantages') cost = rawCost = own;
-    else if (children.length && (item.isGroup || kind === 'LIST' || kind === 'COMPOUNDPOWER')) {
-      // Lists and compounds: Hero Designer's figure (with any list adders) less what's free inside;
+    else if (children.length && (item.isGroup || kind === 'LIST' || kind === 'COMPOUNDPOWER' || isFramework(kind))) {
+      // Lists, compounds and frameworks: Hero Designer's figure (with any list adders, or a
+      // framework's reserve) less what's free inside;
       // skill lists have no figure of their own and cost what's in them
       rawCost = own || rawInside;
       cost = own ? own * multiplier - (rawInside * multiplier - inside) : inside;

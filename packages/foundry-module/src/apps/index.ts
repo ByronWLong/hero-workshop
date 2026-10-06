@@ -4,6 +4,7 @@
 
 import { MODULE_ID, createActorSession, createNewCharacterSession, type AppliedDocument, type ActorSession, type SessionView } from '../sync/session';
 import { createItemSession, tabForItem } from '../sync/itemSession';
+import { itemFamily } from '../sync/worldItems';
 import { canManageRaces } from '../races/library';
 import { HeroWorkshopEditor } from './editor';
 import { HdcInspector, NewCharacterWindow, RaceLibraryWindow } from './windows';
@@ -80,11 +81,14 @@ export function openItemEditor(item: FoundryItem): void {
     return;
   }
   if (inLockedPack(item)) return;
-  try {
-    openSession(createItemSession(item), `item-${item.pack ? `${item.pack}-` : ''}${item.id}`, notifyApplied);
-  } catch (e) {
-    ui.notifications.warn(e instanceof Error ? e.message : String(e));
-  }
+  // A list or framework opens with its members (e.g. a Multipower shield's slots)
+  void itemFamily(item).then((members) => {
+    try {
+      openSession(createItemSession(item, members), `item-${item.pack ? `${item.pack}-` : ''}${item.id}`, notifyApplied);
+    } catch (e) {
+      ui.notifications.warn(e instanceof Error ? e.message : String(e));
+    }
+  });
 }
 
 export function openNewCharacter(): void {

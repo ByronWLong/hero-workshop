@@ -30,6 +30,7 @@ import type {
   Talent,
 } from '../types.js';
 import { getPowerDefinition } from '../powerDefinitions.js';
+import { FRAMEWORK_NAMES, isFramework } from '../frameworks.js';
 import { characteristicRulesFor, formatRulesName, parseRulesName } from '../characteristics.js';
 import { getModifierByXmlId } from '../modifierDefinitions.js';
 import {
@@ -571,6 +572,7 @@ function reconcileItems<T extends ItemModel>(
     } else {
       if (parentEl) el.setAttr('PARENTID', parentId!);
       else el.removeAttr('PARENTID');
+      if (parentEl?.name === 'MULTIPOWER') el.setAttr('ULTRA_SLOT', yesNo((a as { slotFixed?: boolean }).slotFixed ?? true));
       el.setAttr('POSITION', nextPosition(section));
       section.appendElement(el);
     }
@@ -1072,6 +1074,7 @@ const POWER_DERIVED = new Set([
   'baseCost', 'activeCost', 'realCost', 'endCost', 'effectDice', 'levelCost', 'range', 'duration',
   'target', 'defense', 'doesDamage', 'doesKnockback', 'killing', 'standardEffect', 'isContainer',
   'display', 'textOutput', 'framework', 'type', 'abbreviation', 'isPower', 'isEquipment', 'inputLabel',
+  'ownCost',
 ]);
 
 function isCustomPowerElement(el: XmlElement): boolean {
@@ -1080,9 +1083,12 @@ function isCustomPowerElement(el: XmlElement): boolean {
 }
 
 function updatePowerFields(ctx: WriteContext, el: XmlElement, b: Power, a: Power): void {
-  const isList = el.name === 'LIST';
+  const isList = el.name === 'LIST' || isFramework(el.name);
   if (!same(b.name, a.name)) {
-    if (isList) {
+    if (isFramework(el.name)) {
+      // A framework's ALIAS is its kind ("Multipower"); its name is NAME
+      el.setAttr('NAME', a.name === FRAMEWORK_NAMES[el.name] ? '' : a.name);
+    } else if (isList) {
       el.setAttr(el.getAttr('NAME') ? 'NAME' : 'ALIAS', a.name);
     } else {
       // Unnamed powers display their ALIAS/XMLID; keep NAME empty unless the name is custom
@@ -1101,11 +1107,17 @@ function updatePowerFields(ctx: WriteContext, el: XmlElement, b: Power, a: Power
     ctx.warn(`${a.name}: power type changed from ${b.type} to ${a.type}; review it in Hero Designer.`);
   }
   if (!same(b.levels, a.levels)) el.setAttr('LEVELS', hdInt(a.levels));
+  // A Multipower's reserve
+  if (el.name === 'MULTIPOWER' && !same(b.baseCost, a.baseCost)) el.setAttr('BASECOST', hdCost(a.baseCost ?? 0));
+  writeSlotType(el, b, a);
   // Editors that don't carry `input` leave it undefined; only an explicit value is an edit
   if (!same(b.input, a.input) && a.input) el.setAttr('INPUT', a.input);
   if (!same(b.option, a.option)) {
     el.setAttr('OPTION', a.option ?? '');
     el.setAttr('OPTIONID', a.option ?? '');
+    // Options with their own price (a sense modifier's scope) set the base cost Hero Designer stores
+    const optionCost = a.type ? getPowerDefinition(a.type)?.options?.find((o) => o.xmlId === a.option)?.baseCost : undefined;
+    if (optionCost !== undefined) el.setAttr('BASECOST', hdCost(optionCost));
   }
   if (!same(b.optionAlias, a.optionAlias)) el.setAttr('OPTION_ALIAS', a.optionAlias ?? '');
   if (!same(b.affectsPrimary, a.affectsPrimary)) el.setAttr('AFFECTS_PRIMARY', yesNo(a.affectsPrimary ?? true));
@@ -1137,7 +1149,24 @@ function writeBarrierFields(el: XmlElement, b: Partial<Power>, a: Partial<Power>
   }
 }
 
+/** A Multipower slot's type: fixed (ULTRA_SLOT="Yes") or variable */
+function writeSlotType(el: XmlElement, b: { slotFixed?: boolean }, a: { slotFixed?: boolean }): void {
+  if (!same(!!b.slotFixed, !!a.slotFixed)) el.setAttr('ULTRA_SLOT', yesNo(!!a.slotFixed));
+}
+
 function createPower(ctx: WriteContext, p: Power, section: HdcItemSection): XmlElement {
+  if (isFramework(p.type)) {
+    const el = createElement(p.type, {
+      XMLID: 'GENERIC_OBJECT', ID: '',
+      // A Multipower's reserve, a Variable Power Pool's pool
+      BASECOST: hdCost(p.type === 'MULTIPOWER' ? (p.baseCost ?? 0) : 0),
+      LEVELS: hdInt(p.type === 'VPP' ? (p.levels ?? 0) : 0),
+      ALIAS: FRAMEWORK_NAMES[p.type], POSITION: '0',
+      ...GENERIC_ATTRS, NAME: p.name === FRAMEWORK_NAMES[p.type] ? '' : p.name,
+    });
+    appendChildren(ctx, el, p);
+    return el;
+  }
   if (p.type === 'LIST') {
     const el = createElement('LIST', {
       XMLID: 'GENERIC_OBJECT', ID: '', BASECOST: '0.0', LEVELS: '0', ALIAS: p.name, POSITION: '0',
@@ -1192,8 +1221,8 @@ function createPower(ctx: WriteContext, p: Power, section: HdcItemSection): XmlE
 
 const POWER_SPEC: ItemSpec<Power> = {
   handled: new Set([
-    'name', 'alias', 'levels', 'input', 'option', 'optionAlias', 'affectsPrimary', 'affectsTotal', 'notes',
-    'pdLevels', 'edLevels', 'mdLevels', 'powdLevels', 'bodyLevels', 'lengthLevels', 'heightLevels', 'widthLevels',
+    'name', 'alias', 'levels', 'input', 'option', 'optionAlias', 'affectsPrimary', 'affectsTotal', 'notes', 'slotFixed',
+    'pdLevels','edLevels', 'mdLevels', 'powdLevels', 'bodyLevels', 'lengthLevels', 'heightLevels', 'widthLevels',
   ]),
   derived: POWER_DERIVED,
   update: updatePowerFields,
@@ -1207,7 +1236,7 @@ const POWER_SPEC: ItemSpec<Power> = {
 const EQUIPMENT_SPEC: ItemSpec<Equipment> = {
   handled: new Set([
     'name', 'levels', 'notes', 'price', 'weight', 'carried', 'subPowers',
-    'input', 'option', 'optionAlias', 'affectsPrimary', 'affectsTotal',
+    'input', 'option', 'optionAlias', 'affectsPrimary', 'affectsTotal', 'slotFixed',
   ]),
   derived: new Set([...POWER_DERIVED, 'alias', 'xmlId']),
   nested: (e) => e.subPowers,
@@ -1215,6 +1244,8 @@ const EQUIPMENT_SPEC: ItemSpec<Equipment> = {
   update(_ctx, el, b, a) {
     if (!same(b.name, a.name)) el.setAttr('NAME', a.name);
     if (!same(b.levels, a.levels)) el.setAttr('LEVELS', hdInt(a.levels));
+    if (el.name === 'MULTIPOWER' && !same(b.baseCost, a.baseCost)) el.setAttr('BASECOST', hdCost(a.baseCost ?? 0));
+    writeSlotType(el, b, a);
     if (!same(b.notes, a.notes)) setNotes(el, a.notes);
     if (!same(b.price, a.price)) el.setAttr('PRICE', hdCost(a.price));
     // Weight: kilograms in the model, pounds in the file

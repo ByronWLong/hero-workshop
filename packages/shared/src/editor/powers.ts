@@ -3,6 +3,7 @@
  * a form renders from it, and saving it back into the character. Framework-independent.
  */
 
+import { FRAMEWORK_NAMES, frameworkOwnCost, isContainerType, isFramework, slotCost, type FrameworkType } from '../frameworks.js';
 import type { Adder, Character, Equipment, Modifier, Power } from '../types.js';
 import {
   ALL_POWERS,
@@ -133,7 +134,12 @@ export function setRequiredSkill(draft: PowerDraft, id: string, skillName: strin
   };
 }
 
-export type PowerKind = 'power' | 'list' | 'compound';
+export type PowerKind = 'power' | 'list' | 'compound' | 'multipower' | 'vpp';
+
+/** The framework a kind of draft makes */
+const FRAMEWORK_OF_KIND: Partial<Record<PowerKind, FrameworkType>> = { multipower: 'MULTIPOWER', vpp: 'VPP' };
+const KIND_OF_FRAMEWORK: Record<FrameworkType, PowerKind> = { MULTIPOWER: 'multipower', VPP: 'vpp' };
+export const isFrameworkKind = (kind: PowerKind) => kind in FRAMEWORK_OF_KIND;
 export type PowerSection = 'powers' | 'equipment';
 
 export interface PowerDraft {
@@ -155,6 +161,10 @@ export interface PowerDraft {
   parentId: string;
   /** A compound power's parts */
   subPowers: Power[];
+  /** A Multipower's reserve or a Variable Power Pool's pool, in points */
+  reserve: number;
+  /** In a Multipower: a fixed slot (1/10 cost) rather than a variable one (1/5) */
+  slotFixed: boolean;
   /** Custom icon (image path), or empty for the default */
   icon: string;
   /** Free (cost multiplier 0): given by the GM, costs no points */
@@ -184,13 +194,29 @@ function findPower(character: Character, section: PowerSection, id: string): Pow
   return undefined;
 }
 
-/** LIST groups and compound powers a power can be placed in */
+const CONTAINER_LABELS: Record<string, string> = { COMPOUNDPOWER: 'compound', LIST: 'list', MULTIPOWER: 'Multipower', VPP: 'power pool' };
+
+/** Lists, frameworks and (in Powers) compound powers a power can be placed in */
 export function powerContainers(character: Character, section: PowerSection, excludeId?: string) {
-  if (section !== 'powers') return [];
+  if (section === 'equipment') {
+    return (character.equipment ?? [])
+      .filter((e) => (e.isContainer || isContainerType(e.xmlId)) && e.id !== excludeId)
+      .map((e) => ({ id: e.id, name: e.name, kind: CONTAINER_LABELS[e.xmlId ?? 'LIST'] ?? 'list' }));
+  }
   return character.powers
     .filter((p) => (p.type === 'LIST' || p.type === 'COMPOUNDPOWER' || p.isContainer) && p.id !== excludeId)
-    .map((p) => ({ id: p.id, name: p.name, kind: p.type === 'COMPOUNDPOWER' ? 'compound' : 'list' }));
+    .map((p) => ({ id: p.id, name: p.name, kind: CONTAINER_LABELS[p.type] ?? 'list' }));
 }
+
+/** The list or framework an item sits in (either section) */
+function containerOf(character: Character, section: PowerSection, parentId: string | undefined): PowerLike | undefined {
+  if (!parentId) return undefined;
+  return section === 'powers'
+    ? character.powers.find((p) => p.id === parentId)
+    : ((character.equipment ?? []).find((e) => e.id === parentId) as unknown as PowerLike | undefined);
+}
+
+const typeOf = (item: PowerLike | undefined) => item?.xmlId ?? item?.type;
 
 // =============================================================================
 // Drafts
@@ -199,7 +225,15 @@ export function powerContainers(character: Character, section: PowerSection, exc
 export function powerDraft(character: Character, section: PowerSection, itemId?: string, kind: PowerKind = 'power'): PowerDraft {
   const p = itemId ? findPower(character, section, itemId) : undefined;
   const xmlId = section === 'equipment' ? (p?.xmlId ?? p?.type) : p?.type;
-  const detectedKind: PowerKind = !p ? kind : p.type === 'LIST' ? 'list' : xmlId === 'COMPOUNDPOWER' ? 'compound' : 'power';
+  const detectedKind: PowerKind = !p
+    ? kind
+    : isFramework(xmlId)
+      ? KIND_OF_FRAMEWORK[xmlId]
+      : p.type === 'LIST' || xmlId === 'LIST'
+        ? 'list'
+        : xmlId === 'COMPOUNDPOWER'
+          ? 'compound'
+          : 'power';
   const known = xmlId && getPowerDefinition(xmlId) ? xmlId : undefined;
   return {
     kind: detectedKind,
@@ -227,6 +261,8 @@ export function powerDraft(character: Character, section: PowerSection, itemId?:
     modifiers: p?.modifiers ? [...p.modifiers] : [],
     parentId: p?.parentId ?? '',
     subPowers: detectedKind === 'compound' && p ? compoundParts(character, section, p) : [],
+    reserve: p ? (xmlId === 'VPP' ? (p.levels ?? 0) : (p.baseCost ?? 0)) : kind === 'vpp' ? 30 : 60,
+    slotFixed: p?.slotFixed ?? true,
     icon: p?.icon ?? '',
     free: p?.multiplier === 0,
     price: p?.price ?? 0,
@@ -422,6 +458,17 @@ export function powerCosts(draft: PowerDraft, inherited: Modifier[] = []): Power
       draft.subPowers.reduce((n, p) => n + (p[key] ?? 0), 0);
     return { base: sum('activeCost'), active: sum('activeCost'), real: sum('realCost'), end: sum('endCost') };
   }
+  const framework = FRAMEWORK_OF_KIND[draft.kind];
+  if (framework) {
+    const own = frameworkOwnCost({
+      type: framework,
+      baseCost: framework === 'MULTIPOWER' ? draft.reserve : 0,
+      levels: framework === 'VPP' ? draft.reserve : 0,
+      adders: draft.adders,
+      modifiers: draft.modifiers,
+    });
+    return { base: own.base, active: own.active, real: own.real, end: 0 };
+  }
   if (draft.kind !== 'power') return { base: 0, active: 0, real: 0, end: 0 };
   const def = getPowerDefinition(draft.xmlId);
   const adders = calculateAdderCost(draft.adders);
@@ -488,11 +535,30 @@ export function modifierChoices() {
 
 export function powerFormView(character: Character, section: PowerSection, draft: PowerDraft, itemId?: string) {
   const def = getPowerDefinition(draft.xmlId);
-  const parent = draft.parentId ? character.powers.find((p) => p.id === draft.parentId) : undefined;
+  const parent = containerOf(character, section, draft.parentId);
   const inherited = parent?.type === 'LIST' ? (parent.modifiers ?? []) : [];
   const costs = powerCosts(draft, inherited);
+  const parentType = typeOf(parent);
+  const framework = FRAMEWORK_OF_KIND[draft.kind];
   return {
     kind: draft.kind,
+    framework: framework && {
+      name: FRAMEWORK_NAMES[framework],
+      reserveLabel: framework === 'VPP' ? 'Pool (points)' : 'Reserve (points)',
+      hint:
+        framework === 'VPP'
+          ? 'Control cost is half the pool. Powers in the pool cost no points of their own.'
+          : 'Each slot costs 1/10 of its Real Cost if fixed, 1/5 if variable (at least 1).',
+    },
+    // A Multipower's or pool's slot: what it costs as a slot
+    slot:
+      (draft.kind === 'power' || draft.kind === 'compound') && isFramework(parentType)
+        ? {
+            framework: FRAMEWORK_NAMES[parentType],
+            isMultipower: parentType === 'MULTIPOWER',
+            cost: slotCost(parentType, costs.real, draft.slotFixed),
+          }
+        : undefined,
     isPower: draft.kind === 'power',
     isCustom: draft.kind === 'power' && !def,
     isBarrier: def?.xmlId === 'FORCEWALL',
@@ -578,6 +644,27 @@ function buildPower(existing: PowerLike | undefined, draft: PowerDraft, costs: P
       notes: draft.notes || undefined,
     } as Power;
   }
+  const framework = FRAMEWORK_OF_KIND[draft.kind];
+  if (framework) {
+    // Its total is its own cost plus its slots' (kept from before; slots are saved on their own)
+    const slots = (existing?.realCost ?? 0) - (existing?.ownCost?.real ?? existing?.realCost ?? 0);
+    const slotsActive = (existing?.activeCost ?? 0) - (existing?.ownCost?.active ?? existing?.activeCost ?? 0);
+    return {
+      ...base,
+      name: draft.name.trim() || FRAMEWORK_NAMES[framework],
+      type: framework,
+      isContainer: true,
+      levels: framework === 'VPP' ? draft.reserve : 0,
+      baseCost: framework === 'MULTIPOWER' ? draft.reserve : 0,
+      ownCost: { active: costs.active, real: costs.real },
+      activeCost: costs.active + slotsActive,
+      realCost: costs.real + slots,
+      modifiers: draft.modifiers.length ? draft.modifiers : undefined,
+      adders: draft.adders.length ? draft.adders : undefined,
+      notes: draft.notes || undefined,
+      parentId: draft.parentId || undefined,
+    } as Power;
+  }
   if (draft.kind === 'compound') {
     return {
       ...base,
@@ -604,7 +691,11 @@ function buildPower(existing: PowerLike | undefined, draft: PowerDraft, costs: P
     notes: draft.notes || undefined,
     levels: def ? draft.levels : (existing?.levels ?? 0),
     option: draft.option || undefined,
-    optionAlias: def?.options?.find((o) => o.xmlId === draft.option)?.display ?? existing?.optionAlias,
+    // An unchanged option keeps its label (Hero Designer users often write their own)
+    optionAlias:
+      existing?.option === draft.option && existing?.optionAlias
+        ? existing.optionAlias
+        : (def?.options?.find((o) => o.xmlId === draft.option)?.display ?? existing?.optionAlias),
     affectsPrimary: draft.affectsPrimary,
     affectsTotal: draft.affectsTotal,
     adders: draft.adders.length ? draft.adders : undefined,
@@ -631,7 +722,7 @@ function buildPower(existing: PowerLike | undefined, draft: PowerDraft, costs: P
  * Hero Designer's own figures (which include list adders such as a Common Adder), so they are
  * adjusted by the difference rather than re-added up from their contents.
  */
-export function propagateCost<T extends { id: string; parentId?: string; realCost?: number; activeCost?: number; baseCost?: number }>(
+export function propagateCost<T extends { id: string; parentId?: string; realCost?: number; activeCost?: number; baseCost?: number; type?: string; xmlId?: string }>(
   items: T[],
   parentId: string | undefined,
   delta: { real: number; active: number },
@@ -641,18 +732,30 @@ export function propagateCost<T extends { id: string; parentId?: string; realCos
   for (let id: string | undefined = parentId; id && !ancestors.has(id); id = items.find((i) => i.id === id)?.parentId) ancestors.add(id);
   return items.map((i) =>
     ancestors.has(i.id)
-      ? { ...i, realCost: (i.realCost ?? 0) + delta.real, activeCost: (i.activeCost ?? 0) + delta.active, baseCost: (i.baseCost ?? 0) + delta.active }
+      ? {
+          ...i,
+          realCost: (i.realCost ?? 0) + delta.real,
+          activeCost: (i.activeCost ?? 0) + delta.active,
+          // A framework's baseCost is its reserve, not a total
+          baseCost: isFramework(i.xmlId ?? i.type) ? i.baseCost : (i.baseCost ?? 0) + delta.active,
+        }
       : i,
   );
 }
 
 export function savePowerDraft(character: Character, section: PowerSection, itemId: string | undefined, draft: PowerDraft): Character {
   const existing = itemId ? findPower(character, section, itemId) : undefined;
-  const parent = draft.parentId ? character.powers.find((p) => p.id === draft.parentId) : undefined;
+  const parent = containerOf(character, section, draft.parentId);
   const costs = powerCosts(draft, parent?.type === 'LIST' ? (parent.modifiers ?? []) : []);
+  const parentType = typeOf(parent);
+  // A framework's slot costs a fraction of its Real Cost (nothing in a power pool)
+  const asSlot = (power: Power): Power =>
+    (draft.kind === 'power' || draft.kind === 'compound') && isFramework(parentType)
+      ? { ...power, realCost: slotCost(parentType, power.realCost ?? 0, draft.slotFixed), slotFixed: parentType === 'MULTIPOWER' ? draft.slotFixed : power.slotFixed }
+      : power;
 
   if (section === 'powers') {
-    const power = buildPower(existing, draft, costs, character.powers.length);
+    const power = asSlot(buildPower(existing, draft, costs, character.powers.length));
     let powers = existing ? character.powers.map((p) => (p.id === power.id ? power : p)) : [...character.powers, power];
     if (draft.kind === 'compound') {
       // The parts follow the compound, linked to it
@@ -683,15 +786,34 @@ export function savePowerDraft(character: Character, section: PowerSection, item
       equipment: equipment.map((e) => (e.subPowers?.some((p) => p.id === sub.id) ? { ...e, subPowers: e.subPowers.map((p) => (p.id === sub.id ? sub : p)) } : e)),
     };
   }
-  const power = buildPower(existing, draft, costs, equipment.length);
+  const power = asSlot(buildPower(existing, draft, costs, equipment.length));
   const item: Equipment = {
     ...(top ?? {}),
     ...(power as unknown as Equipment),
-    xmlId: draft.kind === 'compound' ? 'COMPOUNDPOWER' : getPowerDefinition(draft.xmlId) ? draft.xmlId : (top?.xmlId ?? 'CUSTOMPOWER'),
+    xmlId:
+      draft.kind === 'compound'
+        ? 'COMPOUNDPOWER'
+        : FRAMEWORK_OF_KIND[draft.kind]
+          ? FRAMEWORK_OF_KIND[draft.kind]
+          : draft.kind === 'list'
+            ? 'LIST'
+            : getPowerDefinition(draft.xmlId)
+              ? draft.xmlId
+              : (top?.xmlId ?? 'CUSTOMPOWER'),
     price: draft.price,
     weight: draft.weight,
     carried: draft.carried,
     subPowers: draft.kind === 'compound' ? draft.subPowers.map((p) => ({ ...p, parentId: undefined })) : top?.subPowers,
   };
-  return { ...character, equipment: top ? equipment.map((e) => (e.id === item.id ? item : e)) : [...equipment, item] };
+  let items = top ? equipment.map((e) => (e.id === item.id ? item : e)) : [...equipment, item];
+  // Lists and frameworks it left lose its old cost; ones it's in gain the new one
+  const was = { real: top?.realCost ?? 0, active: top?.activeCost ?? 0 };
+  const now = { real: item.realCost ?? 0, active: item.activeCost ?? 0 };
+  if (top?.parentId !== item.parentId) {
+    items = propagateCost(items, top?.parentId, { real: -was.real, active: -was.active });
+    items = propagateCost(items, item.parentId, now);
+  } else {
+    items = propagateCost(items, item.parentId, { real: now.real - was.real, active: now.active - was.active });
+  }
+  return { ...character, equipment: items };
 }

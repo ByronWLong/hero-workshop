@@ -13,6 +13,7 @@
 
 import {
   HdcDocument,
+  ICON_ATTR,
   blankHdc,
   extractItems,
   insertItems,
@@ -142,6 +143,12 @@ export async function createItemsFromXml(xml: string, options: CreateItemsOption
     const custom = iconOfFragment(data.system._hdcXml);
     const picked = custom ? undefined : await options.icon?.(info(data));
     data.img = custom ?? picked ?? data.img;
+    // A chosen icon is the item's own, stored with its Hero Designer data like any custom icon
+    if (picked && typeof data.system._hdcXml === 'string') {
+      const root = parseXml(data.system._hdcXml.trim()).root;
+      root.setAttr(ICON_ATTR, picked);
+      data.system._hdcXml = root.toString();
+    }
     if (options.id) data._id = await options.id({ ...info(data), folder: false });
   }
 
@@ -216,6 +223,28 @@ interface HeroItem extends FoundryItem {
 }
 
 /**
+ * An item and, for a list or framework, its members (hero6e links them by PARENTID): from the
+ * same collection, world or compendium. Compound powers hold their parts in their own XML.
+ */
+export async function itemFamily(item: FoundryItem): Promise<FoundryItem[]> {
+  const hero = item as HeroItem;
+  const members: HeroItem[] = [hero];
+  if (item.system.XMLID === 'COMPOUNDPOWER') return members;
+  if (hero.pack && hero.childItemsFromPack) {
+    members.push(...(await hero.childItemsFromPack()));
+  } else {
+    const walk = (parent: HeroItem) => {
+      for (const child of parent.childItems ?? []) {
+        members.push(child);
+        if (child.system.XMLID !== 'COMPOUNDPOWER') walk(child);
+      }
+    };
+    walk(hero);
+  }
+  return members;
+}
+
+/**
  * A Foundry item (world, compendium or owned) as HDC fragments: the item and its list or
  * framework members, with any edits made on hero6e's item sheets folded in.
  */
@@ -223,22 +252,7 @@ export async function transferFromItem(item: FoundryItem): Promise<ItemTransfer 
   const section = SECTION_FOR_ITEM_TYPE[item.type];
   if (!section || typeof item.system._hdcXml !== 'string' || !item.system._hdcXml.trim()) return undefined;
 
-  const hero = item as HeroItem;
-  const members: HeroItem[] = [hero];
-  // Compound powers hold their parts inside their own XML
-  if (item.system.XMLID !== 'COMPOUNDPOWER') {
-    if (hero.pack && hero.childItemsFromPack) {
-      members.push(...(await hero.childItemsFromPack()));
-    } else {
-      const walk = (parent: HeroItem) => {
-        for (const child of parent.childItems ?? []) {
-          members.push(child);
-          if (child.system.XMLID !== 'COMPOUNDPOWER') walk(child);
-        }
-      };
-      walk(hero);
-    }
-  }
+  const members = await itemFamily(item);
 
   // Rebuild the family in a scratch document so sheet-side edits can be pulled in
   const doc = HdcDocument.parse(blankHdc());

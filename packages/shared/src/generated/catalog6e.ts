@@ -43,6 +43,8 @@ export interface CatalogEntry {
   levelStart?: number;
   minCost?: number;
   maxCost?: number;
+  /** Sense modifiers: the cost (per level, if leveled) for all senses, a sense group or a single sense */
+  scopeCosts?: { all?: number; group?: number; sense?: number };
   exclusive?: boolean;
   /** Explicit on the few modifiers whose sign doesn't tell */
   isLimitation?: boolean;
@@ -1714,6 +1716,10 @@ export const POWER_CATALOG_6E: CatalogEntry[] = [
     "xmlId": "ADJACENTFIXED",
     "display": "Adjacent (Fixed Perception Point)",
     "description": "This Sense Modifier allows a character to perceive not from where he's standing, but a point up to 2m away from himself.",
+    "scopeCosts": {
+      "group": 3,
+      "sense": 2
+    },
     "duration": "PERSISTENT",
     "range": "SELF",
     "target": "SELFONLY",
@@ -1727,6 +1733,10 @@ export const POWER_CATALOG_6E: CatalogEntry[] = [
     "xmlId": "ADJACENT",
     "display": "Adjacent",
     "description": "This Sense Modifier allows a character to perceive not from where he's standing, but a point up to 2m away from himself.",
+    "scopeCosts": {
+      "group": 5,
+      "sense": 3
+    },
     "duration": "PERSISTENT",
     "range": "SELF",
     "target": "SELFONLY",
@@ -1743,6 +1753,10 @@ export const POWER_CATALOG_6E: CatalogEntry[] = [
     "lvlVal": 1,
     "minVal": 1,
     "levelStart": 1,
+    "scopeCosts": {
+      "group": 1,
+      "sense": 1
+    },
     "duration": "PERSISTENT",
     "range": "SELF",
     "target": "SELFONLY",
@@ -1756,6 +1770,10 @@ export const POWER_CATALOG_6E: CatalogEntry[] = [
     "xmlId": "MAKEASENSE",
     "display": "Sense",
     "description": "A Detect (or other Enhanced Sense, at the GM's option) may be turned into a Sense. Characters can use a Sense without a Half Phase Action; it can be set off by contact at any time.",
+    "scopeCosts": {
+      "group": -1,
+      "sense": 2
+    },
     "duration": "PERSISTENT",
     "range": "SELF",
     "target": "SELFONLY",
@@ -1769,6 +1787,10 @@ export const POWER_CATALOG_6E: CatalogEntry[] = [
     "xmlId": "DIMENSIONALSINGLE",
     "display": "Perceive into a single other dimension",
     "description": "(A Sense with this Sense Modifier can perceive into another dimension in addition to the one the character is currently occupying.",
+    "scopeCosts": {
+      "group": 10,
+      "sense": 5
+    },
     "duration": "PERSISTENT",
     "range": "SELF",
     "target": "SELFONLY",
@@ -1782,6 +1804,10 @@ export const POWER_CATALOG_6E: CatalogEntry[] = [
     "xmlId": "DIMENSIONALGROUP",
     "display": "Perceive into a related group of dimensions",
     "description": "A Sense with this Sense Modifier can perceive into another dimension in addition to the one the character is currently occupying.",
+    "scopeCosts": {
+      "group": 20,
+      "sense": 10
+    },
     "duration": "PERSISTENT",
     "range": "SELF",
     "target": "SELFONLY",
@@ -1795,6 +1821,10 @@ export const POWER_CATALOG_6E: CatalogEntry[] = [
     "xmlId": "DIMENSIONALALL",
     "display": "Perceive into any dimension",
     "description": "A Sense with this Sense Modifier can perceive into another dimension in addition to the one the character is currently occupying.",
+    "scopeCosts": {
+      "group": 25,
+      "sense": 15
+    },
     "duration": "PERSISTENT",
     "range": "SELF",
     "target": "SELFONLY",
@@ -1808,6 +1838,10 @@ export const POWER_CATALOG_6E: CatalogEntry[] = [
     "xmlId": "DISCRIMINATORY",
     "display": "Discriminatory",
     "description": "A Sense with Discriminatory can identify, distinguish, and analyze an object if the character makes a PER Roll. For example, using Detect Metals, Discriminatory would tell a character that a nearby mass of metal is a iron/nickel composite about 65% Nickel and weighing 200kg.",
+    "scopeCosts": {
+      "group": 10,
+      "sense": 5
+    },
     "duration": "PERSISTENT",
     "range": "SELF",
     "target": "SELFONLY",
@@ -1821,6 +1855,10 @@ export const POWER_CATALOG_6E: CatalogEntry[] = [
     "xmlId": "ANALYZESENSE",
     "display": "Analyze",
     "description": "A Sense with Analyze can determine an even greater range of information, with greater precision, than can a Sense with Discriminatory",
+    "scopeCosts": {
+      "group": 10,
+      "sense": 5
+    },
     "duration": "PERSISTENT",
     "range": "SELF",
     "target": "SELFONLY",
@@ -1838,6 +1876,11 @@ export const POWER_CATALOG_6E: CatalogEntry[] = [
     "lvlVal": 1,
     "minVal": 1,
     "levelStart": 1,
+    "scopeCosts": {
+      "all": 3,
+      "group": 2,
+      "sense": 1
+    },
     "duration": "PERSISTENT",
     "range": "SELF",
     "target": "SELFONLY",
@@ -1851,6 +1894,11 @@ export const POWER_CATALOG_6E: CatalogEntry[] = [
     "xmlId": "INCREASEDARC240",
     "display": "Increased Arc Of Perception (240 Degrees)",
     "description": "This Sense Modifier allows Detects to function in a 240-degree arc.",
+    "scopeCosts": {
+      "all": 10,
+      "group": 5,
+      "sense": 2
+    },
     "duration": "PERSISTENT",
     "range": "SELF",
     "target": "SELFONLY",
@@ -1864,6 +1912,11 @@ export const POWER_CATALOG_6E: CatalogEntry[] = [
     "xmlId": "INCREASEDARC360",
     "display": "Increased Arc Of Perception (360 Degrees)",
     "description": "This Sense Modifier allows Detects to function in a 360-degree arc. A sense with 360-Degree Perception operates all around the character, rather than being directional like ordinary Senses.",
+    "scopeCosts": {
+      "all": 25,
+      "group": 10,
+      "sense": 5
+    },
     "duration": "PERSISTENT",
     "range": "SELF",
     "target": "SELFONLY",
@@ -1881,6 +1934,10 @@ export const POWER_CATALOG_6E: CatalogEntry[] = [
     "lvlPower": 10,
     "minVal": 1,
     "levelStart": 1,
+    "scopeCosts": {
+      "group": 5,
+      "sense": 3
+    },
     "duration": "PERSISTENT",
     "range": "SELF",
     "target": "SELFONLY",
@@ -1894,6 +1951,10 @@ export const POWER_CATALOG_6E: CatalogEntry[] = [
     "xmlId": "PARTIALLYPENETRATIVE",
     "display": "Partially Penetrative",
     "description": "A Partially Penetrative Sense can perceive through a limited number or types of blocking objects, substances, or phenomena, but is blocked by all others.",
+    "scopeCosts": {
+      "group": 10,
+      "sense": 5
+    },
     "duration": "PERSISTENT",
     "range": "SELF",
     "target": "SELFONLY",
@@ -1907,6 +1968,10 @@ export const POWER_CATALOG_6E: CatalogEntry[] = [
     "xmlId": "PENETRATIVE",
     "display": "Penetrative",
     "description": "A Fully Penetrative Sense can perceive through all types of blocking objects, substances, or phenomena, but the character must define one or more reasonably common substance(s), or a group of uncommon substance(s), he cannot perceive through.",
+    "scopeCosts": {
+      "group": 15,
+      "sense": 10
+    },
     "duration": "PERSISTENT",
     "range": "SELF",
     "target": "SELFONLY",
@@ -1920,6 +1985,10 @@ export const POWER_CATALOG_6E: CatalogEntry[] = [
     "xmlId": "RANGE",
     "display": "Range",
     "description": "A nonranged Sense (such as Touch or Detect) with this Sense Modifier can perceive at Range in a 120-degree arc with the usual Range Modifiers (just like, for example, Normal Sight).",
+    "scopeCosts": {
+      "group": 10,
+      "sense": 5
+    },
     "duration": "PERSISTENT",
     "range": "SELF",
     "target": "SELFONLY",
@@ -1937,6 +2006,10 @@ export const POWER_CATALOG_6E: CatalogEntry[] = [
     "lvlPower": 10,
     "minVal": 1,
     "levelStart": 1,
+    "scopeCosts": {
+      "group": 5,
+      "sense": 3
+    },
     "duration": "PERSISTENT",
     "range": "SELF",
     "target": "SELFONLY",
@@ -1950,6 +2023,10 @@ export const POWER_CATALOG_6E: CatalogEntry[] = [
     "xmlId": "TARGETINGSENSE",
     "display": "Targeting",
     "description": "A Nontargeting Sense (such as Normal Hearing) with this Sense Modifier can be used as a Targeting Sense to locate targets in combat.",
+    "scopeCosts": {
+      "group": 20,
+      "sense": 10
+    },
     "duration": "PERSISTENT",
     "range": "SELF",
     "target": "SELFONLY",
@@ -1966,6 +2043,10 @@ export const POWER_CATALOG_6E: CatalogEntry[] = [
     "lvlVal": 2,
     "minVal": 1,
     "levelStart": 1,
+    "scopeCosts": {
+      "group": 3,
+      "sense": 1
+    },
     "duration": "PERSISTENT",
     "range": "SELF",
     "target": "SELFONLY",
@@ -1979,6 +2060,10 @@ export const POWER_CATALOG_6E: CatalogEntry[] = [
     "xmlId": "TRACKINGSENSE",
     "display": "Tracking",
     "description": "A Sense with this Sense Modifier, most often bought with Smell/Taste Group, can be used to identify and track a person or object if the character makes a PER Roll.",
+    "scopeCosts": {
+      "group": 10,
+      "sense": 5
+    },
     "duration": "PERSISTENT",
     "range": "SELF",
     "target": "SELFONLY",
@@ -1992,6 +2077,10 @@ export const POWER_CATALOG_6E: CatalogEntry[] = [
     "xmlId": "TRANSMIT",
     "display": "Transmit",
     "description": "This Sense Modifier allows a character to transmit information similar to that which he can perceive.",
+    "scopeCosts": {
+      "group": 5,
+      "sense": 2
+    },
     "duration": "PERSISTENT",
     "range": "SELF",
     "target": "SELFONLY",

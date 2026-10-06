@@ -40,8 +40,16 @@
 
   <div class="form-group">
     <label>{{#if isCustom}}Name{{else if isPower}}Custom name{{else}}Name{{/if}}</label>
-    <input type="text" data-field="name" value="{{draft.name}}" placeholder="{{definition.display}}">
+    <input type="text" data-field="name" value="{{draft.name}}" placeholder="{{#if framework}}{{framework.name}}{{else}}{{definition.display}}{{/if}}">
   </div>
+
+  {{#if framework}}
+  <div class="form-group">
+    <label>{{framework.reserveLabel}}</label>
+    <input type="number" data-field="reserve" value="{{draft.reserve}}" min="0">
+    <p class="hint">{{framework.hint}}</p>
+  </div>
+  {{/if}}
 
   {{#if isCustom}}
   <div class="form-group">
@@ -99,10 +107,21 @@
   <div class="form-group">
     <label>In</label>
     <select data-field="parentId">
-      <option value="">— Not in a list —</option>
+      <option value="">— Not in a list or framework —</option>
       {{#each containers}}<option value="{{id}}" {{#if selected}}selected{{/if}}>{{name}} ({{kind}})</option>{{/each}}
     </select>
   </div>
+  {{/if}}
+
+  {{#if slot.isMultipower}}
+  <div class="form-group">
+    <label class="checkbox">
+      <input type="checkbox" data-field="slotFixed" {{checked draft.slotFixed}}> Fixed slot
+    </label>
+    <p class="hint">A fixed slot costs 1/10 of its Real Cost, a variable slot 1/5. Slot cost: {{slot.cost}}.</p>
+  </div>
+  {{else if slot}}
+  <p class="hint">In a {{slot.framework}}: powers in the pool cost no points of their own.</p>
   {{/if}}
 
   {{#if isEquipment}}

@@ -7,7 +7,7 @@
  */
 
 import './styles/hero-workshop.css';
-import { HdcDocument } from '@hero-workshop/shared';
+import { HdcDocument, repairForFoundry } from '@hero-workshop/shared';
 import {
   openEditor,
   openInspector,
@@ -60,6 +60,7 @@ Hooks.once('init', () => {
       races: getRaceLibrary,
       driftReport,
       createItemsFromXml,
+      repairForFoundry,
     };
   }
   registerRaceSettings(openRaceLibrary);
@@ -230,6 +231,50 @@ Hooks.on('getItemContextOptions', ((directory: EntryDirectory, options: ContextM
     callback: async (li) => {
       const item = await itemFrom(li).load();
       if (item) openItemEditor(item);
+    },
+  });
+}) as (...args: never[]) => unknown);
+
+/**
+ * hero6e shows a list or framework (e.g. a Multipower shield) as a folder holding the parent
+ * item and its members; the folder's menu edits the whole family
+ */
+interface FolderLike {
+  id: string;
+  type: string;
+  pack?: string | null;
+  contents?: FoundryItem[];
+}
+
+async function familyParentIn(folder: FolderLike): Promise<FoundryItem | undefined> {
+  const pack = folder.pack ? game.packs.get(folder.pack) : undefined;
+  const items = pack
+    ? ((await (pack as CompendiumPack & { getDocuments(q: Record<string, unknown>): Promise<unknown[]> }).getDocuments({ folder: folder.id })) as FoundryItem[])
+    : (folder.contents ?? []);
+  const ids = new Set(items.map((i) => String(i.system.ID ?? '')));
+  // The parent is the one item here that isn't a member of another
+  return items.find((i) => !ids.has(String(i.system.PARENTID ?? '')) && items.some((c) => String(c.system.PARENTID ?? '') === String(i.system.ID)));
+}
+
+Hooks.on('getFolderContextOptions', ((directory: EntryDirectory, options: ContextMenuEntry[]) => {
+  if (!isHeroSystem()) return;
+  const folderFrom = (li: HTMLElement): FolderLike | undefined => {
+    const id = li.closest<HTMLElement>('[data-folder-id]')?.dataset.folderId ?? li.dataset.folderId ?? '';
+    const pack = directory.collection?.metadata ? directory.collection : undefined;
+    const folder = pack
+      ? (pack as CompendiumPack & { folders: { get(id: string): FolderLike | undefined } }).folders.get(id)
+      : (game as unknown as { folders: { get(id: string): FolderLike | undefined } }).folders.get(id);
+    return folder?.type === 'Item' ? folder : undefined;
+  };
+  options.push({
+    name: 'HERO_WORKSHOP.EditItem',
+    icon: '<i class="fa-solid fa-user-pen"></i>',
+    condition: (li) => game.user.isGM && !!folderFrom(li),
+    callback: async (li) => {
+      const folder = folderFrom(li);
+      const parent = folder ? await familyParentIn(folder) : undefined;
+      if (parent) openItemEditor(parent);
+      else ui.notifications.info(game.i18n.localize('HERO_WORKSHOP.NotAFamily'));
     },
   });
 }) as (...args: never[]) => unknown);

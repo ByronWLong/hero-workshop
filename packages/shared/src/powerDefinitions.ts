@@ -2048,14 +2048,56 @@ function powerFromCatalog(e: CatalogEntry): PowerDefinition {
       includeInBase: a.includeInBase,
       excludes: a.excludes,
     })),
-    options: e.options?.map((o) => ({
-      xmlId: o.xmlId,
-      display: o.display,
-      baseCost: o.baseCost,
-      lvlCost: o.lvlCost,
-      lvlVal: o.lvlVal,
-    })),
+    options: e.scopeCosts
+      ? senseScopeOptions(e.scopeCosts, e.lvlVal !== undefined || e.minVal !== undefined ? (e.lvlVal ?? 1) : undefined)
+      : e.options?.map((o) => ({
+          xmlId: o.xmlId,
+          display: o.display,
+          baseCost: o.baseCost,
+          lvlCost: o.lvlCost,
+          lvlVal: o.lvlVal,
+        })),
+    ...(e.scopeCosts && e.lvlVal === undefined && e.minVal === undefined ? { baseCost: e.scopeCosts.group ?? e.scopeCosts.sense ?? 0 } : {}),
+    ...(e.scopeCosts && (e.lvlVal !== undefined || e.minVal !== undefined)
+      ? { lvlCost: e.scopeCosts.all ?? e.scopeCosts.group ?? e.scopeCosts.sense ?? 0 }
+      : {}),
   };
+}
+
+/**
+ * Options for a sense modifier priced by scope (Enhanced Perception, Increased Arc, Telescopic,
+ * ...): all senses, a sense group or a single sense, each at the template's price. A leveled
+ * one costs that much per `lvlVal` of its bonus; the others cost it outright.
+ */
+function senseScopeOptions(costs: { all?: number; group?: number; sense?: number }, lvlVal: number | undefined): PowerOption[] {
+  /** Sense groups and single senses, as Hero Designer names them (OPTIONID / OPTION_ALIAS) */
+  const SENSE_GROUPS: [string, string][] = [
+    ['SIGHTGROUP', 'Sight Group'],
+    ['HEARINGGROUP', 'Hearing Group'],
+    ['SMELLGROUP', 'Smell/Taste Group'],
+    ['TOUCHGROUP', 'Touch Group'],
+    ['MENTALGROUP', 'Mental Group'],
+    ['RADIOGROUP', 'Radio Group'],
+    ['UNUSUALGROUP', 'Unusual Senses'],
+  ];
+  const SINGLE_SENSES: [string, string][] = [
+    ['NORMALSIGHT', 'Normal Sight'],
+    ['NORMALHEARING', 'Normal Hearing'],
+    ['NORMALSMELL', 'Normal Smell'],
+    ['NORMALTASTE', 'Normal Taste'],
+    ['NORMALTOUCH', 'Normal Touch'],
+    ['SINGLE', 'A single Sense'],
+  ];
+  const price = (cost: number): Partial<PowerOption> => (lvlVal === undefined ? { baseCost: cost } : { lvlCost: cost, lvlVal });
+  const options: PowerOption[] = [];
+  if (costs.all !== undefined) options.push({ xmlId: 'ALL', display: 'all Sense Groups', ...price(costs.all) });
+  if (costs.group !== undefined && costs.group >= 0) {
+    for (const [xmlId, display] of SENSE_GROUPS) options.push({ xmlId, display, ...price(costs.group) });
+  }
+  if (costs.sense !== undefined) {
+    for (const [xmlId, display] of SINGLE_SENSES) options.push({ xmlId, display, ...price(costs.sense) });
+  }
+  return options;
 }
 
 /**
@@ -2077,17 +2119,12 @@ export function getPowersByType(type: PowerType): PowerDefinition[] {
  * If optionId is provided and the option has lvlCost, use that instead of power.lvlCost
  */
 export function calculatePowerBaseCost(power: PowerDefinition, levels: number, optionId?: string): number {
-  let lvlCost = power.lvlCost;
-  
-  // Check if an option is selected that overrides the lvlCost
-  if (optionId && power.options) {
-    const selectedOption = power.options.find(o => o.xmlId === optionId);
-    if (selectedOption && selectedOption.lvlCost !== undefined) {
-      lvlCost = selectedOption.lvlCost;
-    }
-  }
-  
-  return power.baseCost + (lvlCost * levels);
+  const selectedOption = optionId ? power.options?.find((o) => o.xmlId === optionId) : undefined;
+  const baseCost = selectedOption?.baseCost ?? power.baseCost;
+  const lvlCost = selectedOption?.lvlCost ?? power.lvlCost;
+  // An option priced per step of its bonus (e.g. Telescopic: per +2) counts whole steps
+  const steps = selectedOption?.lvlVal ? Math.ceil(levels / selectedOption.lvlVal) : levels;
+  return baseCost + lvlCost * steps;
 }
 
 /**

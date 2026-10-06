@@ -37,6 +37,7 @@ import {
   type CharacteristicRule,
 } from '../characteristics.js';
 import { HdcDocument, ICON_ATTR } from './document.js';
+import { FRAMEWORK_NAMES, FRAMEWORK_TYPES, frameworkOwnCost, isFramework, slotCost } from '../frameworks.js';
 import type { XmlElement } from './xml.js';
 
 type ParserObject = Record<string, unknown>;
@@ -591,6 +592,42 @@ function parseWeaponElement(obj: Record<string, unknown>): MartialManeuver {
   };
 }
 
+/** A Multipower or Variable Power Pool element: a container with its own reserve/pool cost */
+function parseFramework(obj: Record<string, unknown>, tag: (typeof FRAMEWORK_TYPES)[number]): Power {
+  const modifiers = parseModifiers(obj);
+  const adders = parseAdders(obj);
+  const baseCost = getAttrNum(obj, 'BASECOST', 0);
+  const levels = getAttrNum(obj, 'LEVELS', 0);
+  const own = frameworkOwnCost({ type: tag, baseCost, levels, adders, modifiers });
+  return {
+    id: getAttr(obj, 'ID') || generateId(),
+    name: getAttr(obj, 'NAME') || FRAMEWORK_NAMES[tag],
+    alias: getAttr(obj, 'ALIAS') || undefined,
+    position: getAttrNum(obj, 'POSITION', 0),
+    type: tag,
+    isContainer: true,
+    levels,
+    baseCost,
+    ownCost: { active: own.active, real: own.real },
+    activeCost: own.active,
+    realCost: own.real,
+    modifiers,
+    adders,
+    notes: getAttr(obj, 'NOTES') || undefined,
+    parentId: getAttr(obj, 'PARENTID', '') || undefined,
+  } as Power;
+}
+
+/** A framework's slots cost a fraction of their own cost (none, in a Variable Power Pool) */
+function priceSlots(items: { id: string; parentId?: string; realCost?: number; slotFixed?: boolean; type?: string; xmlId?: string }[]): void {
+  const byId = new Map(items.map((i) => [i.id, i]));
+  for (const item of items) {
+    const parent = item.parentId ? byId.get(item.parentId) : undefined;
+    const parentType = parent?.xmlId ?? parent?.type;
+    if (parent && isFramework(parentType)) item.realCost = slotCost(parentType, item.realCost ?? 0, item.slotFixed ?? false);
+  }
+}
+
 /** Characteristics, which Hero Designer can also list as powers or equipment (e.g. "Clever": INT +2) */
 const CHARACTERISTIC_POWER_TAGS = [
   'STR', 'DEX', 'CON', 'INT', 'EGO', 'PRE',
@@ -670,6 +707,14 @@ function parsePowersList(container: unknown): Power[] {
     }
   }
   
+  // Frameworks (Multipower, Variable Power Pool): containers with a cost of their own
+  for (const tag of FRAMEWORK_TYPES) {
+    const found = containerObj[tag];
+    for (const fw of found === undefined ? [] : Array.isArray(found) ? found : [found]) {
+      if (typeof fw === 'object' && fw !== null) powers.push(parseFramework(fw as Record<string, unknown>, tag));
+    }
+  }
+
   // Parse all POWER elements, and characteristics bought as powers (<STR>, <INT>, ...)
   const powerElements = powerLikeElements(containerObj);
   if (powerElements.length) {
@@ -781,6 +826,8 @@ function parsePowersList(container: unknown): Power[] {
     }
   }
   
+  priceSlots(powers);
+
   // Calculate container costs (sum of child real costs) for LIST and COMPOUNDPOWER.
   // Innermost first, so a list holding a compound adds up the compound's own total.
   const totalled = new Set<string>();
@@ -790,9 +837,11 @@ function parsePowersList(container: unknown): Power[] {
     if (!(power.type === 'LIST' || power.type === 'COMPOUNDPOWER' || power.isContainer)) return;
     const childPowers = powers.filter(p => p.parentId === power.id);
     childPowers.forEach(total);
-    power.realCost = childPowers.reduce((sum, child) => sum + (child.realCost ?? 0), 0);
-    power.activeCost = childPowers.reduce((sum, child) => sum + (child.activeCost ?? 0), 0);
-    power.baseCost = power.activeCost;
+    // A framework adds its reserve/pool to its slots
+    const own = power.ownCost ?? { real: 0, active: 0 };
+    power.realCost = own.real + childPowers.reduce((sum, child) => sum + (child.realCost ?? 0), 0);
+    power.activeCost = own.active + childPowers.reduce((sum, child) => sum + (child.activeCost ?? 0), 0);
+    if (!isFramework(power.type)) power.baseCost = power.activeCost;
   };
   powers.forEach(total);
   
@@ -1188,7 +1237,9 @@ function parsePower(obj: Record<string, unknown>): Power {
   let lvlCost = getAttrNum(obj, 'LVLCOST', -1); // Use -1 as sentinel for "not specified"
   
   const powerDef = getPowerDefinition(xmlid);
-  
+  // Sense modifiers priced per step of their bonus (Telescopic: per +2) count whole steps
+  const optionStep = optionId ? powerDef?.options?.find((o) => o.xmlId === optionId)?.lvlVal : undefined;
+
   // If LVLCOST not specified in HDC file (or is default 1), look up from power definition
   if (lvlCost < 0) {
     if (powerDef) {
@@ -1208,7 +1259,7 @@ function parsePower(obj: Record<string, unknown>): Power {
   const adderCost = calculateAdderCost(adders);
   
   // True base cost = BASECOST + (levels * lvlCost) + adderCosts (before advantages)
-  let trueBaseCost = hdcBaseCost + (levels * lvlCost) + adderCost;
+  let trueBaseCost = hdcBaseCost + ((optionStep ? Math.ceil(levels / optionStep) : levels) * lvlCost) + adderCost;
   
   // Negative levels on characteristics are penalties with 0 cost, not refunds
   // Check if this is a characteristic power type
@@ -1343,6 +1394,7 @@ function parsePower(obj: Record<string, unknown>): Power {
     modifiers: modifiers,
     adders: adders,
     parentId: parentId || undefined,
+    slotFixed: getAttr(obj, 'ULTRA_SLOT') === 'Yes' || undefined,
     input: getAttr(obj, 'INPUT') || undefined,
     option: optionId || undefined,
     optionAlias: optionAlias || undefined,
@@ -1441,8 +1493,42 @@ function parseEquipmentList(container: unknown): Equipment[] {
   const containerObj = container as Record<string, unknown>;
   const equipment: Equipment[] = [];
   
-  // Equipment section contains POWER elements (and LIST elements for grouping); gear can
-  // also be a characteristic bought on its own (<STR>, <DEX>, ...)
+  // Lists and frameworks group gear (a Multipower shield's DCV and attack slots)
+  for (const tag of ['LIST', ...FRAMEWORK_TYPES] as const) {
+    const found = containerObj[tag];
+    for (const el of found === undefined ? [] : Array.isArray(found) ? found : [found]) {
+      if (typeof el !== 'object' || el === null) continue;
+      const obj = el as Record<string, unknown>;
+      const weightLbs = getAttrNum(obj, 'WEIGHT');
+      const container = tag === 'LIST'
+        ? ({
+            id: getAttr(obj, 'ID') || generateId(),
+            name: getAttr(obj, 'NAME') || getAttr(obj, 'ALIAS') || 'Equipment List',
+            alias: getAttr(obj, 'ALIAS') || undefined,
+            position: getAttrNum(obj, 'POSITION', 0),
+            levels: 0,
+            baseCost: 0,
+            activeCost: 0,
+            realCost: 0,
+            isContainer: true,
+            modifiers: parseModifiers(obj),
+            adders: parseAdders(obj),
+            notes: getAttr(obj, 'NOTES') || undefined,
+            parentId: getAttr(obj, 'PARENTID', '') || undefined,
+          } as Equipment)
+        : (parseFramework(obj, tag) as unknown as Equipment);
+      equipment.push({
+        ...container,
+        xmlId: tag,
+        price: getAttrNum(obj, 'PRICE') || undefined,
+        weight: weightLbs ? Math.round(weightLbs * 0.453592 * 10) / 10 : undefined,
+        carried: getAttrBool(obj, 'CARRIED', true),
+      });
+    }
+  }
+
+  // Equipment section contains POWER elements; gear can also be a characteristic bought on
+  // its own (<STR>, <DEX>, ...)
   const powerElements = powerLikeElements(containerObj);
   if (powerElements.length) {
     const arr = powerElements;
@@ -1452,8 +1538,22 @@ function parseEquipmentList(container: unknown): Equipment[] {
       }
     }
   }
-  
-  return equipment;
+
+  // Slots cost their framework's fraction; lists and frameworks add up what's in them
+  priceSlots(equipment);
+  const totalled = new Set<string>();
+  const total = (item: Equipment): void => {
+    if (totalled.has(item.id)) return;
+    totalled.add(item.id);
+    if (!item.isContainer) return;
+    const children = equipment.filter((e) => e.parentId === item.id);
+    children.forEach(total);
+    const own = item.ownCost ?? { real: 0, active: 0 };
+    item.realCost = own.real + children.reduce((sum, c) => sum + (c.realCost ?? 0), 0);
+    item.activeCost = own.active + children.reduce((sum, c) => sum + (c.activeCost ?? 0), 0);
+  };
+  equipment.forEach(total);
+  return equipment.sort((a, b) => (a.position ?? 0) - (b.position ?? 0));
 }
 
 /**
@@ -1606,6 +1706,8 @@ function parseEquipmentItem(obj: Record<string, unknown>): Equipment {
     subPowers: subPowers.length > 0 ? subPowers : undefined,
     modifiers: modifiers,
     adders: adders,
+    parentId: getAttr(obj, 'PARENTID', '') || undefined,
+    slotFixed: getAttr(obj, 'ULTRA_SLOT') === 'Yes' || undefined,
   };
 }
 

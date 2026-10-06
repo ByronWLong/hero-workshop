@@ -7,6 +7,7 @@ export { decodeHdcBytes, encodeHdcUtf16, detectHdcEncoding, type HdcEncoding } f
 export { HdcDocument, HDC_SECTIONS, HDC_ITEM_SECTIONS, ICON_ATTR, type HdcSection, type HdcItemSection } from './document.js';
 export { parseHdcFile, parseHdcDocument } from './parse.js';
 export { extractItems, insertItems, type ItemTransfer, type InsertOptions } from './transfer.js';
+export { repairForFoundry, type RepairResult } from './repair.js';
 export {
   updateHdc,
   createHdc,

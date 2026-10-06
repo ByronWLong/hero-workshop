@@ -100,6 +100,15 @@ export interface GenericObjectBase {
   modifiers?: Modifier[];
   adders?: Adder[];
   parentId?: string; // Reference to parent LIST element if in a group
+  /** Lists and frameworks: items hang off it through PARENTID */
+  isContainer?: boolean;
+  /** A Multipower slot: fixed (HDC ULTRA_SLOT="Yes", 1/10 cost) rather than variable (1/5) */
+  slotFixed?: boolean;
+  /**
+   * A framework's own cost (Multipower reserve, VPP pool and control), without its slots;
+   * its realCost/activeCost include the slots
+   */
+  ownCost?: { active: number; real: number };
   /** Custom icon (an image path in Foundry), kept in the element's FOUNDRY_ICON attribute */
   icon?: string;
   /**
@@ -235,7 +244,7 @@ export type PowerType =
   | 'MIND_LINK' | 'MIND_SCAN' | 'MULTIFORM' | 'POWER_DEFENSE' | 'REGENERATION'
   | 'RESISTANT_PROTECTION' | 'RUNNING' | 'SHAPE_SHIFT' | 'SHRINKING' | 'STRETCHING'
   | 'SUMMON' | 'SWIMMING' | 'SWINGING' | 'TELEKINESIS' | 'TELEPATHY' | 'TELEPORTATION'
-  | 'TRANSFORM' | 'TUNNELING' | 'FORCEWALL' | 'LIST' | 'COMPOUNDPOWER' | 'GENERIC';
+  | 'TRANSFORM' | 'TUNNELING' | 'FORCEWALL' | 'LIST' | 'COMPOUNDPOWER' | 'MULTIPOWER' | 'VPP' | 'GENERIC';
 
 export type PowerRange = 'SELF' | 'NO_RANGE' | 'STANDARD' | 'LIMITED' | 'LINE_OF_SIGHT';
 export type PowerDuration = 'INSTANT' | 'CONSTANT' | 'PERSISTENT' | 'INHERENT';

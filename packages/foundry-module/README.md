@@ -79,6 +79,8 @@ npm run build:foundry            # from the repo root; output in packages/foundr
   api.openRaceLibrary();
   // Items from a whole .hdc/.hdp, compounds kept as single items; optionally into a compendium pack
   await api.createItemsFromXml(xml, { pack: 'my-module.equipment', folder: folderId, icon: (item) => undefined });
+  // Links Combat Skill Levels to the attacks they name, tidies adjustment targets and Usable As
+  const { xml: fixed, changes, unresolved } = api.repairForFoundry(xml);
   ```
 
 Unlinked token actors are edited through their base actor.

@@ -8,6 +8,7 @@
 export * from './types.js';
 export * from './utils.js';
 export * from './characteristics.js';
+export * from './frameworks.js';
 
 // Export power definitions, but rename conflicting types
 export { 

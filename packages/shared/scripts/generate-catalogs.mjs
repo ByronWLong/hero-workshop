@@ -98,6 +98,12 @@ function adder(node) {
   });
 }
 
+/** Sense modifiers are priced by what they apply to: all senses, a sense group or one sense */
+function scopeCosts(a) {
+  const costs = compact({ all: num(a.ALLCOST), group: num(a.GROUPCOST), sense: num(a.SENSECOST) });
+  return Object.keys(costs).length ? costs : undefined;
+}
+
 function entry(node) {
   const a = attrsOf(node);
   const tag = tagOf(node);
@@ -115,6 +121,7 @@ function entry(node) {
     levelStart: num(a.LEVELSTART),
     minCost: num(a.MINCOST),
     maxCost: num(a.MAXCOST),
+    scopeCosts: scopeCosts(a),
     exclusive: bool(a.EXCLUSIVE ?? a.EXLUSIVE),
     isLimitation: bool(a.ISLIMITATION),
     inputLabel: a.INPUTLABEL,
@@ -314,6 +321,8 @@ export interface CatalogEntry {
   levelStart?: number;
   minCost?: number;
   maxCost?: number;
+  /** Sense modifiers: the cost (per level, if leveled) for all senses, a sense group or a single sense */
+  scopeCosts?: { all?: number; group?: number; sense?: number };
   exclusive?: boolean;
   /** Explicit on the few modifiers whose sign doesn't tell */
   isLimitation?: boolean;

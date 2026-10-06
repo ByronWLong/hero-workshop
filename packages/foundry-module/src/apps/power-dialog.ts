@@ -43,7 +43,13 @@ export interface PowerDialogOptions {
   defaultIcon?: string;
 }
 
-const TITLES: Record<PowerKind, string> = { power: 'power', list: 'power list', compound: 'compound power' };
+const TITLES: Record<PowerKind, string> = {
+  power: 'power',
+  list: 'power list',
+  compound: 'compound power',
+  multipower: 'Multipower',
+  vpp: 'Variable Power Pool',
+};
 
 export class PowerDialog extends HeroWorkshopApplication {
   static DEFAULT_OPTIONS = {
@@ -79,7 +85,7 @@ export class PowerDialog extends HeroWorkshopApplication {
     const noun = config.idScope
       ? 'part'
       : config.section === 'equipment'
-        ? draft.kind === 'compound' && config.itemId ? 'compound equipment' : 'equipment'
+        ? config.itemId && draft.kind !== 'power' ? TITLES[draft.kind] : 'equipment'
         : config.itemId ? TITLES[draft.kind] : 'power';
     const key = config.itemId ?? `new-${draft.kind}-${Date.now().toString(36)}`;
     super({
@@ -98,7 +104,9 @@ export class PowerDialog extends HeroWorkshopApplication {
     const kinds = [
       { value: 'power', label: 'One power', hint: this.config.section === 'equipment' ? 'e.g. armor, a torch' : 'a single power' },
       { value: 'compound', label: 'Compound', hint: this.config.section === 'equipment' ? 'several powers, e.g. a sword: damage + parry' : 'several powers bought together' },
-      ...(this.config.section === 'powers' ? [{ value: 'list', label: 'List', hint: 'a heading that groups powers' }] : []),
+      { value: 'multipower', label: 'Multipower', hint: this.config.section === 'equipment' ? 'one of several uses, e.g. a shield: block or bash' : 'a reserve shared by slots' },
+      { value: 'vpp', label: 'Power pool', hint: 'a Variable Power Pool' },
+      { value: 'list', label: 'List', hint: this.config.section === 'equipment' ? 'a heading that groups gear' : 'a heading that groups powers' },
     ];
     return {
       ...view,
@@ -106,15 +114,23 @@ export class PowerDialog extends HeroWorkshopApplication {
       canConvertSkills: !this.config.idScope,
       icon: { src: this.#draft.icon || this.config.defaultIcon || DEFAULT_ICON, custom: !!this.#draft.icon },
       kindChoices: isNew ? kinds.map((k) => ({ ...k, checked: k.value === this.#draft.kind })) : undefined,
-      costs: view.isPower || view.kind === 'compound'
+      costs: view.framework
         ? [
-            { label: 'Base', value: view.costs.base },
+            { label: view.kind === 'vpp' ? 'Pool + control' : 'Reserve', value: view.costs.base },
             { label: 'Active', value: view.costs.active },
             { label: 'Real', value: view.costs.real },
-            { label: 'END', value: view.costs.end },
             ...(this.#draft.free ? [{ label: 'Points', value: '0 (free)' }] : []),
           ]
-        : [],
+        : view.isPower || view.kind === 'compound'
+          ? [
+              { label: 'Base', value: view.costs.base },
+              { label: 'Active', value: view.costs.active },
+              { label: 'Real', value: view.costs.real },
+              { label: 'END', value: view.costs.end },
+              ...(view.slot ? [{ label: 'As a slot', value: view.slot.cost }] : []),
+              ...(this.#draft.free ? [{ label: 'Points', value: '0 (free)' }] : []),
+            ]
+          : [],
       buttons: [{ type: 'submit', icon: 'fa-solid fa-check', label: this.config.itemId ? 'Save' : 'Add', cssClass: 'bright' }],
     };
   }
