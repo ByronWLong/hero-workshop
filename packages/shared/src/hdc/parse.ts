@@ -36,7 +36,7 @@ import {
   parseRulesName,
   type CharacteristicRule,
 } from '../characteristics.js';
-import { HdcDocument, ICON_ATTR } from './document.js';
+import { HdcDocument, getIcon } from './document.js';
 import { FRAMEWORK_NAMES, FRAMEWORK_TYPES, frameworkOwnCost, isFramework, slotCost } from '../frameworks.js';
 import type { XmlElement } from './xml.js';
 
@@ -82,7 +82,7 @@ export function parseHdcDocument(doc: HdcDocument): Character {
 function withIcons(character: Character, doc: HdcDocument): Character {
   const icon = <T extends { id: string; icon?: string; multiplier?: number; subPowers?: T[] }>(item: T): T => {
     const el = doc.findById(item.id);
-    const value = el?.getAttr(ICON_ATTR);
+    const value = el ? getIcon(el) : undefined;
     const multiplier = Number(el?.getAttr('MULTIPLIER') ?? '1');
     const subPowers = item.subPowers?.map(icon);
     const hasMultiplier = Number.isFinite(multiplier) && multiplier !== 1;
@@ -590,6 +590,24 @@ function parseWeaponElement(obj: Record<string, unknown>): MartialManeuver {
     isWeaponElement: true,
     parentId: getAttr(obj, 'PARENTID', '') || undefined,
   };
+}
+
+/**
+ * What a power's levels cost, as Hero Designer prices them: levels / LVLVAL x LVLCOST, from the
+ * file's LVLCOST if it has one, else the power's (or its option's) definition. Most powers
+ * price per level; some per step (Resistant Protection 3 per 2 points, Multiform and Summon
+ * 1 per 5 points, Leaping and Swimming 1 per 2m, Telescopic per +2).
+ */
+function levelCost(
+  def: ReturnType<typeof getPowerDefinition>,
+  optionId: string,
+  levels: number,
+  fileLvlCost: number,
+): { perLevel: number; cost: number } {
+  const option = optionId ? def?.options?.find((o) => o.xmlId === optionId) : undefined;
+  const perLevel = fileLvlCost >= 0 ? fileLvlCost : (option?.lvlCost ?? def?.lvlCost ?? 1);
+  const step = option?.lvlVal || def?.lvlVal || 1;
+  return { perLevel, cost: (levels / step) * perLevel };
 }
 
 /** A Multipower or Variable Power Pool element: a container with its own reserve/pool cost */
@@ -1237,29 +1255,13 @@ function parsePower(obj: Record<string, unknown>): Power {
   let lvlCost = getAttrNum(obj, 'LVLCOST', -1); // Use -1 as sentinel for "not specified"
   
   const powerDef = getPowerDefinition(xmlid);
-  // Sense modifiers priced per step of their bonus (Telescopic: per +2) count whole steps
-  const optionStep = optionId ? powerDef?.options?.find((o) => o.xmlId === optionId)?.lvlVal : undefined;
+  const leveled = levelCost(powerDef, optionId, levels, lvlCost);
+  lvlCost = leveled.perLevel;
 
-  // If LVLCOST not specified in HDC file (or is default 1), look up from power definition
-  if (lvlCost < 0) {
-    if (powerDef) {
-      lvlCost = powerDef.lvlCost;
-      // Check for option-specific lvlCost (e.g., Darkness Hearing Group = 3, Sight Group = 5)
-      if (optionId && powerDef.options) {
-        const selectedOption = powerDef.options.find(o => o.xmlId === optionId);
-        if (selectedOption && selectedOption.lvlCost !== undefined) {
-          lvlCost = selectedOption.lvlCost;
-        }
-      }
-    } else {
-      lvlCost = 1; // Default fallback
-    }
-  }
-  
   const adderCost = calculateAdderCost(adders);
   
   // True base cost = BASECOST + (levels * lvlCost) + adderCosts (before advantages)
-  let trueBaseCost = hdcBaseCost + ((optionStep ? Math.ceil(levels / optionStep) : levels) * lvlCost) + adderCost;
+  let trueBaseCost = hdcBaseCost + leveled.cost + adderCost;
   
   // Negative levels on characteristics are penalties with 0 cost, not refunds
   // Check if this is a characteristic power type
@@ -1572,17 +1574,13 @@ function parseEquipmentItem(obj: Record<string, unknown>): Equipment {
   const baseCost = getAttrNum(obj, 'BASECOST', 0);
   const levels = getAttrNum(obj, 'LEVELS', 0);
   
-  // Get level cost from HDC file first, then look up from power definition
-  let lvlCost = getAttrNum(obj, 'LVLCOST', -1);
-  if (lvlCost < 0) {
-    const powerDef = getPowerDefinition(xmlid);
-    lvlCost = powerDef?.lvlCost ?? 1;
-  }
-  
+  // Levels' cost: the file's LVLCOST, else the power's (or its option's), per level step
+  const leveled = levelCost(getPowerDefinition(xmlid), getAttr(obj, 'OPTION', ''), levels, getAttrNum(obj, 'LVLCOST', -1));
+
   const adderCost = calculateAdderCost(adders);
-  
+
   // For compound powers, we need to sum up child power costs
-  let totalActiveCost = baseCost + (levels * lvlCost) + adderCost;
+  let totalActiveCost = baseCost + leveled.cost + adderCost;
   let totalRealCost = 0;
   const childPowerDescriptions: string[] = [];
   const subPowers: Power[] = [];
@@ -1661,7 +1659,7 @@ function parseEquipmentItem(obj: Record<string, unknown>): Equipment {
   
   // If no nested powers, calculate from main power
   if (totalRealCost === 0) {
-    totalActiveCost = heroRoundCost((baseCost + (levels * lvlCost) + adderCost) * (1 + advantageTotal));
+    totalActiveCost = heroRoundCost((baseCost + leveled.cost + adderCost) * (1 + advantageTotal));
     totalRealCost = limitationTotal > 0 ? heroRoundCost(totalActiveCost / (1 + limitationTotal)) : totalActiveCost;
   }
   

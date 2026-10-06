@@ -45,7 +45,7 @@ import {
   type CatalogAdder,
   type CatalogEntry,
 } from '../generated/catalog6e.js';
-import { HdcDocument, type HdcItemSection, ICON_ATTR } from './document.js';
+import { HdcDocument, type HdcItemSection, setIcon } from './document.js';
 import { XmlElement, createElement, escapeAttr } from './xml.js';
 import {
   ATTACK_DEFENSE_DEFAULTS,
@@ -553,7 +553,7 @@ function reconcileItems<T extends ItemModel>(
   for (const a of createdItems) {
     const section = doc.ensureSection(sectionName);
     const el = spec.create(ctx, a, sectionName);
-    if ((a as { icon?: string }).icon) el.setAttr(ICON_ATTR, (a as { icon?: string }).icon!);
+    if ((a as { icon?: string }).icon) setIcon(el, (a as { icon?: string }).icon);
     const multiplier = (a as { multiplier?: number }).multiplier;
     if (multiplier !== undefined && multiplier !== 1) {
       el.setAttr('MULTIPLIER', hdMultiplier(multiplier));
@@ -639,8 +639,7 @@ function writeCommonFields<T extends ItemModel & { modifiers?: Modifier[]; adder
   if (!same(b.modifiers, a.modifiers)) reconcileModifiers(ctx, el, b.modifiers ?? [], a.modifiers ?? []);
   if (!same(b.adders, a.adders)) reconcileAdders(ctx, el, b.adders ?? [], a.adders ?? []);
   if (!same(b.icon, a.icon)) {
-    if (a.icon) el.setAttr(ICON_ATTR, a.icon);
-    else el.removeAttr(ICON_ATTR);
+    setIcon(el, a.icon || undefined);
   }
   if (!same(b.multiplier ?? 1, a.multiplier ?? 1)) {
     el.setAttr('MULTIPLIER', hdMultiplier(a.multiplier ?? 1));

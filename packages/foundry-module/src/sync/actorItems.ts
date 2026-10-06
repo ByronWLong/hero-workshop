@@ -8,7 +8,7 @@
  * parts get them first (see expandCompound), then everything is written in one update.
  */
 
-import { HdcDocument, ICON_ATTR, parseXml } from '@hero-workshop/shared';
+import { HdcDocument, getIcon, parseXml, setIcon } from '@hero-workshop/shared';
 import { applyDrift } from './drift';
 import { isCustomIcon } from './icons';
 import { MODULE_ID, createActorSession } from './session';
@@ -109,9 +109,8 @@ export function recordIconChange(item: FoundryItem): void {
       if (!xml || id === undefined || id === null || id === '') return;
       const doc = HdcDocument.parse(xml);
       const el = doc.findById(String(id));
-      if (!el || (el.getAttr(ICON_ATTR) ?? undefined) === icon) return;
-      if (icon) el.setAttr(ICON_ATTR, icon);
-      else el.removeAttr(ICON_ATTR);
+      if (!el || getIcon(el) === icon) return;
+      setIcon(el, icon);
       await actor.update({ 'system._hdcXml': doc.toString() });
     });
     return;
@@ -119,8 +118,7 @@ export function recordIconChange(item: FoundryItem): void {
   const fragment = item.system._hdcXml;
   if (typeof fragment !== 'string' || !fragment.trim()) return;
   const el = parseXml(fragment.trim()).root;
-  if ((el.getAttr(ICON_ATTR) ?? undefined) === icon) return;
-  if (icon) el.setAttr(ICON_ATTR, icon);
-  else el.removeAttr(ICON_ATTR);
+  if (getIcon(el) === icon) return;
+  setIcon(el, icon);
   void item.update({ 'system._hdcXml': el.toString() });
 }

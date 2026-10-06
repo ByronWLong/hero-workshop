@@ -2122,9 +2122,9 @@ export function calculatePowerBaseCost(power: PowerDefinition, levels: number, o
   const selectedOption = optionId ? power.options?.find((o) => o.xmlId === optionId) : undefined;
   const baseCost = selectedOption?.baseCost ?? power.baseCost;
   const lvlCost = selectedOption?.lvlCost ?? power.lvlCost;
-  // An option priced per step of its bonus (e.g. Telescopic: per +2) counts whole steps
-  const steps = selectedOption?.lvlVal ? Math.ceil(levels / selectedOption.lvlVal) : levels;
-  return baseCost + lvlCost * steps;
+  // Priced per level step, as Hero Designer does (Resistant Protection 3 per 2, Multiform 1 per 5)
+  const step = selectedOption?.lvlVal || power.lvlVal || 1;
+  return baseCost + lvlCost * (levels / step);
 }
 
 /**

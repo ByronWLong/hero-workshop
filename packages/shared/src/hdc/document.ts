@@ -34,10 +34,35 @@ export const HDC_ITEM_SECTIONS = [
 export type HdcItemSection = (typeof HDC_ITEM_SECTIONS)[number];
 
 /**
- * Attribute holding an item's custom icon (a Foundry image path). Not part of Hero Designer's
- * format: desktop Hero Designer opens files that have it but drops it when it saves.
+ * An item's custom icon (a Foundry image path) is kept in a child element,
+ * `<FOUNDRY_ICON SRC="..." />`. Not part of Hero Designer's format: desktop Hero Designer opens
+ * files that have it but drops it when it saves. Older files kept it in a FOUNDRY_ICON
+ * attribute, which hero6e reports as an unknown property; it's still read, and moved to the
+ * child element whenever the icon is written.
  */
 export const ICON_ATTR = 'FOUNDRY_ICON';
+
+/** An item element's custom icon, if it has one */
+export function getIcon(el: XmlElement): string | undefined {
+  return el.firstElement(ICON_ATTR)?.getAttr('SRC') || el.getAttr(ICON_ATTR) || undefined;
+}
+
+/** Sets (or, with no icon, removes) an item element's custom icon */
+export function setIcon(el: XmlElement, icon: string | undefined): void {
+  el.removeAttr(ICON_ATTR);
+  const existing = el.firstElement(ICON_ATTR);
+  if (!icon) {
+    if (existing) el.removeElement(existing);
+    return;
+  }
+  if (existing) {
+    existing.setAttr('SRC', icon);
+    return;
+  }
+  // After NOTES, before modifiers, adders and nested parts
+  const before = el.elements().find((c) => c.name !== 'NOTES');
+  el.appendElement(createElement(ICON_ATTR, { SRC: icon }), before);
+}
 
 /** Elements that are purchasable objects and must carry an ID */
 function isObjectElement(el: XmlElement): boolean {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { HdcDocument } from '@hero-workshop/shared';
+import { HdcDocument, getIcon } from '@hero-workshop/shared';
 import { applyDrift, detectDrift, type DriftItemSource } from '../src/sync/drift';
 
 const XML = `<?xml version="1.0" encoding="UTF-16"?>
@@ -135,7 +135,7 @@ describe('renames', () => {
     const changes = detectDrift(doc, { items: [defaulted, custom], actorSystem });
     expect(changes.map((c) => c.key)).toEqual(['item:20:icon']);
     applyDrift(doc, changes);
-    expect(doc.findById('20')!.getAttr('FOUNDRY_ICON')).toBe(custom.img);
+    expect(getIcon(doc.findById('20')!)).toBe(custom.img);
     expect(detectDrift(doc, { items: [defaulted, custom], actorSystem })).toEqual([]);
   });
 });

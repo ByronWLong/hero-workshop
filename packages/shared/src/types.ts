@@ -109,7 +109,7 @@ export interface GenericObjectBase {
    * its realCost/activeCost include the slots
    */
   ownCost?: { active: number; real: number };
-  /** Custom icon (an image path in Foundry), kept in the element's FOUNDRY_ICON attribute */
+  /** Custom icon (an image path in Foundry), kept in the element's FOUNDRY_ICON child */
   icon?: string;
   /**
    * Hero Designer's cost multiplier (MULTIPLIER), applied to the Real Cost only. 0 marks a

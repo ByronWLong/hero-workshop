@@ -4,7 +4,7 @@
 
 export { XmlDocument, XmlElement, XmlText, XmlParseError, parseXml, createElement } from './xml.js';
 export { decodeHdcBytes, encodeHdcUtf16, detectHdcEncoding, type HdcEncoding } from './encoding.js';
-export { HdcDocument, HDC_SECTIONS, HDC_ITEM_SECTIONS, ICON_ATTR, type HdcSection, type HdcItemSection } from './document.js';
+export { HdcDocument, HDC_SECTIONS, HDC_ITEM_SECTIONS, ICON_ATTR, getIcon, setIcon, type HdcSection, type HdcItemSection } from './document.js';
 export { parseHdcFile, parseHdcDocument } from './parse.js';
 export { extractItems, insertItems, type ItemTransfer, type InsertOptions } from './transfer.js';
 export { repairForFoundry, type RepairResult } from './repair.js';

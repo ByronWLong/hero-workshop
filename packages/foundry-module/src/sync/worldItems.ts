@@ -13,11 +13,11 @@
 
 import {
   HdcDocument,
-  ICON_ATTR,
-  blankHdc,
+blankHdc,
   extractItems,
   insertItems,
   parseXml,
+  setIcon,
   type HdcItemSection,
   type ItemTransfer,
 } from '@hero-workshop/shared';
@@ -146,7 +146,7 @@ export async function createItemsFromXml(xml: string, options: CreateItemsOption
     // A chosen icon is the item's own, stored with its Hero Designer data like any custom icon
     if (picked && typeof data.system._hdcXml === 'string') {
       const root = parseXml(data.system._hdcXml.trim()).root;
-      root.setAttr(ICON_ATTR, picked);
+      setIcon(root, picked);
       data.system._hdcXml = root.toString();
     }
     if (options.id) data._id = await options.id({ ...info(data), folder: false });

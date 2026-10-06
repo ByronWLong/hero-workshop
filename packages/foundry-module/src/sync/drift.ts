@@ -11,7 +11,7 @@
  * pull them into the HDC before editing it in Hero Workshop.
  */
 
-import { HdcDocument, ICON_ATTR, XmlElement, createElement, parseXml } from '@hero-workshop/shared';
+import { HdcDocument, XmlElement, createElement, getIcon, parseXml, setIcon } from '@hero-workshop/shared';
 import { isCustomIcon } from './icons';
 
 /** The subset of a Foundry item's source data drift detection reads */
@@ -344,14 +344,14 @@ function isItemChild(el: XmlElement): boolean {
 /** A custom icon chosen on the Foundry sheet (resetting to a default icon isn't tracked) */
 function detectIcon(el: XmlElement, item: DriftItemSource, keyPrefix: string, changes: DriftChange[]): void {
   const img = item.img;
-  if (!isCustomIcon(img) || el.getAttr(ICON_ATTR) === img) return;
+  if (!isCustomIcon(img) || getIcon(el) === img) return;
   changes.push({
     key: `${keyPrefix}:icon`,
     kind: 'modified',
     itemName: item.name,
     summary: 'Icon changed',
     recommended: true,
-    apply: () => el.setAttr(ICON_ATTR, img),
+    apply: () => setIcon(el, img),
   });
 }
 
@@ -368,7 +368,7 @@ function addedItemChange(item: DriftItemSource): DriftChange {
       if (!sectionName) return;
       const tag = String(item.system.xmlTag || (sectionName === 'DISADVANTAGES' ? 'DISAD' : item.type.toUpperCase()));
       const el = elementFromSystem(target, tag, item.system);
-      if (isCustomIcon(item.img)) el.setAttr(ICON_ATTR, item.img);
+      if (isCustomIcon(item.img)) setIcon(el, item.img);
       // Keep Foundry's ID so the next import matches this element to the existing item
       const wanted = String(item.system.ID);
       el.setAttr('ID', target.findById(wanted) ? target.nextId() : wanted);

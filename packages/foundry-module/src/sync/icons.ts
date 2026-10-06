@@ -5,7 +5,7 @@
  * icons are put back on the Foundry items after each import.
  */
 
-import { HdcDocument, ICON_ATTR, parseXml } from '@hero-workshop/shared';
+import { HdcDocument, getIcon, parseXml } from '@hero-workshop/shared';
 
 /** Placeholder for items without an icon of their own (e.g. ones not yet in Foundry) */
 export const DEFAULT_ICON = 'icons/svg/item-bag.svg';
@@ -19,7 +19,7 @@ export function isCustomIcon(img: unknown): img is string {
 export function iconOfFragment(xml: unknown): string | undefined {
   if (typeof xml !== 'string' || !xml.trim()) return undefined;
   try {
-    return parseXml(xml.trim()).root.getAttr(ICON_ATTR) || undefined;
+    return getIcon(parseXml(xml.trim()).root);
   } catch {
     return undefined;
   }
@@ -41,7 +41,8 @@ export async function applyIcons(actor: FoundryActor): Promise<void> {
   for (const item of target.items.contents) {
     const id = item.system.ID;
     if (id === undefined || id === null || id === '') continue;
-    const icon = doc.findById(String(id))?.getAttr(ICON_ATTR);
+    const found = doc.findById(String(id));
+    const icon = found ? getIcon(found) : undefined;
     if (icon && item.img !== icon) updates.push({ _id: item.id, img: icon });
   }
   if (updates.length) await target.updateEmbeddedDocuments('Item', updates);

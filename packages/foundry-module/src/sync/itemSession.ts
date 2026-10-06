@@ -8,7 +8,7 @@
  * keeps as separate items linked by PARENTID.
  */
 
-import { HdcDocument, ICON_ATTR, blankHdc, parseXml, type HdcSection, type XmlElement } from '@hero-workshop/shared';
+import { HdcDocument, blankHdc, getIcon, parseXml, type HdcSection, type XmlElement } from '@hero-workshop/shared';
 import type { TabId } from './tabs';
 import { detectDrift } from './drift';
 import { MODULE_ID, downloadHdc, itemSource, type ActorSession } from './session';
@@ -99,7 +99,7 @@ export function createItemSession(item: FoundryItem, members: FoundryItem[] = [i
         if (updated.toString() === before) continue;
         await member.update({ 'system._hdcXml': updated.toString() });
         await member.restoreFromHdc();
-        const icon = updated.getAttr(ICON_ATTR);
+        const icon = getIcon(updated);
         if (icon && member.img !== icon) await member.update({ img: icon });
         await member.setFlag(MODULE_ID, 'syncedName', member.name);
       }
