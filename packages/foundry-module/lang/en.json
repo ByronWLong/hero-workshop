@@ -5,6 +5,7 @@
     "DownloadHdc": "Download .hdc",
     "NoHdc": "{name} has no Hero Designer data yet. Upload an HDC file with the system's Upload button first.",
     "NotOwner": "You need owner permission on {name} to edit it.",
+    "PackLocked": "{name} is in the locked compendium {pack}. Unlock the compendium (right-click it in the Compendium sidebar → Toggle Edit Lock) to edit it.",
     "TokenActor": "Hero Workshop edits the base actor. Open {name} from the Actors sidebar to edit it.",
     "Applied": "{name} updated from Hero Workshop.",
     "ApplyFailed": "Hero Workshop could not update {name}. The actor was not changed; see the console for details.",

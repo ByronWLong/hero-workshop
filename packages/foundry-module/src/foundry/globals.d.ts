@@ -15,6 +15,8 @@ interface FoundryItem {
   isOwner: boolean;
   /** Owning actor, for embedded items */
   actor: FoundryActor | null;
+  /** The compendium it's in (e.g. "my-module.equipment"), if any */
+  pack?: string | null;
   sheet?: { render(force?: boolean): unknown };
   toObject(): { system: Record<string, unknown> };
   update(data: Record<string, unknown>, options?: Record<string, unknown>): Promise<unknown>;
@@ -27,6 +29,8 @@ interface FoundryItem {
 interface FoundryActor {
   id: string;
   name: string;
+  /** The compendium it's in, if any */
+  pack?: string | null;
   type: string;
   img: string;
   isOwner: boolean;
@@ -65,6 +69,7 @@ declare const game: {
   user: { id: string; isGM: boolean; can(permission: string): boolean };
   actors: { get(id: string): FoundryActor | undefined; contents: FoundryActor[] };
   items: { get(id: string): FoundryItem | undefined; contents: FoundryItem[] };
+  packs: { get(id: string): CompendiumPack | undefined };
   modules: Map<string, { api?: unknown }> & { get(id: string): { api?: unknown } | undefined };
   i18n: { localize(key: string): string; format(key: string, data: Record<string, unknown>): string };
   settings: {
@@ -110,3 +115,11 @@ declare const CONFIG: { Item: { documentClass: unknown } };
 
 declare function fromUuid(uuid: string): Promise<unknown>;
 declare function fromUuidSync(uuid: string): unknown;
+
+/** A compendium pack (CompendiumCollection) */
+interface CompendiumPack {
+  collection: string;
+  locked: boolean;
+  metadata: { id: string; label: string; type: string };
+  getDocument(id: string): Promise<unknown>;
+}

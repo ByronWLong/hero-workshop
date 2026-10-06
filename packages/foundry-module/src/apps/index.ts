@@ -45,7 +45,16 @@ function editableActor(actor: FoundryActor): FoundryActor | undefined {
 const notifyApplied = (applied: AppliedDocument) =>
   ui.notifications.info(game.i18n.format('HERO_WORKSHOP.Applied', { name: applied.name }));
 
+/** A document in a locked compendium can't be changed; the GM unlocks the compendium first */
+function inLockedPack(document: { name: string; pack?: string | null }): boolean {
+  const pack = document.pack ? game.packs.get(document.pack) : undefined;
+  if (!pack?.locked) return false;
+  ui.notifications.warn(game.i18n.format('HERO_WORKSHOP.PackLocked', { name: document.name, pack: pack.metadata.label }));
+  return true;
+}
+
 export function openEditor(actor: FoundryActor, view?: SessionView): void {
+  if (inLockedPack(actor)) return;
   const target = editableActor(actor);
   if (!target) return;
   openSession(createActorSession(target, view), target.id, notifyApplied);
@@ -70,8 +79,9 @@ export function openItemEditor(item: FoundryItem): void {
     ui.notifications.warn(game.i18n.format('HERO_WORKSHOP.NotOwner', { name: item.name }));
     return;
   }
+  if (inLockedPack(item)) return;
   try {
-    openSession(createItemSession(item), `item-${item.id}`, notifyApplied);
+    openSession(createItemSession(item), `item-${item.pack ? `${item.pack}-` : ''}${item.id}`, notifyApplied);
   } catch (e) {
     ui.notifications.warn(e instanceof Error ? e.message : String(e));
   }

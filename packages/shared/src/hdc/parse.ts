@@ -591,6 +591,28 @@ function parseWeaponElement(obj: Record<string, unknown>): MartialManeuver {
   };
 }
 
+/** Characteristics, which Hero Designer can also list as powers or equipment (e.g. "Clever": INT +2) */
+const CHARACTERISTIC_POWER_TAGS = [
+  'STR', 'DEX', 'CON', 'INT', 'EGO', 'PRE',
+  'OCV', 'DCV', 'OMCV', 'DMCV',
+  'SPD', 'PD', 'ED', 'REC', 'END', 'BODY', 'STUN',
+  'RUNNING', 'SWIMMING', 'LEAPING',
+];
+
+/**
+ * A POWERS or EQUIPMENT section's items: its POWER elements plus characteristics bought as
+ * powers, in Hero Designer's order (POSITION)
+ */
+function powerLikeElements(containerObj: Record<string, unknown>): unknown[] {
+  const found = ['POWER', ...CHARACTERISTIC_POWER_TAGS].flatMap((tag) => {
+    const value = containerObj[tag];
+    return value === undefined ? [] : Array.isArray(value) ? value : [value];
+  });
+  const position = (item: unknown) =>
+    typeof item === 'object' && item !== null ? getAttrNum(item as Record<string, unknown>, 'POSITION', 0) : 0;
+  return found.sort((a, b) => position(a) - position(b));
+}
+
 /**
  * Parse POWERS section - handles POWER and LIST elements
  * LIST elements can have MODIFIER elements that apply to all child powers
@@ -648,10 +670,10 @@ function parsePowersList(container: unknown): Power[] {
     }
   }
   
-  // Parse all POWER elements
-  const powerElements = containerObj['POWER'];
-  if (powerElements) {
-    const arr = Array.isArray(powerElements) ? powerElements : [powerElements];
+  // Parse all POWER elements, and characteristics bought as powers (<STR>, <INT>, ...)
+  const powerElements = powerLikeElements(containerObj);
+  if (powerElements.length) {
+    const arr = powerElements;
     for (const item of arr) {
       if (typeof item === 'object' && item !== null) {
         const powerObj = item as Record<string, unknown>;
@@ -1419,10 +1441,11 @@ function parseEquipmentList(container: unknown): Equipment[] {
   const containerObj = container as Record<string, unknown>;
   const equipment: Equipment[] = [];
   
-  // Equipment section contains POWER elements (and LIST elements for grouping)
-  const powerElements = containerObj['POWER'];
-  if (powerElements) {
-    const arr = Array.isArray(powerElements) ? powerElements : [powerElements];
+  // Equipment section contains POWER elements (and LIST elements for grouping); gear can
+  // also be a characteristic bought on its own (<STR>, <DEX>, ...)
+  const powerElements = powerLikeElements(containerObj);
+  if (powerElements.length) {
+    const arr = powerElements;
     for (const item of arr) {
       if (typeof item === 'object' && item !== null) {
         equipment.push(parseEquipmentItem(item as Record<string, unknown>));

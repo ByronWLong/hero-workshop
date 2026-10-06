@@ -102,26 +102,51 @@ Hooks.on('getHeaderControlsApplicationV2', ((app: { document?: unknown }, contro
   );
 }) as (...args: never[]) => unknown);
 
-Hooks.on('getActorContextOptions', ((_directory: unknown, options: ContextMenuEntry[]) => {
+/**
+ * The Actors/Items sidebars and compendium windows fire the same context-menu hooks; entries
+ * come from the world collection or the compendium being shown
+ */
+interface EntryDirectory {
+  collection?: CompendiumPack;
+}
+
+function entryOf<T>(directory: EntryDirectory, li: HTMLElement, world: { get(id: string): T | undefined }) {
+  const id = li.dataset.entryId ?? li.dataset.documentId ?? '';
+  const pack = directory.collection?.metadata ? directory.collection : undefined;
+  return {
+    /** Compendium entries are offered to whoever may edit the pack (opening checks the lock) */
+    pack,
+    world: pack ? undefined : world.get(id),
+    load: async () => (pack ? ((await pack.getDocument(id)) as T | undefined) : world.get(id)),
+  };
+}
+
+Hooks.on('getActorContextOptions', ((directory: EntryDirectory, options: ContextMenuEntry[]) => {
   if (!isHeroSystem()) return;
-  const actorFrom = (li: HTMLElement) => game.actors.get(li.dataset.entryId ?? li.dataset.documentId ?? '');
+  const actorFrom = (li: HTMLElement) => entryOf<FoundryActor>(directory, li, game.actors);
 
   options.push(
     {
       name: 'HERO_WORKSHOP.EditCharacter',
       icon: '<i class="fa-solid fa-user-pen"></i>',
-      condition: (li) => !!actorFrom(li)?.isOwner,
-      callback: (li) => {
-        const actor = actorFrom(li);
+      condition: (li) => {
+        const entry = actorFrom(li);
+        return entry.pack ? game.user.isGM : !!entry.world?.isOwner;
+      },
+      callback: async (li) => {
+        const actor = await actorFrom(li).load();
         if (actor) openEditor(actor);
       },
     },
     {
       name: 'HERO_WORKSHOP.InspectHdc',
       icon: '<i class="fa-solid fa-file-code"></i>',
-      condition: (li) => !!actorFrom(li)?.system._hdcXml,
-      callback: (li) => {
-        const actor = actorFrom(li);
+      condition: (li) => {
+        const entry = actorFrom(li);
+        return entry.pack ? game.user.isGM : !!entry.world?.system._hdcXml;
+      },
+      callback: async (li) => {
+        const actor = await actorFrom(li).load();
         if (actor) openInspector(actor);
       },
     },
@@ -192,18 +217,18 @@ Hooks.on('renderItemDirectory', ((_app: unknown, html: HTMLElement) => {
   );
 }) as (...args: never[]) => unknown);
 
-Hooks.on('getItemContextOptions', ((_directory: unknown, options: ContextMenuEntry[]) => {
+Hooks.on('getItemContextOptions', ((directory: EntryDirectory, options: ContextMenuEntry[]) => {
   if (!isHeroSystem()) return;
-  const itemFrom = (li: HTMLElement) => game.items.get(li.dataset.entryId ?? li.dataset.documentId ?? '');
+  const itemFrom = (li: HTMLElement) => entryOf<FoundryItem>(directory, li, game.items);
   options.push({
     name: 'HERO_WORKSHOP.EditItem',
     icon: '<i class="fa-solid fa-user-pen"></i>',
     condition: (li) => {
-      const item = itemFrom(li);
-      return !!item?.isOwner && !!item.system._hdcXml;
+      const entry = itemFrom(li);
+      return entry.pack ? game.user.isGM : !!entry.world?.isOwner && !!entry.world.system._hdcXml;
     },
-    callback: (li) => {
-      const item = itemFrom(li);
+    callback: async (li) => {
+      const item = await itemFrom(li).load();
       if (item) openItemEditor(item);
     },
   });
