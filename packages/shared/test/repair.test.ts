@@ -48,6 +48,13 @@ describe('repairForFoundry', () => {
     expect(usable.getAttr('ALIAS')).toBe('Usable Underwater');
   });
 
+  it('changes nothing the second time (hero6e rebuilds re-run it)', () => {
+    const once = repairForFoundry(CREATURE).xml;
+    const twice = repairForFoundry(once);
+    expect(twice.changes).toEqual([]);
+    expect(twice.xml).toBe(once);
+  });
+
   it('leaves a character with nothing to repair untouched', () => {
     const xml = blankHdc();
     const result = repairForFoundry(xml);

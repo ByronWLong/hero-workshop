@@ -24,6 +24,7 @@ Foundry offers updates when a new release is published.
 - **Pick up changes made in Foundry:** edits made on hero6e's own sheets are detected when the editor opens, and you choose which to keep.
 - **Create characters and items:** new characters, vehicles, bases, computers, automatons and AIs from Hero Designer templates, and new world items (equipment, powers, skills and more).
 - **Drag and drop:** move items between the editor, the Items sidebar, compendiums and other characters. Compound equipment stays a single item, and custom icons travel with it.
+- **Repair imported files:** when hero6e imports an `.hdc` or `.hdp` (an actor's Upload, or a Hero Designer file uploaded as a compendium), Combat Skill Levels are linked to the attacks they name and other fixes hero6e needs are made, without changing the build. It can be turned off in the module settings.
 - **Campaign rules:** characteristic maxima from a character's races (via a GM-managed race library), free GM-given items, Requires A Roll linked to a chosen skill, and Combat Skill Levels linked to the attacks they apply to.
 
 The [module README](packages/foundry-module/README.md) describes each feature in detail and lists the macro API.

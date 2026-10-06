@@ -21,6 +21,9 @@
     "NewItem": "Hero Workshop Item",
     "ItemCreated": "{name} created with Hero Workshop.",
     "ItemsCopied": "Created {name} in the Items sidebar.",
-    "NoSection": "Hero Workshop can't add {name} to a character."
+    "NoSection": "Hero Workshop can't add {name} to a character.",
+    "RepairImports": "Repair imported Hero Designer files",
+    "RepairImportsHint": "When hero6e imports an HDC or HDP, link Combat Skill Levels to the attacks they name, comma-separate adjustment targets, and make other fixes hero6e needs. The build is not changed.",
+    "ImportRepaired": "Hero Workshop repaired {changes} thing(s) in {name} for hero6e; {unresolved} couldn't be repaired automatically. Details are in the console (F12)."
   }
 }

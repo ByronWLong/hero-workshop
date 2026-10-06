@@ -30,6 +30,7 @@ import {
 } from './sync/worldItems';
 import { getRaceLibrary, registerRaceSettings } from './races/library';
 import { MODULE_ID, createActorSession } from './sync/session';
+import { registerImportRepair, wrapHeroUploads } from './sync/importRepair';
 
 /** Lists Foundry-side edits not yet in an actor's stored HDC (for macros and debugging) */
 function driftReport(actor: FoundryActor): { item: string; kind: string; summary: string }[] {
@@ -64,7 +65,13 @@ Hooks.once('init', () => {
     };
   }
   registerRaceSettings(openRaceLibrary);
+  registerImportRepair();
   void preloadTemplates();
+});
+
+// hero6e has set up its document and UI classes by now
+Hooks.once('setup', () => {
+  if (isHeroSystem()) wrapHeroUploads();
 });
 
 // ApplicationV2 fires getHeaderControls<ClassName> for every class in the sheet's hierarchy
