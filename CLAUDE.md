@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Hero Workshop is a TypeScript monorepo for a web-based HERO System RPG character sheet editor with Google Drive integration. Characters are stored as `.hdc` XML files in the user's Google Drive.
+Hero Workshop is a TypeScript monorepo for a HERO System 6e character editor. The focus is the Foundry VTT module (`packages/foundry-module`), which edits the Hero Designer `.hdc` data stored on hero6e actors. The original Google Drive web app (`packages/frontend` + `packages/backend`) is deprecated: no new features; keep it building until it is removed.
 
 ## Commands
 
@@ -35,8 +35,8 @@ npm run build:foundry    # Build the Foundry module into packages/foundry-module
 
 ### Monorepo Structure (npm workspaces)
 - **packages/shared** - TypeScript types, HERO System utilities, and the lossless HDC reader/writer (no runtime dependencies)
-- **packages/backend** - Express 5 REST API server with Google OAuth2 and Drive integration
-- **packages/frontend** - React 19 + Vite 7 SPA with React Router and TanStack Query
+- **packages/backend** - (deprecated) Express 5 REST API server with Google OAuth2 and Drive integration
+- **packages/frontend** - (deprecated) React 19 + Vite 7 SPA with React Router and TanStack Query
 - **packages/foundry-module** - Foundry VTT (v14) add-on for the hero6e system that reuses the frontend editor
 
 ### Build Dependency Order

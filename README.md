@@ -1,167 +1,94 @@
 # Hero Workshop
 
-A modern web-based character sheet editor for the HERO System tabletop RPG. This application allows you to create and manage character files (.hdc) stored directly in Google Drive.
+A character editor for HERO System 6th Edition, built as a module for [Foundry VTT](https://foundryvtt.com/). It works with the [Hero System 6e (Unofficial) v2](https://github.com/dmdorman/hero6e-foundryvtt) system and edits each character's Hero Designer data (`.hdc`) inside Foundry. Characters stay fully compatible with desktop Hero Designer.
 
-## Features
+> **The Google Drive web app is deprecated.** Hero Workshop started as a web app that edited `.hdc` files stored in Google Drive. Development now focuses on the Foundry module; see [Legacy web app](#legacy-web-app-deprecated).
 
-- 🦸 Full HERO System 6th Edition character creation
-- ☁️ Google Drive integration for cloud storage
-- 📱 Responsive design for desktop and mobile
-- 🔐 Secure Google OAuth2 authentication
-- 📄 Full .hdc file compatibility with desktop Hero Designer
+## Install
 
-## Project Structure
+Requirements: Foundry VTT v14 with the Hero System 6e (Unofficial) v2 system (`hero6efoundryvttv2`, 5.x).
 
-This is a TypeScript monorepo with three packages:
+1. In Foundry's setup screen, go to **Add-on Modules → Install Module**.
+2. Paste this manifest URL and click **Install**:
+   ```
+   https://github.com/ByronWLong/hero-workshop/releases/latest/download/module.json
+   ```
+3. Enable **Hero Workshop** in your world's module settings.
+
+Foundry offers updates when a new release is published.
+
+## What it does
+
+- **Edit characters:** open the editor from an actor sheet's header menu (⋮) or by right-clicking an actor in the Actors sidebar. It covers characteristics, skills, perks, talents, martial arts, powers, complications and equipment, with Hero Designer's costs.
+- **Keep Hero Designer data intact:** changes patch the character's stored `.hdc` rather than regenerating it, so anything Hero Workshop doesn't touch stays exactly as Hero Designer wrote it. Damage, used charges and Foundry item IDs are preserved.
+- **Pick up changes made in Foundry:** edits made on hero6e's own sheets are detected when the editor opens, and you choose which to keep.
+- **Create characters and items:** new characters, vehicles, bases, computers, automatons and AIs from Hero Designer templates, and new world items (equipment, powers, skills and more).
+- **Drag and drop:** move items between the editor, the Items sidebar, compendiums and other characters. Compound equipment stays a single item, and custom icons travel with it.
+- **Campaign rules:** characteristic maxima from a character's races (via a GM-managed race library), free GM-given items, Requires A Roll linked to a chosen skill, and Combat Skill Levels linked to the attacks they apply to.
+
+The [module README](packages/foundry-module/README.md) describes each feature in detail and lists the macro API.
+
+## Development
+
+Requires Node.js 24+ and npm 11+.
+
+```bash
+npm install
+npm run build:shared     # build the shared package first
+npm run build:foundry    # build the module into packages/foundry-module/dist
+npm test                 # run the shared and module test suites
+```
+
+To try a local build, link or copy `packages/foundry-module/dist` to `<Foundry data>/Data/modules/hero-workshop` and enable the module in a world.
+
+| Command | Description |
+|---------|-------------|
+| `npm run build:shared` | Build the shared package (required after changing shared types) |
+| `npm run build:foundry` | Build the Foundry module |
+| `npm test` | Run Vitest: HDC round-trip and editing tests, and module tests |
+| `npm run typecheck` | Type-check all packages |
+| `npm run lint` | Run ESLint |
+| `npm run format` | Format with Prettier |
+
+### Project structure
 
 ```
 hero-workshop/
 ├── packages/
-│   ├── shared/      # Shared types and utilities
-│   ├── backend/     # Express.js API server
-│   └── frontend/    # React + Vite frontend
-├── package.json     # Root workspace configuration
-└── README.md
+│   ├── shared/          # HDC reader/writer, catalogs, costs and editor rules
+│   ├── foundry-module/  # The Foundry VTT module
+│   ├── frontend/        # Legacy web app (deprecated)
+│   └── backend/         # Legacy web app API (deprecated)
+└── samples/             # Sample .hdc files used by the tests
 ```
 
-## Prerequisites
+- **`packages/shared`** holds everything that isn't Foundry-specific:
+  - the lossless HDC reader and writer (`src/hdc`);
+  - catalogs generated from Hero Designer's 6E template;
+  - point-cost calculations;
+  - the editor rules, such as item forms and costs (`src/editor`).
 
-- Node.js 24+ 
-- npm 11+
-- Google Cloud Project with OAuth2 credentials
+  The module only renders these rules. The tests check that every sample `.hdc` round-trips byte for byte.
+- **`packages/foundry-module`** contains the module's windows (ApplicationV2 + Handlebars, styled with Foundry's theme variables) and its sync with hero6e actors and items.
 
-## Setup
+### Releasing
 
-### 1. Install Dependencies
+Push a tag named `module-v<version>` (for example `module-v0.4.0`). The **Release Foundry module** workflow runs the tests and builds the module. It then publishes a GitHub release with `module.json` and `hero-workshop.zip`, which is what the manifest URL points to.
 
-```bash
-cd hero-workshop
-npm install
-```
+## Legacy web app (deprecated)
 
-### 2. Configure Google OAuth
+The original Hero Workshop is a React web app with an Express backend that edits `.hdc` files in your Google Drive (`packages/frontend` and `packages/backend`). It is deprecated: it receives no new features and will be removed in a future release.
 
-1. Go to [Google Cloud Console](https://console.cloud.google.com/)
-2. Create a new project or select an existing one
-3. Enable the Google Drive API
-4. Go to **APIs & Services > Credentials**
-5. Click **Create Credentials > OAuth client ID**
-6. Select **Web application**
-7. Add authorized redirect URI: `http://localhost:3001/api/auth/callback`
-8. Copy the Client ID and Client Secret
+To run it locally, you need Google OAuth2 credentials with the Drive API enabled, configured in `packages/backend/.env`:
 
-### 3. Configure Environment Variables
+| Variable | Value |
+|----------|-------|
+| `GOOGLE_CLIENT_ID` | Your OAuth client ID |
+| `GOOGLE_CLIENT_SECRET` | Your OAuth client secret |
+| `SESSION_SECRET` | A random secret |
+| `FRONTEND_URL` | `http://localhost:5173` |
 
-```bash
-cd packages/backend
-cp .env.example .env
-```
-
-Edit `.env` with your credentials:
-
-```env
-PORT=3001
-NODE_ENV=development
-GOOGLE_CLIENT_ID=your-client-id.apps.googleusercontent.com
-GOOGLE_CLIENT_SECRET=your-client-secret
-SESSION_SECRET=generate-a-random-secret-here
-FRONTEND_URL=http://localhost:5173
-```
-
-### 4. Build Shared Types
-
-```bash
-npm run build:shared
-```
-
-### 5. Run Development Servers
-
-```bash
-npm run dev
-```
-
-This starts both the backend (port 3001) and frontend (port 5173).
-
-## Available Scripts
-
-| Command | Description |
-|---------|-------------|
-| `npm run dev` | Start both frontend and backend in development mode |
-| `npm run dev:frontend` | Start only the frontend |
-| `npm run dev:backend` | Start only the backend |
-| `npm run build` | Build all packages for production |
-| `npm run lint` | Run ESLint on all packages |
-| `npm run format` | Format code with Prettier |
-| `npm run typecheck` | Run TypeScript type checking |
-
-## API Endpoints
-
-### Authentication
-- `GET /api/auth/login` - Redirect to Google OAuth
-- `GET /api/auth/callback` - OAuth callback
-- `GET /api/auth/status` - Check authentication status
-- `GET /api/auth/user` - Get current user info
-- `POST /api/auth/logout` - Logout
-
-### Characters
-- `GET /api/characters` - List all .hdc files
-- `GET /api/characters/:fileId` - Load a character
-- `PUT /api/characters/:fileId` - Save a character
-- `POST /api/characters` - Create a new character
-- `DELETE /api/characters/:fileId` - Delete a character
-
-### Templates
-- `GET /api/templates` - List available templates
-- `GET /api/templates/:id` - Get a specific template
-
-## Technology Stack
-
-### Frontend
-- React 19
-- TypeScript 5.8
-- Vite 6
-- React Query (TanStack Query)
-- React Router
-
-### Backend
-- Node.js
-- Express 5
-- TypeScript 5.8
-- Google APIs (Drive, OAuth2)
-- fast-xml-parser
-
-### Shared
-- TypeScript interfaces for .hdc file format
-- Utility functions for point calculations
-
-## .hdc File Format
-
-Hero Designer character files are XML documents containing:
-- Character info (name, player, background)
-- Characteristics (STR, DEX, CON, etc.)
-- Skills, Perks, Talents
-- Powers with modifiers and adders
-- Complications (disadvantages)
-- Equipment
-- Rules configuration
-- Character images (Base64 encoded)
-
-## Development
-
-### Adding New Features
-
-1. Define types in `packages/shared/src/types.ts`
-2. Add API endpoint in `packages/backend/src/routes/`
-3. Create React component in `packages/frontend/src/components/`
-4. Add hook in `packages/frontend/src/hooks/`
-
-### Parsing .hdc Files
-
-The HDC parser in `packages/backend/src/services/hdcParser.ts` handles conversion between XML and TypeScript objects. It supports:
-- Full character data parsing
-- Modifier and adder extraction
-- Rules configuration
-- Base64 image handling
+Use `http://localhost:3001/api/auth/callback` as the OAuth redirect URI. Start it with `npm run dev`; the frontend runs on port 5173 and the backend on port 3001.
 
 ## License
 

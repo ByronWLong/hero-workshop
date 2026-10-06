@@ -7,7 +7,7 @@ A Foundry VTT v14 module for the [Hero System 6e (Unofficial) v2](https://github
 hero6e keeps the actor's source HDC in `actor.system._hdcXml`. When you open the editor:
 
 1. **Foundry changes are checked.** Edits made on hero6e's own sheets, such as changed levels or added and removed adders, are compared with the stored HDC. You choose which ones to keep before editing.
-2. **You edit in Hero Workshop.** You get the same sections as the web app.
+2. **You edit in Hero Workshop.** Every section of the character is editable: characteristics, skills, perks, talents, martial arts, powers, complications and equipment.
 3. **The changes are reviewed and applied.** The HDC is patched rather than regenerated, and the actor is re-imported with hero6e's own `uploadFromXml`. Damage, used charges, and Foundry item IDs are preserved.
 
 ## Built on Foundry's framework
@@ -28,7 +28,7 @@ Foundry offers updates when a new release is published.
 
 ## Releasing
 
-Push a tag named `module-v<version>` (e.g. `module-v0.2.0`). The **Release Foundry module** workflow builds the module, stamps the version into `module.json`, and publishes a GitHub release with `module.json` and `hero-workshop.zip`.
+Push a tag named `module-v<version>` (e.g. `module-v0.4.0`). The **Release Foundry module** workflow builds the module, stamps the version into `module.json`, and publishes a GitHub release with `module.json` and `hero-workshop.zip`.
 
 ## Build from source
 
@@ -52,7 +52,7 @@ npm run build:foundry            # from the repo root; output in packages/foundr
   - A spellcaster's magic skill should be a **Power** skill (rolled as a Skill roll, -1/2), not a Professional Skill (only a PS roll, -1/4). Changing a skill's type retargets every Requires A Roll bound to it, and the Requires A Roll form offers the conversion when a roll is bound to a Professional Skill.
 - **Combat Skill Levels:** CSLs (and Mental CSLs, Penalty Skill Levels, Weapon Master) that apply to chosen attacks have an **Attacks it applies to** checklist of the character's attacks, grouped as lists/frameworks (everything in them), powers, equipment and martial maneuvers, plus a box for anything else (e.g. a standard maneuver like Strike). Each link is a cost-free custom adder named after the attack, which is how hero6e links a CSL to its attacks.
 - **Free items (GM-given):** item and power forms have **Free (given by the GM)**. It uses Hero Designer's own Cost Multiplier (`MULTIPLIER="0.0"`), which applies to the Real Cost only, so Active Points, END and roll penalties stay right; items in a free list or compound are free too, and a free item's penalties (e.g. -2 DEX) give no points back. Hero Workshop's totals leave free items out and rows show them tagged Free. Desktop Hero Designer applies multipliers only when the campaign rules allow them: Hero Workshop turns that on in the character's embedded rules, or reminds you to if the file has none. (hero6e ignores the multiplier in its own totals.)
-- **Number fields** have - / + steppers, and levels can go negative for penalties.
+- **Number fields** have - / + steppers (except in the dense race library grid), and levels can go negative for penalties.
 - **Icons:** item rows show each item's icon, and every item form has an icon picker (**Use default** clears a custom one). Custom icons are stored in the item's Hero Designer data (a `FOUNDRY_ICON` attribute), so they survive editing, dragging items to and from the Items sidebar, and HDC downloads. An icon changed on a hero6e sheet is recorded straight away. Desktop Hero Designer opens files with the attribute but drops it when it saves.
 - **Dropped items:** items dropped onto a character's sheet (from the Items sidebar, a compendium or another character) are written into its Hero Designer data straight away, so the editor doesn't report them as changes made in Foundry. hero6e's own parser builds the item, so it matches an uploaded one.
 - **Drag and drop:**
@@ -65,7 +65,7 @@ npm run build:foundry            # from the repo root; output in packages/foundr
   - Mixed races average their races' maxima, rounded up.
   - Levels above a maximum cost double.
   - Choose races from the Characteristics tab's Maxima panel; each value can still be adjusted afterwards. Maxima are stored in the character's own HDC rules, as desktop Hero Designer does.
-  - The GM manages the **race library** under Module Settings → Hero Workshop → Manage races. Races can be imported from a creature actor or a Hero Designer rules file.
+  - The GM manages the **race library** under Module Settings → Hero Workshop → Manage races. Races can be imported from a creature actor, a creature's `.hdc` (its characteristics) or a Hero Designer rules file (its maxima).
 - Macro access:
   ```js
   const api = game.modules.get('hero-workshop').api;
