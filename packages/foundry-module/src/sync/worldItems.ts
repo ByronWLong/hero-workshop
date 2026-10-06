@@ -48,6 +48,7 @@ export const SECTION_FOR_ITEM_TYPE: Record<string, HdcItemSection> = {
 };
 
 interface HeroItemData {
+  _id?: string;
   name: string;
   img?: string;
   type: string;
@@ -59,11 +60,11 @@ interface HeroItemData {
 
 interface HeroItemClass {
   parseItemsFromHeroJsonToItemDataArray(heroJson: Record<string, unknown>): HeroItemData[];
-  createDocuments(data: HeroItemData[]): Promise<FoundryItem[]>;
+  createDocuments(data: HeroItemData[], options?: Record<string, unknown>): Promise<FoundryItem[]>;
 }
 
 interface FolderClass {
-  create(data: Record<string, unknown>): Promise<{ id: string } | undefined>;
+  create(data: Record<string, unknown>, options?: Record<string, unknown>): Promise<{ id: string } | undefined>;
 }
 
 /** hero6e's XML → JSON converter (same module instance the system uses) */
@@ -91,21 +92,70 @@ function worldIdFloor(): number {
 /** Creates world items (in `folderId`, if given) from copied HDC items */
 export async function createWorldItems(transfer: ItemTransfer, folderId?: string): Promise<FoundryItem[]> {
   const { xml } = insertItems(blankHdc(), transfer, { minId: worldIdFloor() });
+  return createItemsFromXml(xml, { folder: folderId });
+}
+
+export interface CreateItemsOptions {
+  /** Folder to put the items in (in the pack, if one is given) */
+  folder?: string;
+  /** Compendium pack id (e.g. "my-module.equipment"); world items when omitted */
+  pack?: string;
+  /** Picks an image for an item that has no custom icon; hero6e's default when it returns nothing */
+  icon?: (item: CreatedItemInfo) => string | undefined | Promise<string | undefined>;
+  /**
+   * Document ids for the items (and the folders made for lists), e.g. derived from the source
+   * file so a rebuilt compendium keeps its ids. Random ids when omitted.
+   */
+  id?: (item: CreatedItemInfo & { folder: boolean }) => string | Promise<string>;
+}
+
+export interface CreatedItemInfo {
+  name: string;
+  type: string;
+  xmlid: string;
+  /** The item's HDC ID in the source document */
+  hdcId: number | undefined;
+  container: boolean;
+}
+
+/**
+ * Creates items from a whole Hero Designer document (a character or a .hdp prefab), as hero6e
+ * would upload them, but with compound powers kept as single items (their parts stay in the
+ * item's own XML). Lists and frameworks become a folder holding the parent and its members.
+ */
+export async function createItemsFromXml(xml: string, options: CreateItemsOptions = {}): Promise<FoundryItem[]> {
   const ItemClass = CONFIG.Item.documentClass as unknown as HeroItemClass;
   const parsed = ItemClass.parseItemsFromHeroJsonToItemDataArray(await heroJsonFromXml(xml));
   if (!parsed.length) throw new Error('hero6e could not make an item from this.');
-  // A compound's parts live in its own XML; as world items they'd only clutter the sidebar
+  // A compound's parts live in its own XML; as separate items they'd only clutter the list
   const compounds = new Set(parsed.filter((d) => d.system.XMLID === 'COMPOUNDPOWER').map((d) => d.system.ID));
   const items = parsed.filter((d) => !(d.system.PARENTID && compounds.has(d.system.PARENTID)));
-  for (const data of items) data.img = iconOfFragment(data.system._hdcXml) ?? data.img;
+  const hasChildren = (data: HeroItemData) => items.some((i) => i.system.PARENTID === data.system.ID);
+  const info = (data: HeroItemData): CreatedItemInfo => ({
+    name: data.name,
+    type: data.type,
+    xmlid: String(data.system.XMLID ?? ''),
+    hdcId: data.system.ID,
+    container: hasChildren(data),
+  });
+  for (const data of items) {
+    const custom = iconOfFragment(data.system._hdcXml);
+    const picked = custom ? undefined : await options.icon?.(info(data));
+    data.img = custom ?? picked ?? data.img;
+    if (options.id) data._id = await options.id({ ...info(data), folder: false });
+  }
 
   const FolderDoc = foundry.documents.Folder as unknown as FolderClass;
+  const target = options.pack ? { pack: options.pack } : {};
   const folderOf = new Map<number, string | undefined>();
-  const hasChildren = (data: HeroItemData) => items.some((i) => i.system.PARENTID === data.system.ID);
   for (const data of items) {
-    const parentFolder = data.system.PARENTID ? folderOf.get(data.system.PARENTID) : folderId;
+    const parentFolder = data.system.PARENTID ? folderOf.get(data.system.PARENTID) : options.folder;
     if (hasChildren(data)) {
-      const folder = await FolderDoc.create({ type: 'Item', name: data.name, folder: parentFolder ?? null, sorting: 'm' });
+      const folderId = options.id ? await options.id({ ...info(data), folder: true }) : undefined;
+      const folder = await FolderDoc.create(
+        { ...(folderId ? { _id: folderId } : {}), type: 'Item', name: data.name, folder: parentFolder ?? null, sorting: 'm' },
+        { ...target, ...(folderId ? { keepId: true } : {}) },
+      );
       data.folder = folder?.id;
     } else {
       data.folder = parentFolder;
@@ -113,7 +163,7 @@ export async function createWorldItems(transfer: ItemTransfer, folderId?: string
     if (data.system.ID) folderOf.set(data.system.ID, data.folder);
     data.flags = { [MODULE_ID]: { syncedName: data.name } };
   }
-  return ItemClass.createDocuments(items);
+  return ItemClass.createDocuments(items, { ...target, ...(options.id ? { keepId: true } : {}) });
 }
 
 /** Creation option marking items Hero Workshop creates itself (already part of a queued drop) */

@@ -76,6 +76,8 @@ npm run build:foundry            # from the repo root; output in packages/foundr
   api.createItem('equipment'); // or power, skill, perk, talent, maneuver, complication
   api.openItemEditor(item);
   api.openRaceLibrary();
+  // Items from a whole .hdc/.hdp, compounds kept as single items; optionally into a compendium pack
+  await api.createItemsFromXml(xml, { pack: 'my-module.equipment', folder: folderId, icon: (item) => undefined });
   ```
 
 Unlinked token actors are edited through their base actor.

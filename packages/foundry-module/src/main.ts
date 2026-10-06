@@ -21,6 +21,7 @@ import { queueCreatedItem, recordIconChange } from './sync/actorItems';
 import { openNewItem } from './apps/new-item';
 import {
   DRAG_TYPE,
+  createItemsFromXml,
   createWorldItems,
   dragData,
   OWN_CREATION,
@@ -58,6 +59,7 @@ Hooks.once('init', () => {
       openRaceLibrary,
       races: getRaceLibrary,
       driftReport,
+      createItemsFromXml,
     };
   }
   registerRaceSettings(openRaceLibrary);
