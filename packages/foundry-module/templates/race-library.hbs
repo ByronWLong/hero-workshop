@@ -8,11 +8,7 @@
   <div class="hw-toolbar">
     <button type="button" data-action="addRace"><i class="fa-solid fa-plus" inert></i> Add race</button>
     <span class="hw-toolbar-gap"></span>
-    <select name="importActor" aria-label="Actor to import">
-      <option value="">Import from actor…</option>
-      {{#each actors}}<option value="{{id}}">{{name}}</option>{{/each}}
-    </select>
-    <button type="button" data-action="importActor"><i class="fa-solid fa-user" inert></i> Import</button>
+    <button type="button" data-action="importActor"><i class="fa-solid fa-user" inert></i> Import from actor…</button>
     <button type="button" data-action="importFile"><i class="fa-solid fa-file-import" inert></i> Import .hdc file…</button>
   </div>
   {{/if}}

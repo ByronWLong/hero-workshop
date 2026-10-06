@@ -99,6 +99,8 @@ declare const foundry: {
     Folder: unknown;
   };
   utils: {
+    /** A random 16-character document-style ID */
+    randomID(): string;
     saveDataToFile?: (data: BlobPart, type: string, filename: string) => void;
     escapeHTML?: (value: string) => string;
   };

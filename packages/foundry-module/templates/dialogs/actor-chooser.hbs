@@ -1,0 +1,24 @@
+<div class="hw-picker standard-form">
+  {{#if hint}}<p class="hint">{{hint}}</p>{{/if}}
+
+  <div class="hw-toolbar">
+    <input type="search" data-search="actors" placeholder="Search actors…" aria-label="Search actors" autofocus>
+  </div>
+
+  {{#if actors.length}}
+  <ul class="hw-pick-list" data-search-list="actors">
+    {{#each actors}}
+    <li class="hw-pick-actor" data-search-text="{{searchText}}" data-action="choose" data-actor-id="{{id}}" role="button" tabindex="0">
+      <img src="{{img}}" alt="">
+      <span class="hw-pick-name">
+        <span>{{name}}</span>
+        <span class="hint">{{detail}}{{#unless hasHdc}} · no Hero Designer data{{/unless}}</span>
+      </span>
+    </li>
+    {{/each}}
+  </ul>
+  <p class="hint hw-empty" data-search-empty="actors" hidden>No actors match.</p>
+  {{else}}
+  <p class="hint hw-empty">This world has no actors.</p>
+  {{/if}}
+</div>

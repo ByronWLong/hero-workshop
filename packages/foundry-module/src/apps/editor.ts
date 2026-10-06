@@ -402,9 +402,10 @@ export class HeroWorkshopEditor extends HeroWorkshopApplication {
   }
 
   static async #onChooseRaces(this: HeroWorkshopEditor) {
-    const library = getRaceLibrary();
-    const selected = await chooseRaces(library, this.#character.rules?.races ?? []);
+    const selected = await chooseRaces(this.#character.rules?.races ?? []);
     if (!selected) return;
+    // Read after choosing: the library may have been edited from the picker
+    const library = getRaceLibrary();
     const chosen = selected
       .map((name) => library.find((r) => r.name.toLowerCase() === name.toLowerCase()))
       .filter((r) => r !== undefined);

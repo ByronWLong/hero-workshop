@@ -64,8 +64,8 @@ npm run build:foundry            # from the repo root; output in packages/foundr
   - A race's maxima are its listed stats +10 (+1 SPD, +2 OCV/DCV/OMCV/DMCV).
   - Mixed races average their races' maxima, rounded up.
   - Levels above a maximum cost double.
-  - Choose races from the Characteristics tab's Maxima panel; each value can still be adjusted afterwards. Maxima are stored in the character's own HDC rules, as desktop Hero Designer does.
-  - The GM manages the **race library** under Module Settings → Hero Workshop → Manage races. Races can be imported from a creature actor, a creature's `.hdc` (its characteristics) or a Hero Designer rules file (its maxima).
+  - Choose races from the Characteristics tab's **Choose races** window: a searchable list of the library's races, with a **Race library** button and a field for races not in the library. Each maximum can still be adjusted afterwards. Maxima are stored in the character's own HDC rules, as desktop Hero Designer does.
+  - The GM manages the **race library** under Module Settings → Hero Workshop → Manage races, or from the Choose races window. Races can be imported from a creature actor (**Import from actor…** opens a searchable actor list), a creature's `.hdc` (its characteristics) or a Hero Designer rules file (its maxima).
 - Macro access:
   ```js
   const api = game.modules.get('hero-workshop').api;

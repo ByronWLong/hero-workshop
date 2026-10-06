@@ -603,11 +603,73 @@
   min-width: 10rem;
 }
 
-.hero-workshop .hw-race-choices {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(10rem, 1fr));
-  gap: 0.25rem;
-  margin-bottom: 0.5rem;
+/* Searchable pick lists (race picker, actor chooser) */
+.hero-workshop .hw-picker {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  padding: 0.75rem var(--hw-pad);
+}
+
+.hero-workshop .hw-picker .hw-toolbar input[type='search'] {
+  flex: 1;
+}
+
+.hero-workshop .hw-pick-list {
+  flex: 1;
+  min-height: 6rem;
+  margin: 0 0 0.75rem;
+  padding: 0.25rem 0;
+  list-style: none;
+  overflow-y: auto;
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+}
+
+.hero-workshop .hw-pick-list > li {
+  margin: 0;
+  padding: 0.15rem 0.5rem;
+}
+
+.hero-workshop .hw-pick-list > li[hidden] {
+  display: none;
+}
+
+.hero-workshop .hw-pick-list > li:hover {
+  background: var(--hw-hover);
+}
+
+.hero-workshop .hw-pick-list label.checkbox {
+  display: flex;
+  width: 100%;
+  cursor: pointer;
+}
+
+.hero-workshop .hw-pick-actor {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  cursor: pointer;
+}
+
+.hero-workshop .hw-pick-actor img {
+  width: 32px;
+  height: 32px;
+  flex: 0 0 32px;
+  object-fit: cover;
+  border: none;
+  border-radius: 3px;
+}
+
+.hero-workshop .hw-pick-name {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.hero-workshop .hw-pick-name .hint {
+  font-size: var(--font-size-12);
 }
 
 /* ---------------------------------------------------------------- compound parts */

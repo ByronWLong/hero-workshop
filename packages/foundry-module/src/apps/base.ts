@@ -59,6 +59,8 @@ export class HeroWorkshopApplication extends api.HandlebarsApplicationMixin(api.
   #pointerDown = false;
   #renderPending = false;
   #listeners?: AbortController;
+  /** Text typed in each search box (by its data-search name), kept across re-renders */
+  #searches = new Map<string, string>();
 
   /**
    * Re-rendering replaces the window's markup. If that happens between mouse-down and
@@ -110,6 +112,11 @@ export class HeroWorkshopApplication extends api.HandlebarsApplicationMixin(api.
   _onRender(context: unknown, options: unknown): void {
     (super._onRender as ((c: unknown, o: unknown) => void) | undefined)?.call(this, context, options);
     addSteppers(this.element);
+    for (const input of this.element.querySelectorAll<HTMLInputElement>('input[data-search]')) {
+      const query = this.#searches.get(input.dataset.search!);
+      if (query !== undefined) input.value = query;
+      filterSearchList(this.element, input);
+    }
     if (this.#listening) return;
     this.#listening = true;
     this.#listeners = new AbortController();
@@ -125,6 +132,13 @@ export class HeroWorkshopApplication extends api.HandlebarsApplicationMixin(api.
       const value = target.type === 'checkbox' ? String(target.checked) : target.value;
       this.onFieldChange(field, value, target);
     });
+    // Search boxes filter their list as you type, without a re-render (which would lose focus)
+    this.element.addEventListener('input', (event) => {
+      const input = event.target as HTMLInputElement;
+      if (!input?.dataset?.search) return;
+      this.#searches.set(input.dataset.search, input.value);
+      filterSearchList(this.element, input);
+    });
     // Rows marked role="button" open like a click on Enter/Space
     this.element.addEventListener('keydown', (event) => {
       const target = event.target as HTMLElement;
@@ -134,6 +148,24 @@ export class HeroWorkshopApplication extends api.HandlebarsApplicationMixin(api.
       }
     });
   }
+}
+
+/**
+ * Shows the rows of a search box's list (`data-search-list` with the same name) whose
+ * `data-search-text` contains every word typed, and its `data-search-empty` note when none do.
+ */
+function filterSearchList(root: HTMLElement, input: HTMLInputElement): void {
+  const name = input.dataset.search!;
+  const words = input.value.toLowerCase().split(/\s+/).filter(Boolean);
+  let shown = 0;
+  for (const row of root.querySelectorAll<HTMLElement>(`[data-search-list="${name}"] [data-search-text]`)) {
+    const text = row.dataset.searchText!.toLowerCase();
+    const match = words.every((w) => text.includes(w));
+    row.hidden = !match;
+    if (match) shown++;
+  }
+  const empty = root.querySelector<HTMLElement>(`[data-search-empty="${name}"]`);
+  if (empty) empty.hidden = shown > 0;
 }
 
 /** Opens Foundry's file picker for an image; resolves with the chosen path */

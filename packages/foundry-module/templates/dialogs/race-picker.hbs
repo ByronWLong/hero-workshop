@@ -1,16 +1,28 @@
-<div class="hero-workshop standard-form">
-  {{#if hasLibrary}}
+<div class="hw-picker standard-form">
   <p class="hint">Maxima are the races' listed characteristics +10 (SPD +1, combat values +2), averaged and rounded up.</p>
-  <div class="hw-race-choices">
-    {{#each races}}
-    <label class="checkbox"><input type="checkbox" name="race" value="{{name}}" {{checked checked}}> {{name}}</label>
-    {{/each}}
+
+  <div class="hw-toolbar">
+    <input type="search" data-search="races" placeholder="Search races…" aria-label="Search races" autofocus {{#unless hasLibrary}}disabled{{/unless}}>
+    <button type="button" data-action="openLibrary"><i class="fa-solid fa-book-open" inert></i> {{libraryLabel}}</button>
   </div>
+
+  {{#if hasLibrary}}
+  <ul class="hw-pick-list" data-search-list="races">
+    {{#each races}}
+    <li data-search-text="{{name}}">
+      <label class="checkbox"{{#if notes}} data-tooltip="{{notes}}"{{/if}}>
+        <input type="checkbox" data-field="race" value="{{name}}" {{checked checked}}> {{name}}
+      </label>
+    </li>
+    {{/each}}
+  </ul>
+  <p class="hint hw-empty" data-search-empty="races" hidden>No races match.</p>
   {{else}}
-  <p class="hint">The race library is empty, so maxima won't be calculated. You can still record the character's races.</p>
+  <p class="hint hw-empty">The race library is empty, so maxima won't be calculated. Add races in the race library, or record the character's races below.</p>
   {{/if}}
+
   <div class="form-group">
     <label>Other races</label>
-    <input type="text" name="others" value="{{others}}" placeholder="Comma-separated">
+    <input type="text" data-field="others" value="{{others}}" placeholder="Comma-separated, not in the library">
   </div>
 </div>

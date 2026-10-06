@@ -16,6 +16,7 @@ import {
 } from '@hero-workshop/shared';
 import { downloadHdc, type NewCharacterOptions } from '../sync/session';
 import { getRaceLibrary, newRaceId, raceFromActor, raceFromRulesFile, saveRaceLibrary } from '../races/library';
+import { chooseActor } from './actor-chooser';
 import { HeroWorkshopApplication, template } from './base';
 
 // =============================================================================
@@ -206,7 +207,6 @@ export class RaceLibraryWindow extends HeroWorkshopApplication {
         : [],
       editable: this.editable,
       columns: MAXIMA_CHARACTERISTICS,
-      actors: game.actors.contents.map((a) => ({ id: a.id, name: a.name })),
       races: [...this.#draft]
         .sort((a, b) => a.name.localeCompare(b.name))
         .map((race) => {
@@ -253,9 +253,11 @@ export class RaceLibraryWindow extends HeroWorkshopApplication {
     void this.render();
   }
 
-  static #onImportActor(this: RaceLibraryWindow) {
-    const select = this.element.querySelector<HTMLSelectElement>('select[name="importActor"]');
-    const actor = select?.value ? game.actors.get(select.value) : undefined;
+  static async #onImportActor(this: RaceLibraryWindow) {
+    const actor = await chooseActor({
+      title: 'Import race from actor',
+      hint: "Choose a creature of the race. Its characteristics become the race's listed stats.",
+    });
     if (actor) this.#add(raceFromActor(actor));
   }
 

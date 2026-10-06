@@ -7,6 +7,7 @@ import { createItemSession, tabForItem } from '../sync/itemSession';
 import { canManageRaces } from '../races/library';
 import { HeroWorkshopEditor } from './editor';
 import { HdcInspector, NewCharacterWindow, RaceLibraryWindow } from './windows';
+import { RACE_PICKER_ID } from './race-picker';
 
 function openSession(session: ActorSession, windowId: string, onApplied: (document: AppliedDocument) => void) {
   // One editor per actor: reopening brings the existing window forward (on the requested item)
@@ -101,6 +102,6 @@ export function openRaceLibrary(): void {
 export function refreshOpenWindows(): void {
   const instances = (foundry.applications as unknown as { instances: Map<string, { id: string; render(): unknown }> }).instances;
   for (const app of instances.values()) {
-    if (app.id?.startsWith(`${MODULE_ID}-editor`)) void app.render();
+    if (app.id?.startsWith(`${MODULE_ID}-editor`) || app.id?.startsWith(RACE_PICKER_ID)) void app.render();
   }
 }
