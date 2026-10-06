@@ -262,7 +262,7 @@ Hooks.on('getFolderContextOptions', ((directory: EntryDirectory, options: Contex
     const id = li.closest<HTMLElement>('[data-folder-id]')?.dataset.folderId ?? li.dataset.folderId ?? '';
     const pack = directory.collection?.metadata ? directory.collection : undefined;
     const folder = pack
-      ? (pack as CompendiumPack & { folders: { get(id: string): FolderLike | undefined } }).folders.get(id)
+      ? (pack.folders as unknown as { get(id: string): FolderLike | undefined }).get(id)
       : (game as unknown as { folders: { get(id: string): FolderLike | undefined } }).folders.get(id);
     return folder?.type === 'Item' ? folder : undefined;
   };

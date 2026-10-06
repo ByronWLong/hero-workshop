@@ -477,9 +477,25 @@
   margin-top: 0.5rem;
 }
 
-.hero-workshop .hw-add-custom button {
+.hero-workshop .hw-add-custom > button {
   flex: 0 0 auto;
   width: auto;
+  white-space: nowrap;
+}
+
+/* The name takes the room; the value keeps a compact stepper beside it */
+.hero-workshop .hw-add-custom > input[type='text'] {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.hero-workshop .hw-add-custom .hw-stepper {
+  flex: 0 0 auto;
+}
+
+.hero-workshop .hw-add-custom .hw-stepper input {
+  flex: 0 0 4rem;
+  width: 4rem;
 }
 
 .hero-workshop .hw-barrier-grid,
@@ -644,6 +660,19 @@
   display: flex;
   width: 100%;
   cursor: pointer;
+}
+
+.hero-workshop .hw-pick-list > li.hw-pick-heading {
+  padding: 0.4rem 0.5rem 0.15rem;
+  font-weight: bold;
+  font-size: var(--font-size-12);
+  color: var(--color-text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.hero-workshop .hw-pick-list > li.hw-pick-heading:hover {
+  background: none;
 }
 
 .hero-workshop .hw-pick-actor {
@@ -888,7 +917,8 @@
 
 /* Compact fields (characteristics, levels) keep their width */
 .hero-workshop .hw-char-table .hw-stepper,
-.hero-workshop .hw-mod-row .hw-stepper {
+.hero-workshop .hw-mod-row .hw-stepper,
+.hero-workshop .hw-adder-row .hw-stepper {
   flex: 0 0 auto;
 }
 

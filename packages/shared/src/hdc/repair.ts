@@ -70,6 +70,8 @@ interface Attack {
   ranged: boolean;
   /** A list or framework: stands for everything in it */
   container: boolean;
+  /** A compound power's attack parts: hero6e links those, not the compound */
+  parts?: string[];
 }
 
 const norm = (s: string) => {
@@ -79,8 +81,8 @@ const norm = (s: string) => {
 
 function characterAttacks(character: Character): Attack[] {
   const out: Attack[] = [];
-  const add = (name: string | undefined, ranged: boolean, container = false) => {
-    if (name && !out.some((a) => a.name.toLowerCase() === name.toLowerCase())) out.push({ name, ranged, container });
+  const add = (name: string | undefined, ranged: boolean, container = false, parts?: string[]) => {
+    if (name && !out.some((a) => a.name.toLowerCase() === name.toLowerCase())) out.push({ name, ranged, container, parts });
   };
   const classify = (p: { type?: string; xmlId?: string; doesDamage?: boolean }) => {
     const xmlId = p.xmlId ?? p.type ?? '';
@@ -93,8 +95,9 @@ function characterAttacks(character: Character): Attack[] {
     if (p.isContainer && isContainerType(p.type)) add(p.name, false, true);
     else if (p.type === 'COMPOUNDPOWER') {
       // A compound with an attack in it ("Fiery Whip": HKA + extras) is an attack
-      const parts = character.powers.filter((c) => c.parentId === p.id).map(classify);
-      if (parts.some((c) => c.attack)) add(p.name, parts.some((c) => c.attack && c.ranged));
+      const parts = character.powers.filter((c) => c.parentId === p.id).map((c) => ({ name: c.name, ...classify(c) }));
+      const attacks = parts.filter((c) => c.attack);
+      if (attacks.length) add(p.name, attacks.some((c) => c.ranged), false, attacks.map((c) => c.name));
     } else {
       const c = classify(p);
       if (c.attack) add(p.name, c.ranged);
@@ -179,6 +182,8 @@ function linkCombatLevels(character: Character, changes: string[], unresolved: s
         else if (!found) unresolved.push(`${skill.name} (${text}): no attack named "${target}"`);
       }
     }
+    // A compound is linked through its attack parts
+    names = names.flatMap((n) => attacks.find((a) => a.name === n)?.parts ?? [n]).filter((n, i, all) => all.indexOf(n) === i);
     const max = xmlid === 'COMBAT_LEVELS' || xmlid === 'MENTAL_COMBAT_LEVELS' || xmlid === 'WEAPON_MASTER' ? MAX_LINKS[option] : undefined;
     if (max !== undefined && names.length > max) {
       unresolved.push(`${skill.name} (${text}): names ${names.length} attacks; only ${max} linked`);

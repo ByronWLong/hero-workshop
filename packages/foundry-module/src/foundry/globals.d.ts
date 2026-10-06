@@ -69,7 +69,7 @@ declare const game: {
   user: { id: string; isGM: boolean; can(permission: string): boolean };
   actors: { get(id: string): FoundryActor | undefined; contents: FoundryActor[] };
   items: { get(id: string): FoundryItem | undefined; contents: FoundryItem[] };
-  packs: { get(id: string): CompendiumPack | undefined };
+  packs: { get(id: string): CompendiumPack | undefined; contents: CompendiumPack[] };
   modules: Map<string, { api?: unknown }> & { get(id: string): { api?: unknown } | undefined };
   i18n: { localize(key: string): string; format(key: string, data: Record<string, unknown>): string };
   settings: {
@@ -122,4 +122,16 @@ interface CompendiumPack {
   locked: boolean;
   metadata: { id: string; label: string; type: string };
   getDocument(id: string): Promise<unknown>;
+  documentName: string;
+  visible?: boolean;
+  getIndex(options?: { fields?: string[] }): Promise<Map<string, CompendiumIndexEntry>>;
+  folders: { get(id: string): { name: string } | undefined };
+}
+
+interface CompendiumIndexEntry {
+  _id: string;
+  name: string;
+  img?: string;
+  type?: string;
+  folder?: string | null;
 }
