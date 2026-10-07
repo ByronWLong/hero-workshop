@@ -6,7 +6,11 @@
       <span class="hw-item-name">{{row.name}}{{#if row.free}} <span class="hw-tag hw-tag-free" data-tooltip="Given by the GM: costs no points">Free</span>{{/if}}</span>
       {{#if row.detail}}<span class="hint hw-item-detail">{{row.detail}}</span>{{/if}}
     </div>
-    <span class="hw-item-cost">{{row.cost}}</span>
+    {{#if (eq section "equipment")}}
+    <span class="hw-item-price" data-tooltip="Price">{{#if row.price}}{{row.price}}{{/if}}</span>
+    <span class="hw-item-weight" data-tooltip="Weight">{{#if row.weight}}{{row.weight}} kg{{/if}}</span>
+    {{/if}}
+    <span class="hw-item-cost" {{#if (eq section "equipment")}}data-tooltip="Real Cost"{{/if}}>{{row.cost}}</span>
     <a class="hw-item-delete" data-action="deleteItem" data-section="{{section}}" data-item-id="{{row.id}}" data-tooltip="Delete" aria-label="Delete {{row.name}}"><i class="fa-solid fa-trash" inert></i></a>
   </div>
   {{#if row.children.length}}

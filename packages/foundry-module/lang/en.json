@@ -22,6 +22,9 @@
     "ItemCreated": "{name} created with Hero Workshop.",
     "ItemsCopied": "Created {name} in the Items sidebar.",
     "NoSection": "Hero Workshop can't add {name} to a character.",
+    "OpenHeroSheet": "Open hero6e sheet",
+    "OpenItemsInWorkshop": "Open items in Hero Workshop",
+    "OpenItemsInWorkshopHint": "Opening an item in the Items sidebar or a compendium edits it in Hero Workshop instead of showing hero6e's item sheet (which is still in the item's right-click menu). Items on characters, and items you can't edit, still open hero6e's sheet.",
     "RepairImports": "Repair imported Hero Designer files",
     "RepairImportsHint": "When hero6e imports an HDC or HDP, link Combat Skill Levels to the attacks they name, comma-separate adjustment targets, and make other fixes hero6e needs. The build is not changed.",
     "ImportRepaired": "Hero Workshop repaired {changes} thing(s) in {name} for hero6e; {unresolved} couldn't be repaired automatically. Details are in the console (F12)."

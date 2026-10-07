@@ -46,6 +46,8 @@ export interface CatalogEntry {
   /** Sense modifiers: the cost (per level, if leveled) for all senses, a sense group or a single sense */
   scopeCosts?: { all?: number; group?: number; sense?: number };
   exclusive?: boolean;
+  /** Powers: modifiers only this power can take */
+  modifiers?: CatalogEntry[];
   /** Explicit on the few modifiers whose sign doesn't tell */
   isLimitation?: boolean;
   inputLabel?: string;
@@ -107,6 +109,54 @@ export const POWER_CATALOG_6E: CatalogEntry[] = [
         "lvlCost": 1,
         "lvlVal": 1
       }
+    ],
+    "modifiers": [
+      {
+        "xmlId": "INCREASEDMAX",
+        "display": "Increased Maximum (x[LVL] points)",
+        "baseCost": 0,
+        "lvlCost": 0.25,
+        "lvlVal": 1,
+        "lvlPower": 2,
+        "minVal": 1,
+        "levelStart": 1,
+        "exclusive": true
+      },
+      {
+        "xmlId": "VARYINGEFFECT",
+        "display": "Varying Effect",
+        "description": "Absorption with this Advantage can be switched from phase to phase to work against either physical or energy attacks.",
+        "baseCost": 0.75,
+        "exclusive": true
+      },
+      {
+        "xmlId": "LIMITEDPHENOMENA",
+        "display": "Limited Phenomena",
+        "description": "Absorption with this Limitation only works against certain types of physical or energy phenomena.",
+        "baseCost": -0.25,
+        "minCost": -1,
+        "maxCost": -0.25
+      },
+      {
+        "xmlId": "ABSORPTIONASDEFENSE",
+        "display": "Absorption As A Defense",
+        "description": "At the GM's option, Absorption does function as a defense if the character buys the Advantage Defensive Absorption.",
+        "baseCost": 0.5,
+        "minCost": 0.5,
+        "maxCost": 1,
+        "options": [
+          {
+            "xmlId": "NORMAL",
+            "display": "Normal",
+            "baseCost": 0.5
+          },
+          {
+            "xmlId": "RESISTANT",
+            "display": "Resistant",
+            "baseCost": 1
+          }
+        ]
+      }
     ]
   },
   {
@@ -150,6 +200,38 @@ export const POWER_CATALOG_6E: CatalogEntry[] = [
         "includeInBase": true,
         "excludes": [
           "PLUSONEHALFDIE"
+        ]
+      }
+    ],
+    "modifiers": [
+      {
+        "xmlId": "ONLYOTHERS",
+        "display": "Only to Aid Others",
+        "description": "This form of Aid does not work on the character who has the Power. He can only use his Aid to improve other characters' Characteristics or Powers.",
+        "baseCost": -0.5,
+        "exclusive": true,
+        "excludes": [
+          "ONLYSELF"
+        ]
+      },
+      {
+        "xmlId": "ONLYSELF",
+        "display": "Only to Aid Self",
+        "description": "This form of Aid only works on the character who has the Power. He cannot use his Aid to improve other characters' Characteristics or Powers.",
+        "baseCost": -1,
+        "exclusive": true,
+        "excludes": [
+          "ONLYOTHERS"
+        ]
+      },
+      {
+        "xmlId": "COSTSENDTOMAINTAIN",
+        "display": "Costs Endurance (to maintain",
+        "description": "This means the character has to continue to pay END every Phase to keep the Boosted Characteristic or Power at its Boosted level (doing this is an Action that takes no time). As long as the character pays END, the Boost doesn't fade at the usual rate of 5 Character Points per Turn. Once the character stops paying END, the Character Points gained from Boost fade immediately.",
+        "baseCost": -0.5,
+        "exclusive": true,
+        "excludes": [
+          "DELAYEDRETURNRATE"
         ]
       }
     ]
@@ -383,6 +465,98 @@ export const POWER_CATALOG_6E: CatalogEntry[] = [
         "baseCost": 10,
         "exclusive": true
       }
+    ],
+    "modifiers": [
+      {
+        "xmlId": "COSTSENDTOMAINTAIN",
+        "display": "Costs Endurance (to maintain",
+        "description": "This means the character has to continue to pay END every Phase to keep the Barrier active.",
+        "baseCost": -0.5,
+        "exclusive": true,
+        "excludes": [
+          "DELAYEDRETURNRATE"
+        ]
+      },
+      {
+        "xmlId": "ALLOCATABLE",
+        "display": "Allocatable",
+        "description": "With the GM's permission, characters can apply this Advantage for Resistant Protection to a Barrier.",
+        "baseCost": 0.25
+      },
+      {
+        "xmlId": "BACKLASH",
+        "display": "Backlash",
+        "description": "This Advantage represents a Force Wall which reflects back any attacks made by a trapped character in an attempt to break free from being surrounded by a Barrier.",
+        "baseCost": 0.5
+      },
+      {
+        "xmlId": "CONFIGURABLE",
+        "display": "Configurable",
+        "description": "Ordinarily, a character cannot change the shape of a Barrier once he's created it. This Advantage allows him to alter the shape of a Barrier as a Half Phase Action.",
+        "baseCost": 0.25
+      },
+      {
+        "xmlId": "COUNTERACTSINDIRECT",
+        "display": "Counteracts Indirect",
+        "description": "A Barrier with this Advantage blocks Indirect attacks made by characters on one side of the Barrier against characters on the other side (regardless of how the Indirect's defined as woorking). A character can buy this Advantage for a Barrier multiple times to counteract multiple purchases of Indirect, if desired.",
+        "baseCost": 0.25,
+        "exclusive": false
+      },
+      {
+        "xmlId": "MOBILE",
+        "display": "Mobile",
+        "description": "Barriers are usually immobile: once setup they stay in place. This Advantage allows the Barrier to be moved once created.",
+        "baseCost": 0.25
+      },
+      {
+        "xmlId": "ONEWAYTRANSPARENT",
+        "display": "One-Way Transparent",
+        "description": "A character can make his Barrier transparent in one direction to a category of attack by buying the entire Barrier with this Advantage.",
+        "exclusive": true,
+        "warningSign": true,
+        "options": [
+          {
+            "xmlId": "SINGLE",
+            "display": "single attack or specific group of attacks",
+            "baseCost": 0.5
+          },
+          {
+            "xmlId": "ALL",
+            "display": "all attacks",
+            "baseCost": 1
+          }
+        ]
+      },
+      {
+        "xmlId": "CANNOTENGLOBE",
+        "display": "Cannot Englobe",
+        "description": "A Barrier with this Limitation cannot be used to englobe targets.",
+        "baseCost": -0.25
+      },
+      {
+        "xmlId": "FEEDBACK",
+        "display": "Feedback",
+        "description": "When a Barrier with this Limitation takes damage, its creator takes the same amount, with the Barrier's defenses applying as if they were Resistant Protection.",
+        "baseCost": -1
+      },
+      {
+        "xmlId": "NONRESISTANT",
+        "display": "Nonresistant Defenses",
+        "description": "A Barrier with this Limitation provides only Normal defenses, not Resistant defenses.",
+        "baseCost": -0.25
+      },
+      {
+        "xmlId": "RESTRICTEDSHAPE",
+        "display": "Restricted Shape",
+        "description": "This Limitation represents that the Character must always create his Barrier in the same shape. He must define the shape when buying the Power.",
+        "baseCost": -0.25
+      },
+      {
+        "xmlId": "SELFONLY",
+        "display": "Self Only",
+        "description": "A Barrier bought with this Limitation only protects the character who creates it.",
+        "baseCost": -0.5
+      }
     ]
   },
   {
@@ -444,6 +618,14 @@ export const POWER_CATALOG_6E: CatalogEntry[] = [
         "lvlVal": 1,
         "minVal": 1,
         "levelStart": 1
+      }
+    ],
+    "modifiers": [
+      {
+        "xmlId": "STUNONLY",
+        "display": "STUN Only",
+        "description": "A character may define his Blast as a STUN Only attack against PD or ED.",
+        "baseCost": 0
       }
     ]
   },
@@ -965,6 +1147,43 @@ export const POWER_CATALOG_6E: CatalogEntry[] = [
           }
         ]
       }
+    ],
+    "modifiers": [
+      {
+        "xmlId": "TWODIMENSIONAL",
+        "display": "Two-Dimensional",
+        "baseCost": -0.25,
+        "exclusive": true
+      },
+      {
+        "xmlId": "VARYINGEFFECT",
+        "display": "Varying Effect",
+        "description": "A Change Environment power with this Advantage can create more than one type of effect.",
+        "exclusive": true,
+        "options": [
+          {
+            "xmlId": "VERY",
+            "display": "Very Limited Group",
+            "baseCost": 0.25
+          },
+          {
+            "xmlId": "LIMITED",
+            "display": "Limited Group",
+            "baseCost": 0.5
+          },
+          {
+            "xmlId": "BROAD",
+            "display": "Broad Group",
+            "baseCost": 1
+          }
+        ]
+      },
+      {
+        "xmlId": "SELFONLY",
+        "display": "Self Only",
+        "description": "This Limitation means that the Change Environment doesn't cover an area, only the character.",
+        "baseCost": -0.5
+      }
     ]
   },
   {
@@ -1038,6 +1257,71 @@ export const POWER_CATALOG_6E: CatalogEntry[] = [
         "levelStart": 1,
         "exclusive": true
       }
+    ],
+    "modifiers": [
+      {
+        "xmlId": "PRECOGNITIONONLY",
+        "display": "Precognition/Retrocognition Only",
+        "description": "This Limitation means that Clairsentience can only be used for Precognition or Postcognition, thus not being able to use the Power as normal Clairsentience.",
+        "baseCost": -1,
+        "exclusive": true
+      },
+      {
+        "xmlId": "DREAMSONLY",
+        "display": "Only Through Dreams",
+        "description": "Precognition or Retrocognition with this Limitation only provides visions to the character through dreams.",
+        "baseCost": -1,
+        "exclusive": true
+      },
+      {
+        "xmlId": "TIMEMODIFIERS",
+        "display": "Time Modifiers",
+        "description": "Precognition or Retrocognition with this Limitation is harder to use over greater spans of time.",
+        "baseCost": -0.5,
+        "exclusive": true
+      },
+      {
+        "xmlId": "ATTACKROLL",
+        "display": "Attack Roll Required",
+        "description": "Clairsentience with this Limitation requires and Attack Roll against DCV 3 every time the character tries to place his perception point.",
+        "baseCost": -0.25,
+        "exclusive": true
+      },
+      {
+        "xmlId": "BLACKOUT",
+        "display": "Blackout",
+        "description": "This Limitation signifies that the character cannot use his normal Senses while using his Clairsentience.",
+        "baseCost": -0.5,
+        "exclusive": true
+      },
+      {
+        "xmlId": "ONLYTHROUGHOTHERS",
+        "display": "Only Through The Senses Of Others",
+        "description": "This form of Clairsentience uses the Senses of others to perceive through. In effect, the character must have another creature to use as his perception point.",
+        "baseCost": -0.5,
+        "exclusive": true
+      },
+      {
+        "xmlId": "FIXEDPOINT",
+        "display": "Fixed Perception Point",
+        "description": "Clairsentience with this Limitation has a fixed perception point defined when the power is purchased. The perception point cannot be changed thereafter.",
+        "baseCost": -1,
+        "exclusive": true
+      },
+      {
+        "xmlId": "ONLYONE",
+        "display": "One Sense Only",
+        "description": "Clairsentience with this Limitation does not work with a Sense Group at its base level, but only a single Sense.",
+        "baseCost": -0.25,
+        "exclusive": true
+      },
+      {
+        "xmlId": "VAGUEANDUNCLEAR",
+        "display": "Vague and Unclear",
+        "description": "Precognition or Retrocognition with this Limitation simulates an ability to foretell the future or uncover the past which is, at best, unreliable.",
+        "baseCost": -0.5,
+        "exclusive": true
+      }
     ]
   },
   {
@@ -1055,6 +1339,21 @@ export const POWER_CATALOG_6E: CatalogEntry[] = [
     "usesEnd": false,
     "types": [
       "STANDARD"
+    ],
+    "modifiers": [
+      {
+        "xmlId": "TARBABY",
+        "display": "Area of Effect (Surface - Damage Shield)",
+        "baseCost": 0.5,
+        "exclusive": true
+      },
+      {
+        "xmlId": "CANNOTRESISTKB",
+        "display": "Cannot Resist Knockback",
+        "description": "Characters cannot use Clinging to resist the effects of Knockback.",
+        "baseCost": -0.25,
+        "exclusive": true
+      }
     ]
   },
   {
@@ -1106,6 +1405,20 @@ export const POWER_CATALOG_6E: CatalogEntry[] = [
         "lvlVal": 1,
         "minVal": 0,
         "required": true
+      }
+    ],
+    "modifiers": [
+      {
+        "xmlId": "STUNONLY",
+        "display": "STUN (or BODY) Only",
+        "description": "Damage Negation with this Limitation effects STUN or BODY damage only.",
+        "baseCost": -0.5
+      },
+      {
+        "xmlId": "NONRESISTANT",
+        "display": "Nonresistant",
+        "description": "Damage Negation with this Limitation only functions against Normal Damage attacks and AVADs.",
+        "baseCost": -0.25
       }
     ]
   },
@@ -1170,6 +1483,22 @@ export const POWER_CATALOG_6E: CatalogEntry[] = [
         "display": "Mental Damage Reduction, 75%",
         "baseCost": 60
       }
+    ],
+    "modifiers": [
+      {
+        "xmlId": "STUNONLY",
+        "display": "STUN (or BODY) Only",
+        "description": "Damage Reduction with this Limitation effects STUN or BODY damage only.",
+        "baseCost": -0.5
+      },
+      {
+        "xmlId": "SETEFFECT",
+        "display": "Set Effect",
+        "description": "Damage Reduction with this Limitation only works against a specific special effect, or does not protect against attacks of a specific special effect.",
+        "baseCost": -0.25,
+        "minCost": -1,
+        "maxCost": -0.25
+      }
     ]
   },
   {
@@ -1208,6 +1537,63 @@ export const POWER_CATALOG_6E: CatalogEntry[] = [
         "minVal": 1,
         "levelStart": 1
       }
+    ],
+    "modifiers": [
+      {
+        "xmlId": "TWODIMENSIONAL",
+        "display": "Two-Dimensional",
+        "baseCost": -0.25,
+        "exclusive": true
+      },
+      {
+        "xmlId": "ALTEREDSHAPE",
+        "display": "Altered Shape",
+        "exclusive": true,
+        "options": [
+          {
+            "xmlId": "CONE",
+            "display": "Cone",
+            "baseCost": 0
+          },
+          {
+            "xmlId": "LINE",
+            "display": "Line",
+            "baseCost": 0
+          },
+          {
+            "xmlId": "ANY",
+            "display": "Any Area",
+            "baseCost": 0
+          }
+        ]
+      },
+      {
+        "xmlId": "NONSELECTIVETARGET",
+        "display": "Nonselective Target",
+        "baseCost": -0.25,
+        "excludes": [
+          "SELECTIVETARGET"
+        ]
+      },
+      {
+        "xmlId": "SELECTIVETARGET",
+        "display": "Selective Target",
+        "baseCost": 0.25,
+        "excludes": [
+          "NONSELECTIVETARGET"
+        ]
+      },
+      {
+        "xmlId": "CONFORMING",
+        "display": "Conforming",
+        "baseCost": 0.5
+      },
+      {
+        "xmlId": "MOBILE",
+        "display": "Mobile",
+        "description": "Darkness fields are usually immobile: once setup they stay in place. This Advantage allows the Darkness to be moved once created.",
+        "baseCost": 0.5
+      }
     ]
   },
   {
@@ -1223,6 +1609,14 @@ export const POWER_CATALOG_6E: CatalogEntry[] = [
     "types": [
       "STANDARD",
       "DEFENSE"
+    ],
+    "modifiers": [
+      {
+        "xmlId": "NORANGEMOD",
+        "display": "No Range Modifier",
+        "baseCost": 0.5,
+        "exclusive": true
+      }
     ]
   },
   {
@@ -1244,6 +1638,43 @@ export const POWER_CATALOG_6E: CatalogEntry[] = [
     "types": [
       "STANDARD",
       "BODYAFFECTING"
+    ],
+    "modifiers": [
+      {
+        "xmlId": "NOSTRINCREASE",
+        "display": "No STR Increase",
+        "description": "DI with this Limitation does not provide any extra STR to the character.",
+        "baseCost": -0.5,
+        "excludes": [
+          "UBO"
+        ]
+      },
+      {
+        "xmlId": "NODEFINCREASE",
+        "display": "No Defense Increase",
+        "description": "DI with this Limitation does not provide any extra PD or ED to the character.",
+        "baseCost": -0.25,
+        "excludes": [
+          "UBO"
+        ],
+        "options": [
+          {
+            "xmlId": "PD",
+            "display": "does not provide PD",
+            "baseCost": 0
+          },
+          {
+            "xmlId": "ED",
+            "display": "does not provide ED",
+            "baseCost": 0
+          },
+          {
+            "xmlId": "PDED",
+            "display": "does not provide PD or ED",
+            "baseCost": -0.25
+          }
+        ]
+      }
     ]
   },
   {
@@ -1261,6 +1692,32 @@ export const POWER_CATALOG_6E: CatalogEntry[] = [
     "types": [
       "STANDARD",
       "BODYAFFECTING"
+    ],
+    "modifiers": [
+      {
+        "xmlId": "SELECTIVEDESOLIDIFICATION",
+        "display": "Selective Desolidification",
+        "description": "Ordinarily, a character is either entirely Desolidified, or entirely solid - he can't be partly intangible and partly tangible. A character with this Advantage, which requires the GM's permission, can make himself only partly Desolidified, or while Desolidified can selectively solidify part of his body (typically his hands). Selectively solid parts of the body can affect the physical world normally, and in turn be affected by it normally (which may involve use of the Hit Location table to target specific areas of the body).",
+        "baseCost": 1.5
+      },
+      {
+        "xmlId": "CANNOTPASSTHROUGHSOLID",
+        "display": "Cannot Pass Through Solid Objects",
+        "description": "This Limitation represents a form of Desolidification which does not provide true intangibility. The character can squeeze through very tiny openings, but cannot actually pass through solid objects.",
+        "baseCost": -0.5
+      },
+      {
+        "xmlId": "DOESNOTPROTECT",
+        "display": "Does Not Protect Against Damage",
+        "description": "Desolidification with this Limitation offers no protection against damage.",
+        "baseCost": -1
+      },
+      {
+        "xmlId": "LIMITEDPROTECT",
+        "display": "Only To Protect Against [Limited Type Of Attack]",
+        "description": "The Character can purchase limited form of Desolidification to offer protection from a particular type of attack.",
+        "baseCost": -1
+      }
     ]
   },
   {
@@ -1321,6 +1778,38 @@ export const POWER_CATALOG_6E: CatalogEntry[] = [
         "lvlVal": 1,
         "minVal": 1,
         "levelStart": 1
+      }
+    ],
+    "modifiers": [
+      {
+        "xmlId": "EXPANDEDEFFECT",
+        "display": "Expanded Effect (x[LVL] Characteristics or Powers simultaneously)",
+        "description": "This Advantage allows an Adjustment Power to have its full effect against two or more game elements simultaneously.",
+        "baseCost": -0.5,
+        "lvlCost": 0.5,
+        "lvlVal": 1,
+        "minVal": 2,
+        "levelStart": 2,
+        "isLimitation": false
+      },
+      {
+        "xmlId": "VARIABLEEFFECT",
+        "display": "Variable Effect",
+        "description": "This Advantage allows a character to vary which game element his Adjustment Power affects within a defined special effect category (or other large group)",
+        "baseCost": 0.5,
+        "exclusive": true,
+        "inputLabel": "Special Effect",
+        "warningSign": true
+      },
+      {
+        "xmlId": "COSTSENDTOMAINTAIN",
+        "display": "Costs Endurance (to maintain",
+        "description": "This means the character has to continue to pay END every Phase to keep the Suppressed Characteristic or Power at its Suppressed level (doing this is an Action that takes no time). As long as the character pays END, the Suppress doesn't fade at the usual rate of 5 Character Points per Turn. Once the character stops paying END, the Character Points lost from Suppress return immediately.",
+        "baseCost": -0.5,
+        "exclusive": true,
+        "excludes": [
+          "DELAYEDRETURNRATE"
+        ]
       }
     ]
   },
@@ -1394,6 +1883,32 @@ export const POWER_CATALOG_6E: CatalogEntry[] = [
         "minVal": 1,
         "levelStart": 1
       }
+    ],
+    "modifiers": [
+      {
+        "xmlId": "PDAPPLIES",
+        "display": "PD Applies",
+        "description": "This Limitation represents a form of Drain against which PD provides protection.",
+        "baseCost": -1,
+        "exclusive": true
+      },
+      {
+        "xmlId": "EDAPPLIES",
+        "display": "ED Applies",
+        "description": "This Limitation represents a form of Drain against which ED provides protection.",
+        "baseCost": -1,
+        "exclusive": true
+      },
+      {
+        "xmlId": "COSTSENDTOMAINTAIN",
+        "display": "Costs Endurance (to maintain",
+        "description": "This means the character has to continue to pay END every Phase to keep the Suppress active.",
+        "baseCost": -0.5,
+        "exclusive": true,
+        "excludes": [
+          "DELAYEDRETURNRATE"
+        ]
+      }
     ]
   },
   {
@@ -1431,6 +1946,90 @@ export const POWER_CATALOG_6E: CatalogEntry[] = [
           "HALFPHASERECOMBINATION"
         ]
       }
+    ],
+    "modifiers": [
+      {
+        "xmlId": "RAPIDDUPLICATION",
+        "display": "Rapid Duplication (can create [LVL] Duplicates per Half Phase)",
+        "description": "For every +1/4 Advantage, a character can create x2 the number of Duplicates in a Half Phase.",
+        "lvlCost": 0.25,
+        "lvlVal": 1,
+        "lvlPower": 2,
+        "minVal": 1,
+        "levelStart": 1
+      },
+      {
+        "xmlId": "ALTEREDDUPLICATES",
+        "display": "Altered Duplicates",
+        "description": "This Advantage allows for created Duplicates to have different abilities, personalities, equipment, memories, or Disadvantages.",
+        "options": [
+          {
+            "xmlId": "QUARTER",
+            "display": "1/4 of Duplicate's points spent differently",
+            "alias": "25%",
+            "baseCost": 0.25
+          },
+          {
+            "xmlId": "HALF",
+            "display": "1/2 of Duplicate's points spent differently",
+            "alias": "50%",
+            "baseCost": 0.5
+          },
+          {
+            "xmlId": "ALL",
+            "display": "All of Duplicate's points spent differently",
+            "alias": "100%",
+            "baseCost": 1
+          }
+        ]
+      },
+      {
+        "xmlId": "RANGEDRECOMBINATION",
+        "display": "Ranged Recombination",
+        "description": "This Advantage allows a character to recombine any or all of his Duplicates at Range, without touching.",
+        "baseCost": 0.5,
+        "excludes": [
+          "CANNOTRECOMBINE"
+        ]
+      },
+      {
+        "xmlId": "CANNOTRECOMBINE",
+        "display": "Cannot Recombine",
+        "description": "This Limitation represents a form of Duplication which does not allow the Duplicate to recombine.",
+        "baseCost": 0,
+        "isLimitation": true,
+        "excludes": [
+          "RANGEDRECOMBINATION"
+        ]
+      },
+      {
+        "xmlId": "FEEDBACK",
+        "display": "Feedback",
+        "description": "This Limitation represents a shared bond of some sort between the Duplicates. As a result of the bond, all of them suffer any damage which any one of them takes.",
+        "options": [
+          {
+            "xmlId": "ALL",
+            "display": "All Duplicates Take Damage When Struck",
+            "baseCost": -1
+          },
+          {
+            "xmlId": "ONLYSTUN",
+            "display": "Only STUN Damage Feeds Back",
+            "baseCost": -0.5
+          },
+          {
+            "xmlId": "ONLYWHENSTRUCK",
+            "display": "Only When Base Character Is Struck",
+            "baseCost": -0.25
+          }
+        ]
+      },
+      {
+        "xmlId": "NOAVERAGING",
+        "display": "No Averaging",
+        "baseCost": 0,
+        "isLimitation": true
+      }
     ]
   },
   {
@@ -1448,6 +2047,14 @@ export const POWER_CATALOG_6E: CatalogEntry[] = [
     "usesEnd": false,
     "types": [
       "SPECIAL"
+    ],
+    "modifiers": [
+      {
+        "xmlId": "RESTRICTEDUSE",
+        "display": "Restricted Use",
+        "description": "Generally, a character must define which of his powers draw END from an Endurance Reserve, and is not entitled to a Limitation for this. But in some cases, an Endurance Reserve can supply END to only some types of powers, abilities, or devices.",
+        "baseCost": -0.25
+      }
     ]
   },
   {
@@ -2317,6 +2924,140 @@ export const POWER_CATALOG_6E: CatalogEntry[] = [
         "minVal": 1,
         "levelStart": 1
       }
+    ],
+    "modifiers": [
+      {
+        "xmlId": "BACKLASH",
+        "display": "Backlash",
+        "description": "This Advantage represents an Entangle which reflects back any attacks made by the entangled character in an effort to break free.",
+        "baseCost": 0.5
+      },
+      {
+        "xmlId": "TAKESNODAMAGE",
+        "display": "Takes No Damage From Attacks",
+        "description": "An Entangle with this Advantage is transparent to attacks, allowing attackers to damage the entangled character without damaging the Entangle itself.",
+        "excludes": [
+          "BOTHDAMAGE"
+        ],
+        "options": [
+          {
+            "xmlId": "LIMITED",
+            "display": "Limited Group",
+            "baseCost": 0.25
+          },
+          {
+            "xmlId": "ALL",
+            "display": "All Attacks",
+            "baseCost": 0.5
+          },
+          {
+            "xmlId": "STRONLY",
+            "display": "All Attacks, STR only to break out",
+            "baseCost": 1
+          }
+        ]
+      },
+      {
+        "xmlId": "BOTHDAMAGE",
+        "display": "Entangle And Character Both Take Damage",
+        "description": "This Advantage represents an Entangle which does not protect the entangled character. Both the Entangle and the entangled character take damage from an attack.",
+        "baseCost": 0.25,
+        "excludes": [
+          "TAKESNODAMAGE"
+        ]
+      },
+      {
+        "xmlId": "VERSUSEGO",
+        "display": "Works Against EGO, Not STR",
+        "baseCost": 0.25
+      },
+      {
+        "xmlId": "MDADDSTOEGO",
+        "display": "Mental Defense Adds To EGO",
+        "baseCost": -0.5
+      },
+      {
+        "xmlId": "NODEFENSE",
+        "display": "No Defense",
+        "description": "An Entangle with this Limitation has no DEF, only BODY.",
+        "baseCost": -1.5
+      },
+      {
+        "xmlId": "DOESNOTPREVENTOAF",
+        "display": "Does Not Prevent The Use Of Accessible Foci",
+        "description": "An Entangle with this Limitation does not prevent the character from using most Accessible Foci.",
+        "baseCost": -1
+      },
+      {
+        "xmlId": "SETEFFECT",
+        "display": "Set Effect (Hands Only/Feet Only)",
+        "description": "An Entangle with this Limitation only entangles the target's hands or feet; his other limbs remain free.",
+        "baseCost": -1
+      },
+      {
+        "xmlId": "CANBEDISPELLED",
+        "display": "Can Be Dispelled",
+        "description": "An Entangle with this Limitation can be Dispelled after it has been set.",
+        "baseCost": -0.25
+      },
+      {
+        "xmlId": "ONEBODY",
+        "display": "Entangle Has 1 BODY",
+        "description": "An Entangle with this Limitation is brittle; it has normal DEF, but only 1 BODY.",
+        "baseCost": -0.5
+      },
+      {
+        "xmlId": "NONRESISTANT",
+        "display": "Nonresistant DEF",
+        "description": "The DEF of an Entangle with this Limitation is not Resistant, so Killing Attacks damage it easily.",
+        "baseCost": -0.25
+      },
+      {
+        "xmlId": "SUSCEPTIBLE",
+        "display": "Susceptible",
+        "description": "This Limitation represents an Entangle which can be completely removed by some substance or effect which would not cause damage to a normal Entangle.",
+        "options": [
+          {
+            "xmlId": "UNCOMMON",
+            "display": "Uncommon",
+            "baseCost": -0.25
+          },
+          {
+            "xmlId": "COMMON",
+            "display": "Common",
+            "baseCost": -0.5
+          },
+          {
+            "xmlId": "VERYCOMMON",
+            "display": "Very Common",
+            "baseCost": -1
+          }
+        ]
+      },
+      {
+        "xmlId": "VULNERABLE",
+        "display": "Vulnerable",
+        "description": "An Entangle with this Limitation is unusually vulnerable to particular types of attacks; taking double damage from them.",
+        "exclusive": false,
+        "optionLabel": "Attack Type",
+        "options": [
+          {
+            "xmlId": "UNCOMMON",
+            "display": "Uncommon",
+            "baseCost": -0.25
+          },
+          {
+            "xmlId": "COMMON",
+            "display": "Common",
+            "baseCost": -0.5
+          },
+          {
+            "xmlId": "VERYCOMMON",
+            "display": "Very Common",
+            "baseCost": -1
+          }
+        ]
+      }
     ]
   },
   {
@@ -2450,6 +3191,13 @@ export const POWER_CATALOG_6E: CatalogEntry[] = [
         "minVal": 1,
         "levelStart": 1
       }
+    ],
+    "modifiers": [
+      {
+        "xmlId": "SAFEBLINDTRAVEL",
+        "display": "Safe Blind Travel",
+        "baseCost": 0.25
+      }
     ]
   },
   {
@@ -2469,6 +3217,14 @@ export const POWER_CATALOG_6E: CatalogEntry[] = [
     "types": [
       "SPECIAL",
       "BODYAFFECTING"
+    ],
+    "modifiers": [
+      {
+        "xmlId": "LIMITEDMANIPULATION",
+        "display": "Limited Manipulation",
+        "description": "Extra Limbs with this Limitation are not as functional as human hands and lack the ability to perform fine manipulation tasks.",
+        "baseCost": -0.25
+      }
     ]
   },
   {
@@ -2537,6 +3293,14 @@ export const POWER_CATALOG_6E: CatalogEntry[] = [
         "minVal": 1,
         "levelStart": 1
       }
+    ],
+    "modifiers": [
+      {
+        "xmlId": "NODESOLID",
+        "display": "Does Not Work Against Desolidified Characters",
+        "description": "This Limitation represents a Flash which cannot affect a Desolidified character.",
+        "baseCost": -0.25
+      }
     ]
   },
   {
@@ -2589,6 +3353,39 @@ export const POWER_CATALOG_6E: CatalogEntry[] = [
         "display": "Position Shift",
         "baseCost": 5,
         "exclusive": true
+      }
+    ],
+    "modifiers": [
+      {
+        "xmlId": "GLIDING",
+        "display": "Gliding",
+        "description": "Flight purchased with this Limitation can only be used for Gliding.",
+        "baseCost": -1,
+        "exclusive": true
+      },
+      {
+        "xmlId": "CANNOTHOVER",
+        "display": "Cannot Hover",
+        "baseCost": -0.25,
+        "exclusive": true,
+        "options": [
+          {
+            "xmlId": "2M",
+            "display": "must move at least 2m per Phase",
+            "baseCost": -0.25
+          },
+          {
+            "xmlId": "HALFMOVE",
+            "display": "must make at least a Half Move per Phase",
+            "baseCost": -0.5
+          }
+        ]
+      },
+      {
+        "xmlId": "ONLYONSURFACE",
+        "display": "Only In Contact With A Surface",
+        "description": "This Limitation represents a form of Flight which only works when the character touches a surface. Some examples include flying on water or up the side of a building.",
+        "baseCost": -0.25
       }
     ]
   },
@@ -2700,6 +3497,15 @@ export const POWER_CATALOG_6E: CatalogEntry[] = [
         "minVal": 1,
         "levelStart": 1
       }
+    ],
+    "modifiers": [
+      {
+        "xmlId": "HANDTOHANDATTACK",
+        "display": "Hand-To-Hand Attack",
+        "abbreviation": "HA",
+        "description": "This is a mandatory Limitation for the Hand-To-Hand Attack Power",
+        "baseCost": -0.25
+      }
     ]
   },
   {
@@ -2753,6 +3559,78 @@ export const POWER_CATALOG_6E: CatalogEntry[] = [
         "display": "Resurrection",
         "baseCost": 20
       }
+    ],
+    "modifiers": [
+      {
+        "xmlId": "DOESNOTWORKONSOMEDAMAGE",
+        "display": "Does Not Work On Some Damage",
+        "description": "Healing with this Limitation does not work against one or more types of damage.",
+        "options": [
+          {
+            "xmlId": "RARE",
+            "display": "[Rare attack]",
+            "baseCost": -0.25
+          },
+          {
+            "xmlId": "UNCOMMON",
+            "display": "[Uncommon attack]",
+            "baseCost": -0.5
+          },
+          {
+            "xmlId": "COMMON",
+            "display": "[Common attack]",
+            "baseCost": -0.75
+          },
+          {
+            "xmlId": "VERYCOMMON",
+            "display": "[Very Common attack]",
+            "baseCost": -1
+          }
+        ]
+      },
+      {
+        "xmlId": "DECREASEDREUSE",
+        "display": "Decreased Re-use Duration",
+        "description": "This Advantage allows a character to apply Healing more than once a day.",
+        "options": [
+          {
+            "xmlId": "6HOURS",
+            "display": "6 Hours",
+            "baseCost": 0.25
+          },
+          {
+            "xmlId": "1HOUR",
+            "display": "1 Hour",
+            "baseCost": 0.5
+          },
+          {
+            "xmlId": "20MINUTES",
+            "display": "20 Minutes",
+            "baseCost": 0.75
+          },
+          {
+            "xmlId": "5MINUTES",
+            "display": "5 Minutes",
+            "baseCost": 1
+          },
+          {
+            "xmlId": "1MINUTE",
+            "display": "1 Minute",
+            "baseCost": 1.25
+          },
+          {
+            "xmlId": "1TURN",
+            "display": "1 Turn",
+            "baseCost": 1.5
+          }
+        ]
+      },
+      {
+        "xmlId": "RESURRECTIONONLY",
+        "display": "Resurrection Only",
+        "description": "Healing with this Limitation can only be used to resurrect the dead; it cannot Heal characters who are still living.",
+        "baseCost": -0.5
+      }
     ]
   },
   {
@@ -2796,6 +3674,40 @@ export const POWER_CATALOG_6E: CatalogEntry[] = [
         "levelStart": 1,
         "includeInBase": true
       }
+    ],
+    "modifiers": [
+      {
+        "xmlId": "ONLYTOCREATELIGHT",
+        "display": "Only To Create Light",
+        "description": "This Limitation simulates a form of Images to Sight Group which can only create light.",
+        "baseCost": -1
+      },
+      {
+        "xmlId": "SETEFFECT",
+        "display": "Set Effect",
+        "description": "This Limitation represents a form of Images which the character can only use to create a single Image.",
+        "baseCost": -1,
+        "minCost": -1,
+        "maxCost": -0.5
+      },
+      {
+        "xmlId": "DIFFICULTTOALTER",
+        "display": "Difficult to Alter",
+        "baseCost": -0.25,
+        "exclusive": true,
+        "options": [
+          {
+            "xmlId": "HALF",
+            "display": "simple changes take a Half Phase",
+            "baseCost": -0.25
+          },
+          {
+            "xmlId": "FULL",
+            "display": "simple changes take a Full Phase",
+            "baseCost": -0.5
+          }
+        ]
+      }
     ]
   },
   {
@@ -2820,6 +3732,29 @@ export const POWER_CATALOG_6E: CatalogEntry[] = [
         "excludes": [
           "BRIGHTFRINGE"
         ]
+      }
+    ],
+    "modifiers": [
+      {
+        "xmlId": "BRIGHTFRINGE",
+        "display": "Bright Fringe",
+        "description": "Invisibility with this Limitation has a Fringe that is easier to perceive than usual. The Fringe may be perceived from up to 8\" away with a normal PER Roll.",
+        "baseCost": -0.25,
+        "excludes": [
+          "NOFRINGE"
+        ]
+      },
+      {
+        "xmlId": "CHAMELEON",
+        "display": "Chameleon",
+        "description": "This Limitation represents a form of Invisibility which only works if the character remains motionless.",
+        "baseCost": -0.5
+      },
+      {
+        "xmlId": "ONLYWHENNOTATTACKING",
+        "display": "Only When Not Attacking",
+        "description": "This Limitation represents Invisibility which only works if the character remains peaceful and does not attack or threaten anyone.",
+        "baseCost": -0.5
       }
     ]
   },
@@ -2898,6 +3833,41 @@ export const POWER_CATALOG_6E: CatalogEntry[] = [
         "minVal": 1,
         "levelStart": 1
       }
+    ],
+    "modifiers": [
+      {
+        "xmlId": "INCREASEDSTUNMULTIPLIER",
+        "display": "+[LVL] Increased STUN Multiplier",
+        "description": "This Power Advantage increases the STUN Multiplier of a Killing Attack.",
+        "baseCost": 0,
+        "lvlCost": 0.25,
+        "lvlVal": 1,
+        "minVal": 1,
+        "levelStart": 1,
+        "excludes": [
+          "DECREASEDSTUNMULTIPLIER"
+        ]
+      },
+      {
+        "xmlId": "DECREASEDSTUNMULTIPLIER",
+        "display": "-[LVL] Decreased STUN Multiplier",
+        "description": "A Killing Attack with this Limitation tends to do less STUN than a regular Killing Attack.",
+        "baseCost": 0,
+        "lvlCost": -0.25,
+        "lvlVal": 1,
+        "minVal": 1,
+        "maxVal": 2,
+        "levelStart": 1,
+        "excludes": [
+          "INCREASEDSTUNMULTIPLIER"
+        ]
+      },
+      {
+        "xmlId": "NOSTRBONUS",
+        "display": "No STR Bonus",
+        "baseCost": -0.5,
+        "exclusive": true
+      }
     ]
   },
   {
@@ -2974,6 +3944,35 @@ export const POWER_CATALOG_6E: CatalogEntry[] = [
         "lvlVal": 1,
         "minVal": 1,
         "levelStart": 1
+      }
+    ],
+    "modifiers": [
+      {
+        "xmlId": "INCREASEDSTUNMULTIPLIER",
+        "display": "+[LVL] Increased STUN Multiplier",
+        "description": "This Power Advantage increases the STUN Multiplier of a Killing Attack.",
+        "baseCost": 0,
+        "lvlCost": 0.25,
+        "lvlVal": 1,
+        "minVal": 1,
+        "levelStart": 1,
+        "excludes": [
+          "DECREASEDSTUNMULTIPLIER"
+        ]
+      },
+      {
+        "xmlId": "DECREASEDSTUNMULTIPLIER",
+        "display": "-[LVL] Decreased STUN Multiplier",
+        "description": "A Killing Attack with this Limitation tends to do less STUN than a regular Killing Attack.",
+        "baseCost": 0,
+        "lvlCost": -0.25,
+        "lvlVal": 1,
+        "minVal": 1,
+        "maxVal": 2,
+        "levelStart": 1,
+        "excludes": [
+          "INCREASEDSTUNMULTIPLIER"
+        ]
       }
     ]
   },
@@ -3398,6 +4397,36 @@ export const POWER_CATALOG_6E: CatalogEntry[] = [
         "baseCost": 5,
         "exclusive": false
       }
+    ],
+    "modifiers": [
+      {
+        "xmlId": "INVISIBLE",
+        "display": "Invisible Power Effects",
+        "abbreviation": "IPE",
+        "description": "Most Powers and/or their sources can be perceived by two Sense Groups. The special effects of a Power with Invisible Power Effects are not perceivable when it is in use.",
+        "exclusive": true,
+        "options": [
+          {
+            "xmlId": "INOBVIOUSINVISIBLEONE",
+            "display": "Inobvious Power, Invisible to Mental Group",
+            "baseCost": 0.25
+          }
+        ]
+      },
+      {
+        "xmlId": "PDAPPLIES",
+        "display": "PD Applies",
+        "description": "This Limitation represents a form of Ego Attack against which PD provides protection.",
+        "baseCost": -1,
+        "exclusive": true
+      },
+      {
+        "xmlId": "EDAPPLIES",
+        "display": "ED Applies",
+        "description": "This Limitation represents a form of Ego Attack against which ED provides protection.",
+        "baseCost": -1,
+        "exclusive": true
+      }
     ]
   },
   {
@@ -3483,6 +4512,79 @@ export const POWER_CATALOG_6E: CatalogEntry[] = [
         "baseCost": 5,
         "exclusive": false
       }
+    ],
+    "modifiers": [
+      {
+        "xmlId": "INVISIBLE",
+        "display": "Invisible Power Effects",
+        "abbreviation": "IPE",
+        "description": "Most Powers and/or their sources can be perceived by two Sense Groups. The special effects of a Power with Invisible Power Effects are not perceivable when it is in use.",
+        "exclusive": true,
+        "options": [
+          {
+            "xmlId": "INOBVIOUSINVISIBLEONE",
+            "display": "Inobvious Power, Invisible to Mental Group",
+            "baseCost": 0.25
+          }
+        ]
+      },
+      {
+        "xmlId": "CANNOTHARM",
+        "display": "Cannot Cause Harm",
+        "description": "Mental Illusions with this Limitation cannot cause STUN or BODY damage, or have similar effects.",
+        "baseCost": -0.25
+      },
+      {
+        "xmlId": "DEPENDSONKNOWLEDGE",
+        "display": "Depends on Character's Knowledge",
+        "description": "The accuracy of this form of Mental Illusion depends on the character's knowledge (much like and Image).",
+        "baseCost": -0.5
+      },
+      {
+        "xmlId": "SELFONLY",
+        "display": "Self Only",
+        "description": "This simulates a form of Mental Illusion which a character can only use to change his outward appearance.",
+        "baseCost": -1
+      },
+      {
+        "xmlId": "DOESNOTAFFECTSIGHT",
+        "display": "Limited By Senses",
+        "description": "This Limitation represents a Mental Illusion power which for some reason cannot affect certain senses.",
+        "baseCost": -0.5,
+        "exclusive": false,
+        "options": [
+          {
+            "xmlId": "HEARINGGROUP",
+            "display": "Hearing Group",
+            "baseCost": -0.25
+          },
+          {
+            "xmlId": "MENTALGROUP",
+            "display": "Mental Group",
+            "baseCost": -0.25
+          },
+          {
+            "xmlId": "RADIOGROUP",
+            "display": "Radio Group",
+            "baseCost": -0.25
+          },
+          {
+            "xmlId": "SIGHTGROUP",
+            "display": "Sight Group",
+            "baseCost": -0.5
+          },
+          {
+            "xmlId": "SMELLGROUP",
+            "display": "Smell/Taste Group",
+            "baseCost": -0.25
+          },
+          {
+            "xmlId": "TOUCHGROUP",
+            "display": "Touch Group",
+            "baseCost": -0.25
+          }
+        ]
+      }
     ]
   },
   {
@@ -3554,6 +4656,48 @@ export const POWER_CATALOG_6E: CatalogEntry[] = [
         "display": "Additional Class of Minds",
         "baseCost": 5,
         "exclusive": false
+      }
+    ],
+    "modifiers": [
+      {
+        "xmlId": "CANBEDISPELLED",
+        "display": "Can Be Dispelled",
+        "description": "An Entangle with this Limitation can be Dispelled after it has been set.",
+        "baseCost": -0.25
+      },
+      {
+        "xmlId": "INVISIBLE",
+        "display": "Invisible Power Effects",
+        "abbreviation": "IPE",
+        "description": "Most Powers and/or their sources can be perceived by two Sense Groups. The special effects of a Power with Invisible Power Effects are not perceivable when it is in use.",
+        "exclusive": true,
+        "options": [
+          {
+            "xmlId": "INOBVIOUSINVISIBLEONE",
+            "display": "Inobvious Power, Invisible to Mental Group",
+            "baseCost": 0.25
+          }
+        ]
+      },
+      {
+        "xmlId": "TELEPATHIC",
+        "display": "Telepathic",
+        "description": "This Advantage represents Mind Control which doesn't require verbal communication.",
+        "baseCost": 0.25
+      },
+      {
+        "xmlId": "LITERAL",
+        "display": "Literal Interpretation",
+        "description": "Mind Control with this Limitation is always subject to literal interpretation of the wording of the order, meaning that victims can make every effort to avoid obeying, or obey in objectionable ways, if the character doesn't word his orders carefully and precisely.",
+        "baseCost": -0.25
+      },
+      {
+        "xmlId": "SETEFFECT",
+        "display": "Set Effect",
+        "description": "This Limitation represents Mind Control which only allows a single command. An example would be: Only To Control/Inflict Emotions (Empathy) or Single Command \"Go Home\".",
+        "baseCost": -0.5,
+        "minCost": -2,
+        "maxCost": -0.25
       }
     ]
   },
@@ -3638,6 +4782,45 @@ export const POWER_CATALOG_6E: CatalogEntry[] = [
         "baseCost": 5,
         "exclusive": false
       }
+    ],
+    "modifiers": [
+      {
+        "xmlId": "INVISIBLE",
+        "display": "Invisible Power Effects",
+        "abbreviation": "IPE",
+        "description": "Most Powers and/or their sources can be perceived by two Sense Groups. The special effects of a Power with Invisible Power Effects are not perceivable when it is in use.",
+        "exclusive": true,
+        "options": [
+          {
+            "xmlId": "INOBVIOUSINVISIBLEONE",
+            "display": "Inobvious Power, Invisible to Mental Group",
+            "baseCost": 0.25
+          }
+        ]
+      },
+      {
+        "xmlId": "ONLYWITHMINDLINK",
+        "display": "Only With Others Who Have Mind Link",
+        "description": "A character can only use Mind Link with this Limitation to communicate with other people who have also purchased the same form of Mind Link.",
+        "baseCost": -1
+      },
+      {
+        "xmlId": "FEEDBACKSTUN",
+        "display": "Feedback",
+        "baseCost": -1,
+        "options": [
+          {
+            "xmlId": "STUNONLY",
+            "display": "STUN Only",
+            "baseCost": -1
+          },
+          {
+            "xmlId": "BODYANDSTUN",
+            "display": "STUN and BODY",
+            "baseCost": -2
+          }
+        ]
+      }
     ]
   },
   {
@@ -3699,6 +4882,71 @@ export const POWER_CATALOG_6E: CatalogEntry[] = [
         "baseCost": 5,
         "exclusive": false
       }
+    ],
+    "modifiers": [
+      {
+        "xmlId": "INVISIBLE",
+        "display": "Invisible Power Effects",
+        "abbreviation": "IPE",
+        "description": "Most Powers and/or their sources can be perceived by two Sense Groups. The special effects of a Power with Invisible Power Effects are not perceivable when it is in use.",
+        "exclusive": true,
+        "options": [
+          {
+            "xmlId": "INOBVIOUSINVISIBLEONE",
+            "display": "Inobvious Power, Invisible to Mental Group",
+            "baseCost": 0.25
+          }
+        ]
+      },
+      {
+        "xmlId": "ONEWAYLINK",
+        "display": "One Way Link",
+        "description": "Mind Scan with this Advantage only works one way and prevents Mind Scanned targets from following the Mind Scan back and using a Mental Power on the scanner.",
+        "baseCost": 1,
+        "exclusive": true,
+        "excludes": [
+          "CANNOTATTACK"
+        ]
+      },
+      {
+        "xmlId": "PARTIALLOCK",
+        "display": "Partial Lock-On",
+        "description": "Mind Scan with this Advantage may work at a very low level even if the Effect Roll fails.",
+        "baseCost": 0.5,
+        "exclusive": true
+      },
+      {
+        "xmlId": "CANNOTATTACK",
+        "display": "Cannot Attack Through Link",
+        "exclusive": true,
+        "excludes": [
+          "ONEWAYLINK"
+        ],
+        "options": [
+          {
+            "xmlId": "COMMUNICATE",
+            "display": "neither the character nor his target can use the link to attack each other mentally, but they can communicate",
+            "baseCost": -0.5
+          },
+          {
+            "xmlId": "NOCOMMUNICATE",
+            "display": "neither the character nor his target can use the link to attack each other mentally or communicate",
+            "baseCost": -1
+          },
+          {
+            "xmlId": "ATTACKERONLY",
+            "display": "the character cannot use the link to attack mentally or communicate, but target can mentally attack or communicate through the link",
+            "baseCost": -1.5
+          }
+        ]
+      },
+      {
+        "xmlId": "PARTIALEFFECT",
+        "display": "Partial Effect",
+        "description": "Mind Scan with this Limitation is easier to avoid than normal.",
+        "baseCost": -0.5,
+        "exclusive": true
+      }
     ]
   },
   {
@@ -3736,6 +4984,89 @@ export const POWER_CATALOG_6E: CatalogEntry[] = [
         "display": "Instant Change",
         "baseCost": 5,
         "exclusive": true
+      }
+    ],
+    "modifiers": [
+      {
+        "xmlId": "PERSONALITYLOSS",
+        "display": "Personality Loss",
+        "description": "This Limitations represents a type of Multiform in which the character has a difficult time retaining his personality and changing back to his true form.",
+        "baseCost": -1,
+        "minCost": -2,
+        "maxCost": -0.25,
+        "options": [
+          {
+            "xmlId": "TURN",
+            "display": "First Roll After 1 Turn",
+            "baseCost": -2
+          },
+          {
+            "xmlId": "MINUTE",
+            "display": "First Roll After 1 Minute",
+            "baseCost": -1.75
+          },
+          {
+            "xmlId": "FIVEMINUTES",
+            "display": "First Roll After 5 Minutes",
+            "baseCost": -1.5
+          },
+          {
+            "xmlId": "20MINUTES",
+            "display": "First Roll After 20 Minutes",
+            "baseCost": -1.25
+          },
+          {
+            "xmlId": "HOUR",
+            "display": "First Roll After 1 Hour",
+            "baseCost": -1
+          },
+          {
+            "xmlId": "6HOURS",
+            "display": "First Roll After 6 Hours",
+            "baseCost": -0.75
+          },
+          {
+            "xmlId": "DAY",
+            "display": "First Roll After 1 Day",
+            "baseCost": -0.5
+          },
+          {
+            "xmlId": "WEEK",
+            "display": "First Roll After 1 Week",
+            "baseCost": -0.25
+          }
+        ]
+      },
+      {
+        "xmlId": "REVERSION",
+        "display": "Reversion",
+        "description": "This Limitation represents a character who will revert to his true form if he is Stunned or Knocked Out while in his Multiform.",
+        "baseCost": 0,
+        "minCost": -1,
+        "maxCost": 1
+      },
+      {
+        "xmlId": "ONLYWHENCOMPONENTSPRESENT",
+        "display": "Only When All Component Characters Are Present",
+        "baseCost": -1
+      },
+      {
+        "xmlId": "COSTSEND",
+        "display": "Costs Endurance",
+        "baseCost": -0.5,
+        "usesEnd": true,
+        "options": [
+          {
+            "xmlId": "ONLYTOCHANGE",
+            "display": "Only To Change",
+            "baseCost": -0.5
+          },
+          {
+            "xmlId": "TOSTAYINFORM",
+            "display": "To Stay In Form",
+            "baseCost": -1
+          }
+        ]
       }
     ]
   },
@@ -3851,6 +5182,46 @@ export const POWER_CATALOG_6E: CatalogEntry[] = [
         "baseCost": 5,
         "exclusive": false
       }
+    ],
+    "modifiers": [
+      {
+        "xmlId": "NOBLACKOUT",
+        "display": "No Blackout",
+        "baseCost": 0.25,
+        "exclusive": true
+      },
+      {
+        "xmlId": "NOFEEDBACK",
+        "display": "No Feedback",
+        "baseCost": 0.5,
+        "exclusive": true
+      },
+      {
+        "xmlId": "MINDTRASFER",
+        "display": "MODIFIER",
+        "baseCost": -1,
+        "exclusive": true
+      },
+      {
+        "xmlId": "NOMEMORIES",
+        "display": "No Memories",
+        "baseCost": -0.5,
+        "exclusive": true
+      },
+      {
+        "xmlId": "INVISIBLE",
+        "display": "Invisible Power Effects",
+        "abbreviation": "IPE",
+        "description": "Most Powers and/or their sources can be perceived by two Sense Groups. The special effects of a Power with Invisible Power Effects are not perceivable when it is in use.",
+        "exclusive": true,
+        "options": [
+          {
+            "xmlId": "INOBVIOUSINVISIBLEONE",
+            "display": "make the Target Effect of the Power Invisible to the victim",
+            "baseCost": 0.5
+          }
+        ]
+      }
     ]
   },
   {
@@ -3904,6 +5275,48 @@ export const POWER_CATALOG_6E: CatalogEntry[] = [
         "lvlVal": 1,
         "minVal": 1,
         "levelStart": 1
+      }
+    ],
+    "modifiers": [
+      {
+        "xmlId": "ANYTARGET",
+        "display": "Any Target",
+        "baseCost": 0.5,
+        "exclusive": true
+      },
+      {
+        "xmlId": "FEEDBACK",
+        "display": "Feedback",
+        "description": "If a character takes this Limitation for Reflection, then he takes the full damage (and other effects, including Knockback) from any attack he Reflects.",
+        "baseCost": -1,
+        "exclusive": true
+      },
+      {
+        "xmlId": "ONLYAGAINSTLIMITEDTYPE",
+        "display": "Only Works Against",
+        "description": "This Limitation represents a Reflection Power which only reflects a limited type of damage.",
+        "options": [
+          {
+            "xmlId": "RARE",
+            "display": "Rare attack",
+            "baseCost": -1
+          },
+          {
+            "xmlId": "UNCOMMON",
+            "display": "Uncommon attack",
+            "baseCost": -0.75
+          },
+          {
+            "xmlId": "COMMON",
+            "display": "Common attack",
+            "baseCost": -0.5
+          },
+          {
+            "xmlId": "VERYCOMMON",
+            "display": "Very Common attack",
+            "baseCost": -0.25
+          }
+        ]
       }
     ]
   },
@@ -3985,6 +5398,41 @@ export const POWER_CATALOG_6E: CatalogEntry[] = [
         "xmlId": "RESURRECTION",
         "display": "Resurrection",
         "baseCost": 20
+      }
+    ],
+    "modifiers": [
+      {
+        "xmlId": "RESURRECTIONONLY",
+        "display": "Resurrection Only",
+        "description": "Resurrection Regeneration with this Limitation can only resurrect the character; it cannot help the character Recover BODY if he's alive.",
+        "baseCost": -2
+      },
+      {
+        "xmlId": "DOESNOTWORKONSOMEDAMAGE",
+        "display": "Does Not Work On Some Damage",
+        "description": "Healing with this Limitation does not work against one or more types of damage.",
+        "options": [
+          {
+            "xmlId": "RARE",
+            "display": "[Rare attack]",
+            "baseCost": -0.25
+          },
+          {
+            "xmlId": "UNCOMMON",
+            "display": "[Uncommon attack]",
+            "baseCost": -0.5
+          },
+          {
+            "xmlId": "COMMON",
+            "display": "[Common attack]",
+            "baseCost": -0.75
+          },
+          {
+            "xmlId": "VERYCOMMON",
+            "display": "[Very Common attack]",
+            "baseCost": -1
+          }
+        ]
       }
     ]
   },
@@ -4071,6 +5519,15 @@ export const POWER_CATALOG_6E: CatalogEntry[] = [
         "display": "Impermeable",
         "baseCost": 0
       }
+    ],
+    "modifiers": [
+      {
+        "xmlId": "ALLOCATABLE",
+        "display": "Allocatable",
+        "description": "Allocatable Resistant Protection can have its points of defense re-allocated in any way, without changing its maximum or adding new categories of defense.",
+        "baseCost": 0.25,
+        "warningSign": true
+      }
     ]
   },
   {
@@ -4136,6 +5593,27 @@ export const POWER_CATALOG_6E: CatalogEntry[] = [
         "baseCost": 5,
         "exclusive": true
       }
+    ],
+    "modifiers": [
+      {
+        "xmlId": "COSTSENDONLYTOACTIVATE",
+        "display": "Costs END Only To Change Shape",
+        "baseCost": 0.25,
+        "exclusive": true
+      },
+      {
+        "xmlId": "LIMITEDEFFECT",
+        "display": "Limited Effect",
+        "baseCost": -0.25,
+        "exclusive": true
+      },
+      {
+        "xmlId": "BODYONLY",
+        "display": "Affects Body Only",
+        "description": "Be default Shape Shift encompasses a character's gear. If a character doesn't want that, he can take this Limitation.",
+        "baseCost": -0.5,
+        "exclusive": true
+      }
     ]
   },
   {
@@ -4156,6 +5634,32 @@ export const POWER_CATALOG_6E: CatalogEntry[] = [
     "types": [
       "SIZE",
       "BODYAFFECTING"
+    ],
+    "modifiers": [
+      {
+        "xmlId": "EASILYPERCEIVED",
+        "display": "Easily Perceived",
+        "baseCost": -0.5,
+        "exclusive": true
+      },
+      {
+        "xmlId": "NORMALMASS",
+        "display": "Normal Mass",
+        "baseCost": 0.5,
+        "exclusive": true,
+        "options": [
+          {
+            "xmlId": "ALWAYS",
+            "display": "retains normal mass",
+            "baseCost": 0.5
+          },
+          {
+            "xmlId": "CHOOSE",
+            "display": "normal or Shrinking mass",
+            "baseCost": 1
+          }
+        ]
+      }
     ]
   },
   {
@@ -4199,6 +5703,65 @@ export const POWER_CATALOG_6E: CatalogEntry[] = [
         "minVal": 1,
         "includeInBase": true
       }
+    ],
+    "modifiers": [
+      {
+        "xmlId": "DOESNOTCROSSSPACE",
+        "display": "Does Not Cross Intervening Space",
+        "baseCost": 0.25,
+        "exclusive": true
+      },
+      {
+        "xmlId": "ALWAYSDIRECT",
+        "display": "Always Direct",
+        "baseCost": -0.25,
+        "exclusive": true
+      },
+      {
+        "xmlId": "NONONCOMBAT",
+        "display": "No Noncombat Stretching",
+        "baseCost": -0.25,
+        "exclusive": true,
+        "excludes": [
+          "NONCOMBAT"
+        ]
+      },
+      {
+        "xmlId": "CANNOTDODAMAGE",
+        "display": "Cannot Do Damage",
+        "baseCost": -0.5,
+        "exclusive": true,
+        "excludes": [
+          "ONLYTOCAUSEDAMAGE"
+        ]
+      },
+      {
+        "xmlId": "NOVELOCITYDAMAGE",
+        "display": "No Velocity Damage",
+        "baseCost": -0.25,
+        "exclusive": true
+      },
+      {
+        "xmlId": "ONLYTOCAUSEDAMAGE",
+        "display": "Only To Cause Damage",
+        "baseCost": -0.5,
+        "exclusive": true,
+        "excludes": [
+          "CANNOTDODAMAGE"
+        ]
+      },
+      {
+        "xmlId": "LIMITEDBODYPARTS",
+        "display": "Limited Body Parts",
+        "baseCost": -0.25,
+        "minCost": -1,
+        "maxCost": -0.25
+      },
+      {
+        "xmlId": "RANGEMODIFIERAPPLIES",
+        "display": "Range Modifier Applies",
+        "baseCost": -0.25
+      }
     ]
   },
   {
@@ -4230,6 +5793,148 @@ export const POWER_CATALOG_6E: CatalogEntry[] = [
         "minVal": 1,
         "levelStart": 1,
         "includeInBase": true
+      }
+    ],
+    "modifiers": [
+      {
+        "xmlId": "EXPANDEDCLASS",
+        "display": "Expanded Class of Beings",
+        "options": [
+          {
+            "xmlId": "VERYLIMITED",
+            "display": "Very Limited Group",
+            "baseCost": 0.25
+          },
+          {
+            "xmlId": "LIMITED",
+            "display": "Limited Group",
+            "baseCost": 0.5
+          },
+          {
+            "xmlId": "ANY",
+            "display": "Any Type of Being",
+            "baseCost": 1
+          }
+        ]
+      },
+      {
+        "xmlId": "SPECIFICBEING",
+        "display": "Specific Being",
+        "baseCost": 1
+      },
+      {
+        "xmlId": "AMICABLE",
+        "display": "Amicable",
+        "excludes": [
+          "ANTAGONISTIC",
+          "STRONGWILLED"
+        ],
+        "options": [
+          {
+            "xmlId": "FRIENDLY",
+            "display": "Friendly",
+            "baseCost": 0.25
+          },
+          {
+            "xmlId": "LOYAL",
+            "display": "Loyal",
+            "baseCost": 0.5
+          },
+          {
+            "xmlId": "DEVOTED",
+            "display": "Devoted",
+            "baseCost": 0.75
+          },
+          {
+            "xmlId": "SLAVISH",
+            "display": "Slavishly Devoted",
+            "baseCost": 1
+          }
+        ],
+        "adders": [
+          {
+            "xmlId": "TASKS",
+            "display": "x[LVL] as many tasks",
+            "baseCost": 0,
+            "lvlCost": 0.25,
+            "lvlVal": 1,
+            "minVal": 1,
+            "exclusive": true
+          }
+        ]
+      },
+      {
+        "xmlId": "WEAKWILLED",
+        "display": "Weak-Willed",
+        "excludes": [
+          "STRONGWILLED"
+        ],
+        "options": [
+          {
+            "xmlId": "MINUS2",
+            "display": "-2 on EGO Rolls",
+            "baseCost": 0.25
+          },
+          {
+            "xmlId": "MINUS4",
+            "display": "-4 on EGO Rolls",
+            "baseCost": 0.5
+          }
+        ]
+      },
+      {
+        "xmlId": "ANTAGONISTIC",
+        "display": "Antagonistic",
+        "excludes": [
+          "AMICABLE"
+        ],
+        "options": [
+          {
+            "xmlId": "ANNOYED",
+            "display": "Annoyed",
+            "baseCost": -0.25
+          },
+          {
+            "xmlId": "HOSTILE",
+            "display": "Hostile",
+            "baseCost": -0.5
+          },
+          {
+            "xmlId": "VIOLENT",
+            "display": "Violent",
+            "baseCost": -0.75
+          }
+        ]
+      },
+      {
+        "xmlId": "ARRIVESONOWN",
+        "display": "Arrives Under Own Power",
+        "baseCost": -0.5
+      },
+      {
+        "xmlId": "STRONGWILLED",
+        "display": "Strong-Willed",
+        "excludes": [
+          "WEAKWILLED",
+          "AMICABLE"
+        ],
+        "options": [
+          {
+            "xmlId": "PLUS2",
+            "display": "+2 on EGO Rolls",
+            "baseCost": -0.25
+          },
+          {
+            "xmlId": "PLUS4",
+            "display": "+4 on EGO Rolls",
+            "baseCost": -0.5
+          }
+        ]
+      },
+      {
+        "xmlId": "MUSTINHABITLOCALEs",
+        "display": "Summoned Being Must Inhabit Locale",
+        "baseCost": -0.5
       }
     ]
   },
@@ -4313,6 +6018,31 @@ export const POWER_CATALOG_6E: CatalogEntry[] = [
         "baseCost": 10,
         "exclusive": true
       }
+    ],
+    "modifiers": [
+      {
+        "xmlId": "AFFECTSWHOLEOBJECT",
+        "display": "Affects Whole Object",
+        "baseCost": -0.25,
+        "exclusive": true
+      },
+      {
+        "xmlId": "LIMITEDTYPES",
+        "display": "Only Works On Limited Types Of Objects",
+        "exclusive": true,
+        "options": [
+          {
+            "xmlId": "LIMITED",
+            "display": "Limited Group of Objects",
+            "baseCost": -0.5
+          },
+          {
+            "xmlId": "VERYLIMITED",
+            "display": "Very Limited Group of Objects",
+            "baseCost": -1
+          }
+        ]
+      }
     ]
   },
   {
@@ -4363,6 +6093,91 @@ export const POWER_CATALOG_6E: CatalogEntry[] = [
         "display": "Additional Class of Minds",
         "baseCost": 5,
         "exclusive": false
+      }
+    ],
+    "modifiers": [
+      {
+        "xmlId": "CANBEDISPELLED",
+        "display": "Can Be Dispelled",
+        "description": "Telepathy with this Limitation can be Dispelled.",
+        "baseCost": -0.25
+      },
+      {
+        "xmlId": "INVISIBLE",
+        "display": "Invisible Power Effects",
+        "abbreviation": "IPE",
+        "description": "Most Powers and/or their sources can be perceived by two Sense Groups. The special effects of a Power with Invisible Power Effects are not perceivable when it is in use.",
+        "exclusive": true,
+        "options": [
+          {
+            "xmlId": "INOBVIOUSINVISIBLEONE",
+            "display": "Inobvious Power, Invisible to Mental Group",
+            "baseCost": 0.25
+          }
+        ]
+      },
+      {
+        "xmlId": "BROADCASTONLY",
+        "display": "Broadcast Only",
+        "baseCost": -0.5,
+        "exclusive": true,
+        "excludes": [
+          "RECEIVEONLY",
+          "COMMUNICATIONONLY",
+          "EMPATHY"
+        ]
+      },
+      {
+        "xmlId": "RECEIVEONLY",
+        "display": "Receive Only",
+        "baseCost": -0.5,
+        "exclusive": true,
+        "excludes": [
+          "BROADCASTONLY",
+          "COMMUNICATIONONLY"
+        ]
+      },
+      {
+        "xmlId": "COMMUNICATIONONLY",
+        "display": "Communication Only",
+        "baseCost": -0.25,
+        "exclusive": true,
+        "excludes": [
+          "BROADCASTONLY",
+          "RECEIVEONLY"
+        ]
+      },
+      {
+        "xmlId": "EMPATHY",
+        "display": "Empathy",
+        "exclusive": true,
+        "excludes": [
+          "BROADCASTONLY"
+        ],
+        "options": [
+          {
+            "xmlId": "SINGLE",
+            "display": "Single Emotion",
+            "baseCost": -1
+          },
+          {
+            "xmlId": "ALL",
+            "display": "All Emotions",
+            "baseCost": -0.5
+          }
+        ]
+      },
+      {
+        "xmlId": "LANGUAGEBARRIER",
+        "display": "Language Barrier",
+        "baseCost": -0.5,
+        "exclusive": true
+      },
+      {
+        "xmlId": "SURFACEONLY",
+        "display": "Surface Thoughts Only",
+        "baseCost": -0.25,
+        "exclusive": true
       }
     ]
   },
@@ -4421,6 +6236,43 @@ export const POWER_CATALOG_6E: CatalogEntry[] = [
         "minVal": 1,
         "levelStart": 1,
         "exclusive": true
+      }
+    ],
+    "modifiers": [
+      {
+        "xmlId": "GATE",
+        "display": "Gate",
+        "baseCost": -0.5
+      },
+      {
+        "xmlId": "SAFEBLINDTELEPORT",
+        "display": "Safe Blind Teleport",
+        "baseCost": 0.25,
+        "exclusive": true
+      },
+      {
+        "xmlId": "MUSTPASSTHROUGHSPACE",
+        "display": "Must Pass Through Intervening Space",
+        "baseCost": -0.25,
+        "exclusive": true
+      },
+      {
+        "xmlId": "ONLYFIXED",
+        "display": "Can Only Teleport To",
+        "baseCost": -1,
+        "exclusive": true,
+        "options": [
+          {
+            "xmlId": "FIXED",
+            "display": "Fixed Locations",
+            "baseCost": -1
+          },
+          {
+            "xmlId": "FLOATING",
+            "display": "Floating Fixed Locations",
+            "baseCost": -0.5
+          }
+        ]
       }
     ]
   },
@@ -4544,6 +6396,65 @@ export const POWER_CATALOG_6E: CatalogEntry[] = [
           }
         ]
       }
+    ],
+    "modifiers": [
+      {
+        "xmlId": "IMPROVEDTARGETGROUP",
+        "display": "Improved Results Group",
+        "baseCost": 0.25,
+        "minCost": 0.25,
+        "maxCost": 1,
+        "exclusive": true
+      },
+      {
+        "xmlId": "PARTIALTRANSFORM",
+        "display": "Partial Transform",
+        "baseCost": 0.5,
+        "exclusive": true
+      },
+      {
+        "xmlId": "VARIABLEHEALINGMETHOD",
+        "display": "Variable Healing Method",
+        "baseCost": 0.25,
+        "exclusive": true
+      },
+      {
+        "xmlId": "ALLORNOTHING",
+        "display": "All Or Nothing",
+        "baseCost": -0.5,
+        "exclusive": true
+      },
+      {
+        "xmlId": "LIMITEDTARGET",
+        "display": "Limited Target",
+        "baseCost": -0.25,
+        "exclusive": true,
+        "options": [
+          {
+            "xmlId": "SLIGHTLY",
+            "display": "([Slightly Limited]",
+            "baseCost": -0.25
+          },
+          {
+            "xmlId": "LIMITED",
+            "display": "([Limited]",
+            "baseCost": -0.5
+          },
+          {
+            "xmlId": "VERY",
+            "display": "([Very Limited]",
+            "baseCost": -1
+          }
+        ]
+      },
+      {
+        "xmlId": "RAPIDHEALING",
+        "display": "Rapid Healing",
+        "baseCost": -0.25,
+        "minCost": -1,
+        "maxCost": -0.25,
+        "exclusive": true
+      }
     ]
   },
   {
@@ -4589,6 +6500,24 @@ export const POWER_CATALOG_6E: CatalogEntry[] = [
         "display": "Fill In",
         "baseCost": 10,
         "exclusive": true
+      }
+    ],
+    "modifiers": [
+      {
+        "xmlId": "LIMITEDMEDIUM",
+        "display": "Limited Medium",
+        "options": [
+          {
+            "xmlId": "LIMITED",
+            "display": "Limited",
+            "baseCost": -0.5
+          },
+          {
+            "xmlId": "VERYLIMITED",
+            "display": "Very Limited",
+            "baseCost": -1
+          }
+        ]
       }
     ]
   },
@@ -5947,6 +7876,24 @@ export const MODIFIER_CATALOG_6E: CatalogEntry[] = [
           }
         ]
       }
+    ],
+    "modifiers": [
+      {
+        "xmlId": "ONEDEFENSE",
+        "display": "Target's defenses only apply once",
+        "baseCost": 1,
+        "minCost": 1,
+        "maxCost": 1,
+        "exclusive": true
+      },
+      {
+        "xmlId": "LOCKOUT",
+        "display": "Lock out (cannot be applied multiple times)",
+        "baseCost": 1,
+        "minCost": 1,
+        "maxCost": 1,
+        "exclusive": true
+      }
     ]
   },
   {
@@ -6936,6 +8883,17 @@ export const MODIFIER_CATALOG_6E: CatalogEntry[] = [
         "baseCost": -0.25,
         "exclusive": true
       }
+    ],
+    "modifiers": [
+      {
+        "xmlId": "CONTINUOUSCONCENTRATION",
+        "display": "Must Concentrate throughout use of Constant Power",
+        "abbreviation": "throughout",
+        "baseCost": 1,
+        "minCost": 1,
+        "maxCost": 1,
+        "exclusive": true
+      }
     ]
   },
   {
@@ -7171,6 +9129,14 @@ export const MODIFIER_CATALOG_6E: CatalogEntry[] = [
         "display": "1 Century",
         "baseCost": -7.5
       }
+    ],
+    "modifiers": [
+      {
+        "xmlId": "ACTIVATEONLY",
+        "display": "Only to Activate",
+        "baseCost": -1,
+        "exclusive": true
+      }
     ]
   },
   {
@@ -7303,6 +9269,17 @@ export const MODIFIER_CATALOG_6E: CatalogEntry[] = [
         "baseCost": -0.25,
         "exclusive": true
       }
+    ],
+    "modifiers": [
+      {
+        "xmlId": "THROUGHOUT",
+        "display": "Requires Gestures throughout",
+        "abbreviation": "throughout",
+        "baseCost": 1,
+        "minCost": 1,
+        "maxCost": 1,
+        "exclusive": true
+      }
     ]
   },
   {
@@ -7337,6 +9314,17 @@ export const MODIFIER_CATALOG_6E: CatalogEntry[] = [
         "xmlId": "COMPLEX",
         "display": "Complex",
         "baseCost": -0.25,
+        "exclusive": true
+      }
+    ],
+    "modifiers": [
+      {
+        "xmlId": "CONSTANT",
+        "display": "Requires Incantations throughout",
+        "abbreviation": "throughout",
+        "baseCost": 1,
+        "minCost": 1,
+        "maxCost": 1,
         "exclusive": true
       }
     ]
@@ -7982,6 +9970,16 @@ export const MODIFIER_CATALOG_6E: CatalogEntry[] = [
         "baseCost": 0.25,
         "exclusive": true
       }
+    ],
+    "modifiers": [
+      {
+        "xmlId": "ALWAYSOCCURS",
+        "display": "Side Effect occurs automatically whenever Power is used",
+        "baseCost": 1,
+        "minCost": 1,
+        "maxCost": 1,
+        "exclusive": true
+      }
     ]
   },
   {
@@ -8004,6 +10002,118 @@ export const MODIFIER_CATALOG_6E: CatalogEntry[] = [
     "maxCost": 0,
     "exclusive": true,
     "warningSign": true
+  },
+  {
+    "xmlId": "MASS",
+    "display": "Mass",
+    "description": "Mass represents the fact that the armor is heavy, which factors into Encumbrance and may even slow the character down enough to affect his DCV or movement.",
+    "baseCost": 0,
+    "isLimitation": true,
+    "types": [
+      "DEFENSE"
+    ],
+    "options": [
+      {
+        "xmlId": "NONE",
+        "display": "No Mass",
+        "baseCost": 0
+      },
+      {
+        "xmlId": "HALF",
+        "display": "Half Mass",
+        "baseCost": -0.5
+      },
+      {
+        "xmlId": "NORMAL",
+        "display": "Normal Mass",
+        "baseCost": -1
+      },
+      {
+        "xmlId": "DOUBLE",
+        "display": "Double Listed Mass",
+        "baseCost": -1.5
+      }
+    ]
+  },
+  {
+    "xmlId": "REQUIREDHANDS",
+    "display": "Required Hands",
+    "description": "With melee weapons and some Ranged weapons, you must also consider how many hands a character needs to use it. Most weapons only require one hand. However, some weapons, such as bows, great swords, and rifles, require two hands to use.",
+    "baseCost": 0,
+    "exclusive": true,
+    "options": [
+      {
+        "xmlId": "TWO",
+        "display": "Two-Handed",
+        "baseCost": -0.5
+      },
+      {
+        "xmlId": "ONEANDAHALF",
+        "display": "One-And-A-Half-Handed",
+        "baseCost": -0.25
+      },
+      {
+        "xmlId": "ONE",
+        "display": "One-Handed",
+        "baseCost": 0
+      }
+    ]
+  },
+  {
+    "xmlId": "REALWEAPON",
+    "display": "Real Weapon",
+    "description": "Weapons require constant maintenance, or else they lose their effectiveness. Characters must clean and sharpen their swords and knives, lest they become too dull and rusty to cut through anything harder than butter; and they must clean and oil their firearms, lest they jam or fail to work.",
+    "baseCost": -0.25,
+    "exclusive": true
+  },
+  {
+    "xmlId": "REALARMOR",
+    "display": "Real Armor",
+    "description": "Real Armor signifies that the character must spend time cleaning and maintaining his armor, or it begins to fall apart on him, providing less and less defense until it becomes completely ruined and useless.",
+    "baseCost": -0.25,
+    "exclusive": true,
+    "types": [
+      "DEFENSE"
+    ]
+  },
+  {
+    "xmlId": "STRMINIMUM",
+    "display": "STR Minimum",
+    "baseCost": -0.25,
+    "exclusive": true,
+    "types": [
+      "ATTACK"
+    ],
+    "options": [
+      {
+        "xmlId": "4-8",
+        "display": "4-8",
+        "baseCost": -0.25
+      },
+      {
+        "xmlId": "9-13",
+        "display": "9-13",
+        "baseCost": -0.5
+      },
+      {
+        "xmlId": "14-18",
+        "display": "14-18",
+        "baseCost": -0.75
+      },
+      {
+        "xmlId": "OVER18",
+        "display": "19 and higher",
+        "baseCost": -1
+      }
+    ],
+    "adders": [
+      {
+        "xmlId": "CANNOTADD",
+        "display": "STR Min. Cannot Add/Subtract Damage",
+        "baseCost": -0.5,
+        "exclusive": true
+      }
+    ]
   }
 ];
 
@@ -8162,6 +10272,17 @@ export const PERK_CATALOG_6E: CatalogEntry[] = [
         "xmlId": "SLAVISHLYLOYAL",
         "display": "Contact is slavishly loyal to character",
         "baseCost": 3
+      }
+    ],
+    "modifiers": [
+      {
+        "xmlId": "ORGANIZATION",
+        "display": "Organization Contact",
+        "description": "The Contact gives broader access to an entire organization, its resources, and its knowledge, instead of an individual",
+        "baseCost": 2,
+        "minCost": 2,
+        "maxCost": 2,
+        "exclusive": true
       }
     ]
   },
@@ -10806,6 +12927,51 @@ export const DISADVANTAGE_CATALOG_6E: CatalogEntry[] = [
             "display": "Very Common",
             "alias": "(Very Common",
             "baseCost": 15
+          }
+        ]
+      }
+    ],
+    "modifiers": [
+      {
+        "xmlId": "MULTIPLIER",
+        "display": "Vulnerability Multiplier",
+        "baseCost": 0,
+        "options": [
+          {
+            "xmlId": "HALFSTUN",
+            "display": "1 1/2x STUN",
+            "alias": "1 1/2 x STUN",
+            "baseCost": 0
+          },
+          {
+            "xmlId": "HALFBODY",
+            "display": "1 1/2x BODY",
+            "alias": "1 1/2 x BODY",
+            "baseCost": 0
+          },
+          {
+            "xmlId": "HALFEFFECT",
+            "display": "1 1/2x Effect",
+            "alias": "1 1/2 x Effect",
+            "baseCost": 0
+          },
+          {
+            "xmlId": "TWICESTUN",
+            "display": "2x STUN",
+            "alias": "2 x STUN",
+            "baseCost": 1
+          },
+          {
+            "xmlId": "TWICEBODY",
+            "display": "2x BODY",
+            "alias": "2 x BODY",
+            "baseCost": 1
+          },
+          {
+            "xmlId": "TWICEEFFECT",
+            "display": "2x Effect",
+            "alias": "2 x Effect",
+            "baseCost": 1
           }
         ]
       }

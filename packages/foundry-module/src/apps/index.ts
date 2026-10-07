@@ -4,9 +4,13 @@
 
 import { MODULE_ID, createActorSession, createNewCharacterSession, type AppliedDocument, type ActorSession, type SessionView } from '../sync/session';
 import { createItemSession, tabForItem } from '../sync/itemSession';
+import type { TabId } from '../sync/tabs';
 import { itemFamily } from '../sync/worldItems';
 import { canManageRaces } from '../races/library';
+import { HdcDocument, parseHdcFile, updateHdc, type Character } from '@hero-workshop/shared';
 import { HeroWorkshopEditor } from './editor';
+import { ItemDialog } from './item-dialog';
+import { PowerDialog } from './power-dialog';
 import { HdcInspector, NewCharacterWindow, RaceLibraryWindow } from './windows';
 import { RACE_PICKER_ID } from './race-picker';
 
@@ -81,14 +85,52 @@ export function openItemEditor(item: FoundryItem): void {
     return;
   }
   if (inLockedPack(item)) return;
-  // A list or framework opens with its members (e.g. a Multipower shield's slots)
+  // A list or framework opens with its members (e.g. a Multipower shield's slots) in the
+  // editor window; anything else goes straight to its own dialog
   void itemFamily(item).then((members) => {
+    const windowId = `item-${item.pack ? `${item.pack}-` : ''}${item.id}`;
     try {
-      openSession(createItemSession(item, members), `item-${item.pack ? `${item.pack}-` : ''}${item.id}`, notifyApplied);
+      const session = createItemSession(item, members);
+      if (members.length > 1 || !openItemDialog(session, windowId, tab)) openSession(session, windowId, notifyApplied);
     } catch (e) {
       ui.notifications.warn(e instanceof Error ? e.message : String(e));
     }
   });
+}
+
+/**
+ * Edits a single world or compendium item in its own dialog, applying on Save. Returns false
+ * (so the editor window opens instead) when hero6e's sheet has changed the item since its
+ * XML was stored: those changes are reviewed in the window first.
+ */
+function openItemDialog(session: ActorSession, windowId: string, section: TabId): boolean {
+  const itemId = session.view?.focusItemId;
+  if (!itemId || section === 'info' || section === 'characteristics') return false;
+  if (session.detectDrift(HdcDocument.parse(session.hdcXml)).some((c) => c.recommended)) return false;
+
+  const base = parseHdcFile(session.hdcXml);
+  const onSave = (edited: Character) => {
+    void (async () => {
+      try {
+        const { xml } = updateHdc(session.hdcXml, edited);
+        if (xml === session.hdcXml) return;
+        notifyApplied(await session.apply(xml, {}));
+      } catch (e) {
+        console.error(e);
+        ui.notifications.error(game.i18n.format('HERO_WORKSHOP.ApplyFailed', { name: session.actorName }));
+      }
+    })();
+  };
+  const common = {
+    itemId,
+    idScope: windowId,
+    defaultIcon: session.itemImage?.(itemId),
+    character: () => base,
+    onSave,
+  };
+  if (section === 'powers' || section === 'equipment') void new PowerDialog({ ...common, section }).render({ force: true });
+  else void new ItemDialog({ ...common, section }).render({ force: true });
+  return true;
 }
 
 export function openNewCharacter(): void {

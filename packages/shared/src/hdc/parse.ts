@@ -28,7 +28,7 @@ import type {
 } from '../types.js';
 import { generateId, heroRoundCost } from '../utils.js';
 import { getPowerDefinition } from '../powerDefinitions.js';
-import { getModifierByXmlId } from '../modifierDefinitions.js';
+import { NND, getModifierByXmlId, isNnd } from '../modifierDefinitions.js';
 import {
   CHARACTERISTIC_RULES_6E,
   characteristicCost,
@@ -1769,6 +1769,7 @@ function parseModifiers(obj: Record<string, unknown>): Modifier[] {
       if (optionAlias) {
         displayName = `${alias} (${optionAlias})`;
       }
+      if (isNnd({ xmlId: xmlid, optionId, adders })) displayName = NND.display;
       
       // Check for explicit ISLIMITATION attribute (handles cases like Expanded Effect
       // where BASECOST is negative but it's actually an advantage due to level costs)

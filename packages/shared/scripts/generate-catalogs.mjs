@@ -143,6 +143,8 @@ function entry(node) {
     excludes: elements(node, 'EXCLUDES').map(textOf),
     options: elements(node, 'OPTION').map(option),
     adders: elements(node, 'ADDER').map(adder),
+    // Modifiers only this power can take (e.g. Hand-To-Hand Attack's mandatory limitation)
+    modifiers: elements(node, 'MODIFIER').map(entry),
   });
 }
 
@@ -270,9 +272,16 @@ for (const file of ['Main6E.hdt', 'Heroic6E.hdt', 'Superheroic6E.hdt', 'Vehicle6
   templateCharacteristics[`builtIn.${file}`] = list;
 }
 
+function withHeroicModifiers(main) {
+  const known = new Set(main.map((e) => e.xmlId));
+  const heroic = elements(elements(readTemplate('Heroic6E.hdt'), 'MODIFIERS')[0]).map(entry).filter((e) => e.xmlId && !known.has(e.xmlId));
+  return [...main, ...heroic];
+}
+
 const catalogs = {
   POWER_CATALOG_6E: entries('POWERS'),
-  MODIFIER_CATALOG_6E: entries('MODIFIERS'),
+  // Main6E's modifiers plus the Heroic template's weapon and armor ones (Real Weapon, STR Minimum, ...)
+  MODIFIER_CATALOG_6E: withHeroicModifiers(entries('MODIFIERS')),
   PERK_CATALOG_6E: entries('PERKS'),
   TALENT_CATALOG_6E: entries('TALENTS'),
   DISADVANTAGE_CATALOG_6E: entries('DISADVANTAGES'),
@@ -324,6 +333,8 @@ export interface CatalogEntry {
   /** Sense modifiers: the cost (per level, if leveled) for all senses, a sense group or a single sense */
   scopeCosts?: { all?: number; group?: number; sense?: number };
   exclusive?: boolean;
+  /** Powers: modifiers only this power can take */
+  modifiers?: CatalogEntry[];
   /** Explicit on the few modifiers whose sign doesn't tell */
   isLimitation?: boolean;
   inputLabel?: string;

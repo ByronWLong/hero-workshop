@@ -31,6 +31,7 @@ import {
 import { getRaceLibrary, registerRaceSettings } from './races/library';
 import { MODULE_ID, createActorSession } from './sync/session';
 import { registerImportRepair, wrapHeroUploads } from './sync/importRepair';
+import { openHeroSheet, registerItemSheetBypass, wrapItemSheets } from './apps/item-sheet-bypass';
 
 /** Lists Foundry-side edits not yet in an actor's stored HDC (for macros and debugging) */
 function driftReport(actor: FoundryActor): { item: string; kind: string; summary: string }[] {
@@ -66,12 +67,15 @@ Hooks.once('init', () => {
   }
   registerRaceSettings(openRaceLibrary);
   registerImportRepair();
+  registerItemSheetBypass();
   void preloadTemplates();
 });
 
 // hero6e has set up its document and UI classes by now
 Hooks.once('setup', () => {
-  if (isHeroSystem()) wrapHeroUploads();
+  if (!isHeroSystem()) return;
+  wrapHeroUploads();
+  wrapItemSheets();
 });
 
 // ApplicationV2 fires getHeaderControls<ClassName> for every class in the sheet's hierarchy
@@ -238,6 +242,19 @@ Hooks.on('getItemContextOptions', ((directory: EntryDirectory, options: ContextM
     callback: async (li) => {
       const item = await itemFrom(li).load();
       if (item) openItemEditor(item);
+    },
+  });
+  // World and compendium items open in Hero Workshop; hero6e's sheet stays a right-click away
+  options.push({
+    name: 'HERO_WORKSHOP.OpenHeroSheet',
+    icon: '<i class="fa-solid fa-file-lines"></i>',
+    condition: (li) => {
+      const entry = itemFrom(li);
+      return entry.pack ? game.user.isGM : !!entry.world?.isOwner && !!entry.world.system._hdcXml;
+    },
+    callback: async (li) => {
+      const item = await itemFrom(li).load();
+      if (item) openHeroSheet(item);
     },
   });
 }) as (...args: never[]) => unknown);

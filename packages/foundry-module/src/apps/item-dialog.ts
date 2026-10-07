@@ -21,11 +21,13 @@ export interface ItemDialogOptions {
   onSave(character: Character): void;
   /** Icon shown when the item has no custom one (its current Foundry icon) */
   defaultIcon?: string;
+  /** Keeps dialogs for different documents apart (copies of an item share its HDC ID) */
+  idScope?: string;
 }
 
 /** Existing items get one dialog each; new-item dialogs are always fresh */
-export const itemDialogId = (section: string, itemId?: string) =>
-  `hero-workshop-item-${section}-${itemId ?? `new-${Date.now().toString(36)}`}`;
+export const itemDialogId = (section: string, itemId?: string, idScope?: string) =>
+  `hero-workshop-item-${idScope ? `${idScope}-` : ''}${section}-${itemId ?? `new-${Date.now().toString(36)}`}`;
 
 export class ItemDialog extends HeroWorkshopApplication {
   static DEFAULT_OPTIONS = {
@@ -51,7 +53,7 @@ export class ItemDialog extends HeroWorkshopApplication {
   constructor(readonly config: ItemDialogOptions) {
     const values = itemFormValues(config.character(), config.section, config.itemId);
     super({
-      id: itemDialogId(config.section, config.itemId),
+      id: itemDialogId(config.section, config.itemId, config.idScope),
       window: { title: itemForm(config.section, values, !config.itemId, config.character()).title },
     });
     this.#values = values;

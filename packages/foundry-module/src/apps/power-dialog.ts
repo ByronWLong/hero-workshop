@@ -21,6 +21,10 @@ import {
   setModifierLevels,
   setModifierOption,
   setModifierValue,
+  setModifierInput,
+  convertSpellModifier,
+  convertCustomSpells,
+  setModifierAdder,
   setRequiredSkill,
   setSubPowers,
   type Character,
@@ -39,9 +43,15 @@ export interface PowerDialogOptions {
   onSave(character: Character): void;
   /** Distinguishes dialogs for a compound's parts from the editor's own dialogs */
   idScope?: string;
+  /** A compound's part, edited on a scratch character holding the parts */
+  isPart?: boolean;
   /** Icon shown when the item has no custom one (its current Foundry icon) */
   defaultIcon?: string;
+  /** A part of a piece of equipment (equipment is bought with money, so it's never "free") */
+  inEquipment?: boolean;
 }
+
+const kindAllowsFree = (kind: PowerKind) => kind !== 'list';
 
 const TITLES: Record<PowerKind, string> = {
   power: 'power',
@@ -68,6 +78,8 @@ export class PowerDialog extends HeroWorkshopApplication {
       pickIcon: PowerDialog.#onPickIcon,
       matchRollCategory: PowerDialog.#onMatchRollCategory,
       convertToPowerSkill: PowerDialog.#onConvertToPowerSkill,
+      convertToSpell: PowerDialog.#onConvertToSpell,
+      convertAllSpells: PowerDialog.#onConvertAllSpells,
       clearIcon: PowerDialog.#onClearIcon,
     },
   };
@@ -82,7 +94,7 @@ export class PowerDialog extends HeroWorkshopApplication {
   constructor(readonly config: PowerDialogOptions) {
     const draft = powerDraft(config.character(), config.section, config.itemId, config.kind);
     // New items pick their kind in the form, so their title names only the section
-    const noun = config.idScope
+    const noun = config.isPart
       ? 'part'
       : config.section === 'equipment'
         ? config.itemId && draft.kind !== 'power' ? TITLES[draft.kind] : 'equipment'
@@ -100,7 +112,7 @@ export class PowerDialog extends HeroWorkshopApplication {
   async _prepareContext() {
     const view = powerFormView(this.config.character(), this.config.section, this.#draft, this.config.itemId);
     // A new top-level item can be one power, a compound of several, or (in Powers) a list
-    const isNew = !this.config.itemId && !this.config.idScope;
+    const isNew = !this.config.itemId && !this.config.isPart;
     const kinds = [
       { value: 'power', label: 'One power', hint: this.config.section === 'equipment' ? 'e.g. armor, a torch' : 'a single power' },
       { value: 'compound', label: 'Compound', hint: this.config.section === 'equipment' ? 'several powers, e.g. a sword: damage + parry' : 'several powers bought together' },
@@ -112,6 +124,10 @@ export class PowerDialog extends HeroWorkshopApplication {
       ...view,
       // Skills can be changed from here only in the editor's own forms (not a compound part's)
       canConvertSkills: !this.config.idScope,
+      // Keeps each dialog's search lists apart
+      uid: this.id,
+      // Equipment and its parts cost money rather than points, so they can't be GM-given
+      canBeFree: kindAllowsFree(this.#draft.kind) && this.config.section !== 'equipment' && !this.config.inEquipment,
       icon: { src: this.#draft.icon || this.config.defaultIcon || DEFAULT_ICON, custom: !!this.#draft.icon },
       kindChoices: isNew ? kinds.map((k) => ({ ...k, checked: k.value === this.#draft.kind })) : undefined,
       costs: view.framework
@@ -143,7 +159,7 @@ export class PowerDialog extends HeroWorkshopApplication {
   protected onFieldChange(field: string, value: string, target: HTMLInputElement): void {
     const draft = this.#draft;
     const n = Number(value);
-    const [kind, id, prop] = field.split('.');
+    const [kind, id, prop, sub] = field.split('.');
 
     switch (kind) {
       case 'kind':
@@ -160,6 +176,8 @@ export class PowerDialog extends HeroWorkshopApplication {
         if (prop === 'option') return this.#update(setModifierOption(draft, id!, value));
         if (prop === 'levels') return this.#update(setModifierLevels(draft, id!, n));
         if (prop === 'value') return this.#update(setModifierValue(draft, id!, n));
+        if (prop === 'input') return this.#update(setModifierInput(draft, id!, value));
+        if (prop === 'adder') return this.#update(setModifierAdder(draft, id!, sub!, target.checked));
         if (prop === 'skill') return value ? this.#update(setRequiredSkill(draft, id!, value, this.config.character())) : undefined;
         return;
       case 'barrier':
@@ -198,6 +216,8 @@ export class PowerDialog extends HeroWorkshopApplication {
       section: 'powers',
       itemId,
       idScope: this.id,
+      isPart: true,
+      inEquipment: this.config.section === 'equipment' || this.config.inEquipment,
       character: () => compoundPartsCharacter(this.config.character(), this.#draft),
       onSave: (character) => this.#update(setSubPowers(this.#draft, character.powers)),
     }).render({ force: true });
@@ -229,6 +249,19 @@ export class PowerDialog extends HeroWorkshopApplication {
     this.config.onSave(converted);
     this.#update(setRequiredSkill(this.#draft, target.dataset.id!, name, converted));
     ui.notifications.info(`${name} is now a Power skill; spells that roll it use a Skill roll.`);
+  }
+
+  static #onConvertToSpell(this: PowerDialog, _event: Event, target: HTMLElement) {
+    this.#update(convertSpellModifier(this.#draft, target.dataset.id!));
+  }
+
+  /** Converts the character's other custom Spell modifiers right away, and this item's with the form */
+  static #onConvertAllSpells(this: PowerDialog) {
+    const { character, count } = convertCustomSpells(this.config.character(), this.config.itemId);
+    if (count) this.config.onSave(character);
+    const draft = this.#draft.modifiers.reduce((d, m) => convertSpellModifier(d, m.id), this.#draft);
+    this.#update(draft);
+    ui.notifications.info(`Converted ${count} other custom Spell modifier${count === 1 ? '' : 's'}; this one changes when you save.`);
   }
 
   static #onMatchRollCategory(this: PowerDialog, _event: Event, target: HTMLElement) {

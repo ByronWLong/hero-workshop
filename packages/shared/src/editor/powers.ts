@@ -11,7 +11,7 @@ import {
   getPowerDefinition,
   type PowerDefinition,
 } from '../powerDefinitions.js';
-import { getAllModifiers, getModifierByXmlId, type ModifierDefinition } from '../modifierDefinitions.js';
+import { NND, getAllModifiers, getModifierByXmlId, isNnd, powerSpecificModifiers, type ModifierDefinition } from '../modifierDefinitions.js';
 import { calculateAdderCost, heroRoundCost } from '../utils.js';
 import { fractionText as fraction } from './lists.js';
 import { skillRollCategory } from '../hdc/foundry.js';
@@ -369,6 +369,7 @@ function modifierValue(def: ModifierDefinition | undefined, m: Modifier): number
 }
 
 function modifierName(def: ModifierDefinition | undefined, m: Modifier): string {
+  if (isNnd(m)) return NND.display;
   const base = def?.display ?? m.alias ?? m.name;
   if (m.xmlId === 'AOE') return `${base} (${m.levels ?? 4}m ${m.optionAlias ?? m.optionId ?? 'Radius'})`;
   return m.optionAlias ? `${base} (${m.optionAlias})` : base;
@@ -381,6 +382,13 @@ function refreshModifier(m: Modifier): Modifier {
 }
 
 export function addModifier(draft: PowerDraft, xmlId: string): PowerDraft {
+  // No Normal Defense: AVAD from Very Common to Rare, All Or Nothing
+  if (xmlId === NND.choice) {
+    const added = addModifier(draft, 'AVAD');
+    const avad = added.modifiers[added.modifiers.length - 1];
+    if (!avad || avad.xmlId !== 'AVAD') return draft;
+    return setModifierAdder(setModifierOption(added, avad.id, NND.option), avad.id, NND.adder, true);
+  }
   const def = getModifierByXmlId(xmlId);
   if (!def) return draft;
   const option = xmlId === 'AOE' ? def.options?.find((o) => o.xmlId === 'RADIUS') ?? def.options?.[0] : !def.hasLevels ? def.options?.[0] : undefined;
@@ -425,6 +433,76 @@ export function setModifierOption(draft: PowerDraft, id: string, optionId: strin
 
 export function setModifierLevels(draft: PowerDraft, id: string, levels: number): PowerDraft {
   return { ...draft, modifiers: draft.modifiers.map((m) => (m.id === id ? refreshModifier({ ...m, levels: Math.max(1, levels) }) : m)) };
+}
+
+// =============================================================================
+// Spell (Fantasy Hero)
+// =============================================================================
+
+/**
+ * A custom modifier standing in for Fantasy Hero's Spell limitation (Hero Designer's 6E template
+ * lacks it, so builders type it in). Converting keeps the cost; hero6e then knows it's a Spell.
+ */
+export function isCustomSpell(m: Modifier): boolean {
+  if (m.xmlId && getModifierByXmlId(m.xmlId)) return false;
+  return /^spell$/i.test((m.alias || m.name || '').trim()) && m.value === -0.5;
+}
+
+const asSpell = (m: Modifier): Modifier =>
+  isCustomSpell(m) ? { ...m, xmlId: 'SPELL', name: 'Spell', alias: 'Spell', value: -0.5, isAdvantage: false, isLimitation: true } : m;
+
+export function convertSpellModifier(draft: PowerDraft, id: string): PowerDraft {
+  return { ...draft, modifiers: draft.modifiers.map((m) => (m.id === id ? asSpell(m) : m)) };
+}
+
+type WithModifiers = { id: string; modifiers?: Modifier[]; subPowers?: WithModifiers[] };
+
+function convertSpellsIn<T extends WithModifiers>(items: T[], skipId?: string): { items: T[]; count: number } {
+  let count = 0;
+  const out = items.map((item) => {
+    if (item.id === skipId) return item;
+    const found = (item.modifiers ?? []).filter(isCustomSpell).length;
+    const subs = item.subPowers ? convertSpellsIn(item.subPowers) : undefined;
+    count += found + (subs?.count ?? 0);
+    if (!found && !subs?.count) return item;
+    return { ...item, modifiers: item.modifiers?.map(asSpell), ...(subs ? { subPowers: subs.items } : {}) };
+  });
+  return { items: out, count };
+}
+
+/**
+ * Converts every custom "Spell" modifier in the character's powers and equipment to the Spell
+ * limitation, optionally leaving one item alone (the one open in a dialog)
+ */
+export function convertCustomSpells(character: Character, skipId?: string): { character: Character; count: number } {
+  const powers = convertSpellsIn(character.powers, skipId);
+  const equipment = convertSpellsIn(character.equipment ?? [], skipId);
+  const count = powers.count + equipment.count;
+  if (!count) return { character, count };
+  return { character: { ...character, powers: powers.items, ...(character.equipment ? { equipment: equipment.items } : {}) }, count };
+}
+
+/** A modifier's free-text detail (Hero Designer's INPUT), e.g. the defense an AVAD attack works against */
+export function setModifierInput(draft: PowerDraft, id: string, input: string): PowerDraft {
+  return { ...draft, modifiers: draft.modifiers.map((m) => (m.id === id ? { ...m, input: input.trim() || undefined } : m)) };
+}
+
+/** Turns one of a modifier's own adders on or off (e.g. AVAD's All Or Nothing, which makes it NND) */
+export function setModifierAdder(draft: PowerDraft, id: string, adderXmlId: string, on: boolean): PowerDraft {
+  return {
+    ...draft,
+    modifiers: draft.modifiers.map((m) => {
+      if (m.id !== id) return m;
+      const kept = (m.adders ?? []).filter((a) => a.xmlId !== adderXmlId);
+      if (!on) return refreshModifier({ ...m, adders: kept });
+      const def = (m.xmlId ? getModifierByXmlId(m.xmlId) : undefined)?.adders?.find((a) => a.xmlId === adderXmlId);
+      if (!def) return m;
+      // Hero Designer's alias is the display without its abbreviation ("All Or Nothing", not "... (NND)")
+      const alias = def.abbreviation ? def.display.replace(` (${def.abbreviation})`, '') : def.display;
+      const adder: Adder = { id: newId(), xmlId: adderXmlId, name: alias, alias, baseCost: def.baseCost, includeInBase: false, selected: true };
+      return refreshModifier({ ...m, adders: [...kept, adder] });
+    }),
+  };
 }
 
 export function setModifierValue(draft: PowerDraft, id: string, value: number): PowerDraft {
@@ -525,10 +603,15 @@ export function powerChoices(selected: string) {
   return groups;
 }
 
-export function modifierChoices() {
-  const all = Object.values(getAllModifiers()).sort((a, b) => a.display.localeCompare(b.display));
+export function modifierChoices(powerXmlId?: string) {
+  const all = [...Object.values(getAllModifiers()), ...powerSpecificModifiers(powerXmlId)]
+    .filter((m, i, list) => list.findIndex((o) => o.xmlId === m.xmlId) === i)
+    .sort((a, b) => a.display.localeCompare(b.display));
   return {
-    advantages: all.filter((m) => m.isAdvantage).map((m) => ({ value: m.xmlId, label: m.display })),
+    advantages: [
+      ...all.filter((m) => m.isAdvantage).map((m) => ({ value: m.xmlId, label: m.display })),
+      { value: NND.choice, label: NND.display },
+    ].sort((a, b) => a.label.localeCompare(b.label)),
     limitations: all.filter((m) => m.isLimitation).map((m) => ({ value: m.xmlId, label: m.display })),
   };
 }
@@ -587,6 +670,7 @@ export function powerFormView(character: Character, section: PowerSection, draft
     })),
     modifiers: draft.modifiers.map((m) => {
       const mdef = m.xmlId ? getModifierByXmlId(m.xmlId) : undefined;
+      const nnd = isNnd(m);
       const rollsSkill = m.xmlId === 'REQUIRESASKILLROLL' && SKILL_ROLL_OPTION.test(m.optionId ?? '');
       const skills = rollsSkill ? rollSkillChoices(character) : [];
       const current = m.comments?.trim() ?? '';
@@ -601,9 +685,25 @@ export function powerFormView(character: Character, section: PowerSection, draft
         rawValue: m.value,
         hasLevels: !!mdef?.hasLevels || m.xmlId === 'AOE',
         levels: m.levels ?? 1,
-        options: m.xmlId === 'AOE' || !mdef?.hasLevels
+        // No Normal Defense is fixed at Very Common -> Rare with All Or Nothing: only its defense is chosen
+        isNnd: nnd,
+        toSpell: isCustomSpell(m),
+        options: nnd ? undefined : m.xmlId === 'AOE' || !mdef?.hasLevels
           ? mdef?.options?.map((o) => ({ value: o.xmlId, label: o.display, selected: o.xmlId === m.optionId }))
           : undefined,
+        // Free-text detail, e.g. the defense an AVAD attack works against
+        input: nnd
+          ? { label: 'Rare defense', value: m.input ?? '' }
+          : mdef?.inputLabel || m.input ? { label: mdef?.inputLabel ?? 'Details', value: m.input ?? '' } : undefined,
+        // The modifier's own on/off adders (AVAD's All Or Nothing makes it NND)
+        adderChoices: (nnd ? [] : mdef?.adders ?? [])
+          .filter((a) => !a.options?.length && !a.lvlCost)
+          .map((a) => ({
+            value: a.xmlId,
+            label: a.display,
+            cost: fraction(a.baseCost),
+            checked: (m.adders ?? []).some((x) => x.xmlId === a.xmlId),
+          })),
       };
     }),
     inherited: inherited.map((m) => `${m.name} (${fraction(m.value)})`),
@@ -613,7 +713,9 @@ export function powerFormView(character: Character, section: PowerSection, draft
       detail: [p.alias && p.alias !== p.name ? p.alias : '', modifierText(p.modifiers)].filter(Boolean).join(' · '),
       cost: p.realCost ?? 0,
     })),
-    modifierChoices: modifierChoices(),
+    modifierChoices: modifierChoices(draft.xmlId),
+    /** Custom "Spell" modifiers elsewhere in the character (see convertCustomSpells) */
+    otherCustomSpells: draft.modifiers.some(isCustomSpell) ? convertCustomSpells(character, itemId).count : 0,
     costs,
   };
 }

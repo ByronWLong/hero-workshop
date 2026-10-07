@@ -144,10 +144,8 @@
     </div>
     {{/each}}
     {{#if availableAdders.length}}
-    <select data-field="addAdder">
-      <option value="">Add an adder…</option>
-      {{#each availableAdders}}<option value="{{value}}">{{label}}</option>{{/each}}
-    </select>
+    <input type="search" class="hw-picker" data-field="addAdder" data-pick list="{{uid}}-adders" placeholder="Add an adder… (type to search)" autocomplete="off">
+    <datalist id="{{uid}}-adders">{{#each availableAdders}}<option value="{{label}}" data-value="{{value}}"></option>{{/each}}</datalist>
     {{/if}}
   </fieldset>
   {{/if}}
@@ -184,6 +182,26 @@
       {{else}}<span class="hw-mod-value">{{value}}</span>{{/if}}
       <a data-action="removeModifier" data-id="{{id}}" data-tooltip="Remove"><i class="fa-solid fa-xmark" inert></i></a>
     </div>
+    {{#if toSpell}}
+    <p class="hint hw-mod-mismatch">
+      This custom modifier is Fantasy Hero's Spell limitation.
+      <a data-action="convertToSpell" data-id="{{id}}">Make it the Spell limitation</a>{{#if ../otherCustomSpells}},
+      or <a data-action="convertAllSpells" data-id="{{id}}">convert this and the {{../otherCustomSpells}} other{{#unless (eq ../otherCustomSpells 1)}}s{{/unless}} in this character</a>{{/if}}.
+      Same cost; hero6e then knows it's a Spell (desktop Hero Designer's 6E template doesn't include it).
+    </p>
+    {{/if}}
+    {{#if (or input adderChoices.length)}}
+    <div class="hw-mod-details">
+      {{#if input}}
+      <label class="hw-mod-input">{{input.label}}
+        <input type="text" data-field="mod.{{id}}.input" value="{{input.value}}" placeholder="{{input.label}}">
+      </label>
+      {{/if}}
+      {{#each adderChoices}}
+      <label class="checkbox"><input type="checkbox" data-field="mod.{{../id}}.adder.{{value}}" {{checked checked}}> {{label}} ({{cost}})</label>
+      {{/each}}
+    </div>
+    {{/if}}
     {{#if skill}}
     <div class="hw-mod-skill">
       <label for="hw-mod-skill-{{id}}">Skill rolled</label>
@@ -215,14 +233,10 @@
     {{/each}}
     {{#if inherited.length}}<p class="hint">From the list: {{#each inherited}}{{this}}{{#unless @last}}, {{/unless}}{{/each}}</p>{{/if}}
     <div class="hw-add-modifiers">
-      <select data-field="addModifier">
-        <option value="">Add an advantage…</option>
-        {{#each modifierChoices.advantages}}<option value="{{value}}">{{label}}</option>{{/each}}
-      </select>
-      <select data-field="addModifier">
-        <option value="">Add a limitation…</option>
-        {{#each modifierChoices.limitations}}<option value="{{value}}">{{label}}</option>{{/each}}
-      </select>
+      <input type="search" class="hw-picker" data-field="addModifier" data-pick list="{{uid}}-advantages" placeholder="Add an advantage… (type to search)" autocomplete="off">
+      <datalist id="{{uid}}-advantages">{{#each modifierChoices.advantages}}<option value="{{label}}" data-value="{{value}}"></option>{{/each}}</datalist>
+      <input type="search" class="hw-picker" data-field="addModifier" data-pick list="{{uid}}-limitations" placeholder="Add a limitation… (type to search)" autocomplete="off">
+      <datalist id="{{uid}}-limitations">{{#each modifierChoices.limitations}}<option value="{{label}}" data-value="{{value}}"></option>{{/each}}</datalist>
     </div>
     <div class="hw-add-custom">
       <input type="text" data-field="custom.name" placeholder="Custom modifier name">
@@ -232,14 +246,14 @@
   </fieldset>
   {{/unless}}
 
-  {{#unless (eq kind "list")}}
+  {{#if canBeFree}}
   <div class="form-group">
     <label class="checkbox hw-free">
       <input type="checkbox" data-field="free" {{checked draft.free}}> Free (given by the GM)
     </label>
     <p class="hint">Costs no points; Active Points, END and rolls are unchanged. A free item with a penalty gives no points back.</p>
   </div>
-  {{/unless}}
+  {{/if}}
 
   <div class="form-group stacked">
     <label>Notes</label>

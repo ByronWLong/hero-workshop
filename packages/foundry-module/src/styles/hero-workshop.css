@@ -346,6 +346,33 @@
   font-size: var(--font-size-12);
 }
 
+.hero-workshop .hw-mod-details {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.25rem 1rem;
+  padding: 0 0 0.5rem 1rem;
+}
+
+.hero-workshop .hw-mod-input {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex: 1 1 16rem;
+}
+
+.hero-workshop .hw-mod-input input {
+  flex: 1;
+}
+
+.hero-workshop .hw-item-price,
+.hero-workshop .hw-item-weight {
+  color: var(--color-text-secondary);
+  min-width: 3.5rem;
+  text-align: right;
+  white-space: nowrap;
+}
+
 .hero-workshop .hw-item-cost {
   font-weight: bold;
   min-width: 2.5rem;
@@ -475,6 +502,17 @@
   display: flex;
   gap: var(--hw-gap);
   margin-top: 0.5rem;
+}
+
+.hero-workshop .hw-picker {
+  width: 100%;
+  margin-top: 0.5rem;
+}
+
+.hero-workshop .hw-add-modifiers > .hw-picker {
+  flex: 1 1 0;
+  min-width: 0;
+  margin-top: 0;
 }
 
 .hero-workshop .hw-add-custom > button {

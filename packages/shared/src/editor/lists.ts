@@ -24,6 +24,9 @@ export interface ItemRowView {
   free: boolean;
   /** Cost before any multiplier (what a list's own figure includes for this row) */
   rawCost: number;
+  /** Equipment: what it costs to buy and what it weighs (kg), when set */
+  price?: number;
+  weight?: number;
   children: ItemRowView[];
 }
 
@@ -46,6 +49,8 @@ export interface ListItem {
   points?: number;
   roll?: number;
   subPowers?: ListItem[];
+  price?: number;
+  weight?: number;
 }
 
 export function sectionItems(character: Character, section: SectionId): ListItem[] {
@@ -147,6 +152,8 @@ export function buildItemTree(character: Character, section: SectionId): ItemRow
       cost: Math.round(cost * 2) / 2 || 0, // no "-0" for a free penalty
       free: section !== 'disadvantages' && multiplier === 0,
       rawCost,
+      ...(section === 'equipment' && item.price ? { price: item.price } : {}),
+      ...(section === 'equipment' && item.weight ? { weight: item.weight } : {}),
       isGroup,
       icon: item.icon,
       acceptsChildren: !!item.isGroup || item.type === 'LIST' || FRAMEWORKS.includes(item.xmlId ?? item.type ?? ''),

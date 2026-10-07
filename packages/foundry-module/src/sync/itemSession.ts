@@ -66,7 +66,14 @@ export function createItemSession(item: FoundryItem, members: FoundryItem[] = [i
     actorName: item.name,
     isNew: false,
     hdcXml,
-    view: { visibleTabs: [placement.tab], initialTab: placement.tab, hideSidebar: true, applyLabel: 'Apply to item' },
+    view: {
+      visibleTabs: [placement.tab],
+      initialTab: placement.tab,
+      hideSidebar: true,
+      applyLabel: 'Apply to item',
+      // A single item is edited in its own dialog (a list or framework in the window, with its members)
+      focusItemId: family.length === 1 ? hdcId : undefined,
+    },
 
     detectDrift(target) {
       // The items' own sheets may have changed them since their XML was stored

@@ -7,7 +7,7 @@
  * - Values are fractions (e.g., 0.25 = +1/4, -0.5 = -1/2)
  */
 
-import { MODIFIER_CATALOG_6E, type CatalogEntry } from './generated/catalog6e.js';
+import { MODIFIER_CATALOG_6E, POWER_CATALOG_6E, type CatalogEntry } from './generated/catalog6e.js';
 
 // ============================================================================
 // TYPES
@@ -54,6 +54,8 @@ export interface ModifierDefinition {
   hasLevels: boolean;
   options?: ModifierOption[];
   adders?: ModifierAdder[];
+  /** What the modifier's free-text detail (Hero Designer's INPUT) is, e.g. AVAD's "Defense" */
+  inputLabel?: string;
   description?: string;
 }
 
@@ -165,7 +167,7 @@ export const ADVANTAGES: Record<string, ModifierDefinition> = {
       { xmlId: 'RARERARE', display: 'Rare -> Rare', baseCost: 0 },
     ],
     adders: [
-      { xmlId: 'NND', display: 'All Or Nothing (NND)', abbreviation: 'NND', baseCost: -0.5, exclusive: true },
+      { xmlId: 'NND', display: 'All Or Nothing', baseCost: -0.5, exclusive: true },
     ],
     description: 'A Power with AVAD is affected by a defense other than the one that\'s standard for it.',
   },
@@ -713,6 +715,20 @@ export const ADVANTAGES: Record<string, ModifierDefinition> = {
 // ============================================================================
 
 export const LIMITATIONS: Record<string, ModifierDefinition> = {
+  // --- Spell (Fantasy Hero) ---
+  // Not in Hero Designer's 6E template (its 5E one has it); hero6e supports it in 6E as SPELL
+  SPELL: {
+    xmlId: 'SPELL',
+    display: 'Spell',
+    baseCost: -0.5,
+    exclusive: true,
+    isAdvantage: false,
+    isLimitation: true,
+    hasOptions: false,
+    hasLevels: false,
+    description: "(Fantasy Hero) A spell can't use the same combat modifiers and maneuvers as regular attacks.",
+  },
+
   // --- Always On ---
   ALWAYSON: {
     xmlId: 'ALWAYSON',
@@ -1123,15 +1139,32 @@ for (const entry of MODIFIER_CATALOG_6E) {
     if (existing.options && missing.length) {
       existing.options.push(...missing.map((o) => ({ xmlId: o.xmlId, display: o.display, baseCost: o.baseCost ?? 0, lvlVal: o.lvlVal })));
     }
+    existing.inputLabel ??= entry.inputLabel;
     continue;
   }
   const definition = modifierFromCatalog(entry);
   (definition.isLimitation ? LIMITATIONS : ADVANTAGES)[entry.xmlId] = definition;
 }
 
+// Modifiers only some powers can take (e.g. Hand-To-Hand Attack's mandatory limitation), by power
+const POWER_SPECIFIC = new Map<string, ModifierDefinition[]>();
+const POWER_SPECIFIC_BY_ID: Record<string, ModifierDefinition> = {};
+for (const power of POWER_CATALOG_6E) {
+  const own = (power.modifiers ?? []).map((e) => getModifierByXmlId(e.xmlId) ?? POWER_SPECIFIC_BY_ID[e.xmlId] ?? modifierFromCatalog(e));
+  if (!own.length) continue;
+  POWER_SPECIFIC.set(power.xmlId, own);
+  for (const m of own) POWER_SPECIFIC_BY_ID[m.xmlId] ??= m;
+}
+
+/** Modifiers this power can take beyond the general ones */
+export function powerSpecificModifiers(powerXmlId: string | undefined): ModifierDefinition[] {
+  return (powerXmlId && POWER_SPECIFIC.get(powerXmlId)) || [];
+}
+
 function modifierFromCatalog(e: CatalogEntry): ModifierDefinition {
-  // Option-priced modifiers (e.g. Delayed Return Rate) have no BASECOST of their own
-  const baseCost = e.baseCost ?? e.options?.[0]?.baseCost ?? 0;
+  // Option-priced modifiers (e.g. Delayed Return Rate, Required Hands) have no BASECOST of their own
+  const optionCosts = (e.options ?? []).map((o) => o.baseCost ?? 0);
+  const baseCost = e.baseCost || (optionCosts.find((c) => c !== 0) ?? 0);
   const isLimitation = e.isLimitation ?? (baseCost < 0 || (baseCost === 0 && (e.lvlCost ?? 0) < 0));
   return {
     xmlId: e.xmlId,
@@ -1163,8 +1196,32 @@ function modifierFromCatalog(e: CatalogEntry): ModifierDefinition {
       minVal: a.minVal,
       options: a.options?.map((o) => ({ xmlId: o.xmlId, display: o.display, baseCost: o.baseCost ?? 0, lvlVal: o.lvlVal })),
     })),
+    inputLabel: e.inputLabel,
     description: e.description,
   };
+}
+
+// ============================================================================
+// No Normal Defense
+// ============================================================================
+
+/**
+ * 6E's No Normal Defense is a shortcut, not a modifier of its own in Hero Designer: Attack
+ * Versus Alternate Defense from a Very Common defense to a Rare one, with All Or Nothing, naming
+ * the rare defense. The editor offers and shows it as its own advantage.
+ */
+export const NND = {
+  /** The add-advantage choice that stands for it */
+  choice: 'AVAD:NND',
+  display: 'No Normal Defense (NND)',
+  option: 'VERYRARE',
+  optionDisplay: 'Very Common -> Rare',
+  adder: 'NND',
+} as const;
+
+/** An AVAD set up as No Normal Defense */
+export function isNnd(m: { xmlId?: string; optionId?: string; adders?: { xmlId?: string }[] }): boolean {
+  return m.xmlId === 'AVAD' && m.optionId === NND.option && !!m.adders?.some((a) => a.xmlId === NND.adder);
 }
 
 // ============================================================================
@@ -1182,7 +1239,7 @@ export function getAllModifiers(): Record<string, ModifierDefinition> {
  * Get a modifier by its XMLID
  */
 export function getModifierByXmlId(xmlId: string): ModifierDefinition | undefined {
-  return ADVANTAGES[xmlId] || LIMITATIONS[xmlId];
+  return ADVANTAGES[xmlId] || LIMITATIONS[xmlId] || POWER_SPECIFIC_BY_ID[xmlId];
 }
 
 /**

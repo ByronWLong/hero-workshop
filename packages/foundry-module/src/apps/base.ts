@@ -106,6 +106,27 @@ export class HeroWorkshopApplication extends api.HandlebarsApplicationMixin(api.
     this.#renderPending = false;
   }
 
+  /**
+   * Type-to-search pickers: `<input list="…" data-field="…" data-pick>` over a datalist whose
+   * options show a label and carry the chosen value in `data-value`. Once the text matches an
+   * option's label, the field changes to that value and the box empties.
+   */
+  #pick(field: string, input: HTMLInputElement, loose = false): void {
+    const typed = input.value.trim().toLowerCase();
+    if (!typed) return;
+    const options = [...(input.list?.options ?? [])];
+    let option = options.find((o) => o.value.toLowerCase() === typed);
+    // On Enter, part of a name will do when only one option contains it
+    if (!option && loose) {
+      const words = typed.split(/\s+/);
+      const matches = options.filter((o) => words.every((w) => o.value.toLowerCase().includes(w)));
+      if (matches.length === 1) option = matches[0];
+    }
+    if (!option?.dataset.value) return;
+    input.value = '';
+    this.onFieldChange(field, option.dataset.value, input);
+  }
+
   /** Called with each changed form control that has a `data-field` attribute */
   protected onFieldChange(_field: string, _value: string, _target: HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement): void {}
 
@@ -129,12 +150,15 @@ export class HeroWorkshopApplication extends api.HandlebarsApplicationMixin(api.
       const target = event.target as HTMLInputElement;
       const field = target?.dataset?.field;
       if (!field) return;
+      if (target.dataset.pick !== undefined) return this.#pick(field, target);
       const value = target.type === 'checkbox' ? String(target.checked) : target.value;
       this.onFieldChange(field, value, target);
     });
     // Search boxes filter their list as you type, without a re-render (which would lose focus)
     this.element.addEventListener('input', (event) => {
       const input = event.target as HTMLInputElement;
+      // Choosing a suggestion fills the box with its whole label: that's the pick
+      if (input?.dataset?.pick !== undefined && input.dataset.field) return this.#pick(input.dataset.field, input);
       if (!input?.dataset?.search) return;
       this.#searches.set(input.dataset.search, input.value);
       filterSearchList(this.element, input);
@@ -142,6 +166,12 @@ export class HeroWorkshopApplication extends api.HandlebarsApplicationMixin(api.
     // Rows marked role="button" open like a click on Enter/Space
     this.element.addEventListener('keydown', (event) => {
       const target = event.target as HTMLElement;
+      // Enter in a picker chooses its suggestion; it never submits the form
+      if (event.key === 'Enter' && target.dataset?.pick !== undefined) {
+        event.preventDefault();
+        if (target.dataset.field) this.#pick(target.dataset.field, target as HTMLInputElement, true);
+        return;
+      }
       if ((event.key === 'Enter' || event.key === ' ') && target.getAttribute?.('role') === 'button' && target.dataset.action) {
         event.preventDefault();
         target.click();
