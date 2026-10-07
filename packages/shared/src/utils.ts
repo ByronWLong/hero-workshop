@@ -1,5 +1,5 @@
 /**
- * Utility functions shared between frontend and backend
+ * Point calculation utilities
  */
 
 import type { Character, Characteristic, Power, Skill, Disadvantage, Modifier, Adder } from './types.js';

@@ -2,8 +2,6 @@
 
 A character editor for HERO System 6th Edition, built as a module for [Foundry VTT](https://foundryvtt.com/). It works with the [Hero System 6e (Unofficial) v2](https://github.com/dmdorman/hero6e-foundryvtt) system and edits each character's Hero Designer data (`.hdc`) inside Foundry. Characters stay fully compatible with desktop Hero Designer.
 
-> **The Google Drive web app is deprecated.** Hero Workshop started as a web app that edited `.hdc` files stored in Google Drive. Development now focuses on the Foundry module; see [Legacy web app](#legacy-web-app-deprecated).
-
 ## Install
 
 Requirements: Foundry VTT v14 with the Hero System 6e (Unofficial) v2 system (`hero6efoundryvttv2`, 5.x).
@@ -59,9 +57,7 @@ To try a local build, link or copy `packages/foundry-module/dist` to `<Foundry d
 hero-workshop/
 ├── packages/
 │   ├── shared/          # HDC reader/writer, catalogs, costs and editor rules
-│   ├── foundry-module/  # The Foundry VTT module
-│   ├── frontend/        # Legacy web app (deprecated)
-│   └── backend/         # Legacy web app API (deprecated)
+│   └── foundry-module/  # The Foundry VTT module
 └── samples/             # Sample .hdc files used by the tests
 ```
 
@@ -78,20 +74,9 @@ hero-workshop/
 
 Push a tag named `module-v<version>` (for example `module-v0.4.0`). The **Release Foundry module** workflow runs the tests and builds the module. It then publishes a GitHub release with `module.json` and `hero-workshop.zip`, which is what the manifest URL points to.
 
-## Legacy web app (deprecated)
+## History
 
-The original Hero Workshop is a React web app with an Express backend that edits `.hdc` files in your Google Drive (`packages/frontend` and `packages/backend`). It is deprecated: it receives no new features and will be removed in a future release.
-
-To run it locally, you need Google OAuth2 credentials with the Drive API enabled, configured in `packages/backend/.env`:
-
-| Variable | Value |
-|----------|-------|
-| `GOOGLE_CLIENT_ID` | Your OAuth client ID |
-| `GOOGLE_CLIENT_SECRET` | Your OAuth client secret |
-| `SESSION_SECRET` | A random secret |
-| `FRONTEND_URL` | `http://localhost:5173` |
-
-Use `http://localhost:3001/api/auth/callback` as the OAuth redirect URI. Start it with `npm run dev`; the frontend runs on port 5173 and the backend on port 3001.
+Hero Workshop started as a React web app with an Express backend that edited `.hdc` files in Google Drive. The Foundry module replaced it, and the web app was removed after 0.4.6.
 
 ## License
 

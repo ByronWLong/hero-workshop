@@ -7,7 +7,7 @@
  * comments. An unmodified tree serializes back to the exact input string; edits only
  * re-escape the values they touch.
  *
- * Dependency-free so it runs unchanged in Node (backend, tests) and the browser (Foundry).
+ * Dependency-free so it runs unchanged in Node (tests, scripts) and the browser (Foundry).
  */
 
 export type XmlNode = XmlElement | XmlText | XmlRaw;

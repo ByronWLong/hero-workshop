@@ -2,7 +2,7 @@ import { LABELLED_SKILL_XMLIDS, skillItemName } from './foundry.js';
 /**
  * HDC -> Character view-model parsing.
  *
- * Ported from the backend parser. The parse functions below still consume the
+ * Ported from the old web app's backend parser. The parse functions below still consume the
  * fast-xml-parser object shape ("@_ATTR" keys, repeated children as arrays); `toParserObject`
  * produces that shape from the lossless XML tree so the parsing rules are unchanged, but
  * attribute values now stay as their exact source strings and every model `id` is the

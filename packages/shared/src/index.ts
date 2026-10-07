@@ -55,7 +55,7 @@ export {
   type ModifierAdder,
 } from './modifierDefinitions.js';
 
-// Lossless HDC parsing/writing (shared by the backend and the Foundry module)
+// Lossless HDC parsing/writing (used by the Foundry module)
 export * from './hdc/index.js';
 
 // Framework-independent editing operations and view data

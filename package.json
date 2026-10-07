@@ -1,22 +1,17 @@
 {
   "name": "hero-workshop",
   "version": "1.0.0",
-  "description": "Hero Workshop - A web-based character sheet editor for the HERO System RPG",
+  "description": "Hero Workshop - a HERO System 6e character editor module for Foundry VTT",
   "private": true,
   "workspaces": [
     "packages/*"
   ],
   "scripts": {
-    "dev": "concurrently \"npm run dev:backend\" \"npm run dev:frontend\"",
-    "dev:frontend": "npm run dev -w @hero-workshop/frontend",
-    "dev:backend": "npm run dev -w @hero-workshop/backend",
-    "build": "npm run build -w @hero-workshop/shared && npm run build -w @hero-workshop/backend && npm run build -w @hero-workshop/frontend && npm run build -w @hero-workshop/foundry-module",
+    "build": "npm run build -w @hero-workshop/shared && npm run build -w @hero-workshop/foundry-module",
     "build:shared": "npm run build -w @hero-workshop/shared",
-    "build:backend": "npm run build -w @hero-workshop/backend",
-    "build:frontend": "npm run build -w @hero-workshop/frontend",
-    "lint": "eslint packages/backend/src packages/frontend/src packages/shared/src packages/foundry-module/src",
-    "lint:fix": "eslint packages/backend/src packages/frontend/src packages/shared/src packages/foundry-module/src --fix",
-    "format": "prettier --write \"packages/*/src/**/*.{ts,tsx,json,css}\"",
+    "lint": "eslint packages/shared/src packages/foundry-module/src",
+    "lint:fix": "eslint packages/shared/src packages/foundry-module/src --fix",
+    "format": "prettier --write \"packages/*/src/**/*.{ts,json,css}\"",
     "typecheck": "npm run typecheck --workspaces --if-present",
     "clean": "rimraf packages/*/dist packages/*/node_modules node_modules",
     "build:foundry": "npm run build -w @hero-workshop/foundry-module",
@@ -24,11 +19,8 @@
   },
   "devDependencies": {
     "@types/node": "^24.0.0",
-    "concurrently": "^9.2.1",
     "eslint": "^9.39.0",
     "eslint-config-prettier": "^10.1.0",
-    "eslint-plugin-react": "^7.37.0",
-    "eslint-plugin-react-hooks": "^5.2.0",
     "globals": "^16.2.0",
     "prettier": "^3.5.0",
     "rimraf": "^6.0.1",
@@ -37,8 +29,5 @@
   },
   "engines": {
     "node": ">=24.0.0"
-  },
-  "overrides": {
-    "shell-quote": "^1.11.0"
   }
 }

@@ -2,38 +2,19 @@
 
 ## Project Overview
 
-This is a TypeScript monorepo for Hero Workshop, a web-based character sheet editor for the HERO System RPG with Google Drive integration.
+This is a TypeScript monorepo for Hero Workshop, a HERO System 6e character editor built as a Foundry VTT module for the hero6e system. It edits the Hero Designer `.hdc` data stored on hero6e actors. See `CLAUDE.md` for commands and architecture.
 
 ## Architecture
 
-- **Frontend**: React + Vite + TypeScript + React Query
-- **Backend**: Node.js + Express + TypeScript + Google APIs
-- **Shared**: Common TypeScript types and utilities
-
-## Key Files
-
-### Shared Package
-- `packages/shared/src/types.ts` - All type definitions for Character, Powers, Skills, etc.
-- `packages/shared/src/utils.ts` - Point calculation utilities
-
-### Backend Package
-- `packages/backend/src/index.ts` - Express server entry point
-- `packages/backend/src/routes/auth.ts` - Google OAuth2 authentication
-- `packages/backend/src/routes/characters.ts` - Character CRUD operations
-- `packages/backend/src/services/hdcParser.ts` - XML parsing/serialization
-
-### Frontend Package
-- `packages/frontend/src/App.tsx` - Main app with routing
-- `packages/frontend/src/hooks/useCharacter.ts` - Character data hooks
-- `packages/frontend/src/components/` - React components
+- **Shared** (`packages/shared`): types, catalogs, point costs, the lossless HDC reader/writer (`src/hdc`) and the editor rules (`src/editor`)
+- **Foundry module** (`packages/foundry-module`): ApplicationV2 + Handlebars windows and the sync with hero6e actors and items
 
 ## Coding Standards
 
 - Use TypeScript strict mode
 - Follow ESLint and Prettier configurations
-- Use React Query for data fetching
-- Keep components small and focused
-- Use custom hooks for reusable logic
+- Put rules (costs, forms, item operations) in `packages/shared/src/editor`; the module only renders them
+- Never regenerate HDC from the view model; patch it with `updateHdc`
 
 ## File Format
 
