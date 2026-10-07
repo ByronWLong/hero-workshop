@@ -23,6 +23,7 @@ Use this reference before converting arbitrary spreadsheet cells into the charac
 - Distinguish active cost from real/visible sheet cost. If a row has Active/Base/Ads/Lims/Real columns, preserve the real or visible row cost as character-point cost for custom fallbacks.
 - If a row explicitly says an item is free or partially free, such as `[1pt free]`, preserve the item's visible cost and carry the free portion as a separate campaign discount adjustment in the IR.
 - Do not classify every use of the word "contact" as a Contact perk; require a Contact row/name or clear point notation such as `[5pt contact]`.
+- When multiple powers share the same leading prefix pattern, such as `Spell: Magic Missile`, `Spell: Mending`, or `Faerie: Luck`, treat that prefix as grouping evidence and emit a `LIST` container for the repeated family.
 
 ## IR Construction Rules
 
@@ -40,7 +41,7 @@ Use this reference before converting arbitrary spreadsheet cells into the charac
 - Characteristics: STR, DEX, CON, INT, EGO, PRE, OCV, DCV, OMCV, DMCV, SPD, PD, ED, REC, END, BODY, STUN, RUNNING, SWIMMING, LEAPING.
 - Skills: general skills, characteristic-based skills, background skills, combat levels, skill levels, languages, transport familiarities, weapon familiarities, skill enhancers.
 - Powers: direct powers, frameworks/lists, compound powers, characteristic powers, advantages, limitations, adders, END cost, active cost, real cost.
-- Perks: Contacts, Favors, Reputation, base/vehicle contributions, fringe benefits, money, followers, and computer links even when they appear in a sheet's right-side "powers" block.
+- Perks: Contacts, Favors, Reputation, base/vehicle contributions, fringe benefits, money, followers, computer links, and perk enhancers such as `Well Connected` (`WELL_CONNECTED`) even when they appear in a sheet's right-side "powers" block.
 - Talents: Danger Sense, Combat Luck, Eidetic Memory, Lightsleep, Universal Translator, and custom talents even when the sheet lists them beside powers.
 - Complications: Hunted, Psychological, Physical, Social, Distinctive Features, Enraged, DNPC, Rivalry, Reputation, Susceptibility, Vulnerability, Dependence, Accidental Change, Unluck.
 - Equipment: carried state, price, weight, contained powers, focus limitations.

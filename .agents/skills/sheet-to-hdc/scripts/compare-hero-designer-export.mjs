@@ -29,10 +29,13 @@ const exportSummary = {
   totalPoints: firstMatch(/<td class=['"]right second-page-header['"]>(\d+)/is) ?? firstMatch(/<td class=['"]total-points first-page-header['"]>\s*(\d+)/is),
   skills: extractSkillNames(),
   powers: extractPowerNames(powersSection),
-  equipment: extractPowerNames(equipmentSection),
+  equipment: extractPowerNames(equipmentSection).filter((name) => normalizeName(name) !== 'equipment'),
   martialArts: extractManeuvers(),
   complications: extractComplications(),
-  perks: extractSpanText('perk-name').map(stripTrailingColon),
+  perks: [
+    ...extractSpanText('perk-name'),
+    ...extractCellText('perk-list-name'),
+  ].map(stripTrailingColon),
   talents: extractSpanText('talent-name').map(stripTrailingColon),
 };
 
@@ -101,6 +104,13 @@ function extractSpanText(className, source = html) {
     .filter(Boolean);
 }
 
+function extractCellText(className, source = html) {
+  const pattern = new RegExp(`<td class=['"]${escapeRegex(className)}['"]>(.*?)<\\/td>`, 'gis');
+  return [...source.matchAll(pattern)]
+    .map((match) => cleanText(match[1]))
+    .filter(Boolean);
+}
+
 function extractSection(name) {
   const pattern = new RegExp(`<!--[^>]*BEGIN\\s+${escapeRegex(name)}\\s+\\*+[^>]*-->([\\s\\S]*?)<!--[^>]*END\\s+${escapeRegex(name)}\\s+\\*+[^>]*-->`, 'i');
   const match = html.match(pattern);
@@ -153,7 +163,7 @@ function extractComplications() {
   const pattern = /<td class=['"]complication-description['"]>(.*?)<\/td>/gis;
   return [...html.matchAll(pattern)]
     .map((match) => cleanText(match[1]))
-    .map((text) => text.replace(/^\s*[^:]+:\s*/, ''))
+    .map(stripComplicationPrefixes)
     .filter(Boolean);
 }
 
@@ -179,7 +189,12 @@ function missingNames(items, displayedNames) {
 
 function isSkillEnhancer(item) {
   const xmlId = String(item?.xmlId ?? item?.tag ?? '').trim().toUpperCase();
-  return xmlId === 'SCIENTIST' || xmlId === 'LINGUIST';
+  return xmlId === 'SCIENTIST' || xmlId === 'LINGUIST' || xmlId === 'SCHOLAR';
+}
+
+function isListContainer(item) {
+  const xmlId = String(item?.xmlId ?? item?.tag ?? '').trim().toUpperCase();
+  return xmlId === 'LIST' || item?.tag === 'LIST' || item?.isGroup === true;
 }
 
 function comparableItems(items, kind) {
@@ -192,6 +207,9 @@ function comparableItems(items, kind) {
 function isComparableItem(item, kind) {
   if (!item || typeof item !== 'object') {
     return Boolean(item);
+  }
+  if (kind !== 'skills' && isListContainer(item)) {
+    return false;
   }
   if (kind === 'skills' && isSkillEnhancer(item)) {
     return true;
@@ -209,7 +227,9 @@ function describeItem(item, kind = '') {
   const input = cleanText(String(item.input ?? ''));
 
   if (name) {
-    return stripTrailingColon(name);
+    return kind === 'complications'
+      ? stripTrailingColon(stripComplicationPrefixes(name))
+      : stripTrailingColon(name);
   }
 
   if (kind === 'skills' && alias && input) {
@@ -252,10 +272,21 @@ function stripTrailingColon(value) {
 function normalizeName(value) {
   return stripTrailingColon(value)
     .toLowerCase()
+    .replace(/^(complication|psychological complication|physical complication|social complication|hunted|distinctive features|rivalry)\b[:\s-]*/g, '')
     .replace(/^(city knowledge|area knowledge|cultural knowledge|ck|ak|cuk)\b/, 'ak')
     .replace(/\[[^\]]*\]/g, '')
     .replace(/[^a-z0-9]+/g, ' ')
     .trim();
+}
+
+function stripComplicationPrefixes(value) {
+  let text = String(value ?? '').trim();
+  let previous = '';
+  while (text && text !== previous) {
+    previous = text;
+    text = text.replace(/^\s*(complication|psychological complication|physical complication|social complication|hunted|distinctive features|rivalry)\s*:\s*/i, '');
+  }
+  return text.trim();
 }
 
 function escapeRegex(value) {

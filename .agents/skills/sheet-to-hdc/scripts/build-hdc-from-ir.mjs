@@ -38,7 +38,7 @@ const CHARACTERISTICS = [
 const POWER_XML_IDS = new Map([
   ['armor', 'ARMOR'],
   ['barrier', 'FORCEWALL'],
-  ['blast', 'BLAST'],
+  ['blast', 'ENERGYBLAST'],
   ['clairsentience', 'CLAIRSENTIENCE'],
   ['darkness', 'DARKNESS'],
   ['deflection', 'DEFLECTION'],
@@ -127,6 +127,7 @@ const KNOWN_SKILL_XML_IDS = new Set([
   'RAPID_ATTACK_HTH',
   'RAPID_ATTACK_RANGED',
   'SCIENCE_SKILL',
+  'SCHOLAR',
   'SKILL_LEVELS',
   'STEALTH',
   'LINGUIST',
@@ -141,6 +142,7 @@ const KNOWN_SKILL_XML_IDS = new Set([
 ]);
 
 const KNOWN_POWER_XML_IDS = new Set([
+  ...CHARACTERISTICS.map(([type]) => type),
   ...POWER_XML_IDS.values(),
   'COMPOUNDPOWER',
   'CUSTOMPOWER',
@@ -149,7 +151,9 @@ const KNOWN_POWER_XML_IDS = new Set([
   'ENDURANCERESERVE',
   'ENDURANCERESERVEREC',
   'ENHANCEDSENSES',
+  'EXTRADIMENSIONALMOVEMENT',
   'EXTRALIMBS',
+  'FLASHDEFENSE',
   'FORCEFIELD',
   'HANDTOHANDATTACK',
   'HKA',
@@ -162,15 +166,39 @@ const KNOWN_POWER_XML_IDS = new Set([
 ]);
 
 const CANONICAL_POWER_ALIASES = new Map([
+  ['STR', 'STR'],
+  ['DEX', 'DEX'],
+  ['CON', 'CON'],
+  ['INT', 'INT'],
+  ['EGO', 'EGO'],
+  ['PRE', 'PRE'],
+  ['OCV', 'OCV'],
+  ['DCV', 'DCV'],
+  ['OMCV', 'OMCV'],
+  ['DMCV', 'DMCV'],
+  ['SPD', 'SPD'],
+  ['PD', 'PD'],
+  ['ED', 'ED'],
+  ['REC', 'REC'],
+  ['END', 'END'],
+  ['BODY', 'BODY'],
+  ['STUN', 'STUN'],
+  ['RUNNING', 'Running'],
+  ['SWIMMING', 'Swimming'],
+  ['LEAPING', 'Leaping'],
+  ['ENERGYBLAST', 'Blast'],
   ['DARKNESS', 'Darkness'],
   ['DETECT', 'Detect'],
   ['ENDURANCERESERVE', 'Endurance Reserve'],
   ['ENHANCEDSENSES', 'Enhanced Senses'],
+  ['EXTRADIMENSIONALMOVEMENT', 'Extra-Dimensional Movement'],
   ['EXTRALIMBS', 'Extra Limbs'],
+  ['FLASHDEFENSE', 'Flash Defense'],
   ['FLIGHT', 'Flight'],
   ['FORCEFIELD', 'Resistant Protection'],
   ['KBRESISTANCE', 'Knockback Resistance'],
   ['LIFESUPPORT', 'Life Support'],
+  ['LUCK', 'Luck'],
   ['MENTALDEFENSE', 'Mental Defense'],
   ['POWERDEFENSE', 'Power Defense'],
   ['REGENERATION', 'Regeneration'],
@@ -193,6 +221,7 @@ const KNOWN_PERK_XML_IDS = new Set([
   'REPUTATION',
   'VEHICLE',
   'VEHICLE_BASE',
+  'WELL_CONNECTED',
   'GENERIC',
 ]);
 const KNOWN_TALENT_XML_IDS = new Set([
@@ -253,6 +282,13 @@ const MARTIAL_MANEUVER_ALIASES = new Map([
   ['passing strike', 'Passing Strike'],
   ['sacrifice throw', 'Sacrifice Throw'],
   ['strike', 'Strike'],
+]);
+
+const SKILL_CHARACTERISTIC_DEFAULTS = new Map([
+  ['CONVERSATION', 'PRE'],
+  ['LOCKPICKING', 'DEX'],
+  ['PERSUASION', 'PRE'],
+  ['STEALTH', 'DEX'],
 ]);
 
 function esc(value) {
@@ -383,7 +419,7 @@ function toXmlId(value, fallback = 'GENERIC') {
 }
 
 function resolveSkillXmlId(item) {
-  if (item.tag === 'SCIENTIST' || item.tag === 'LINGUIST') {
+  if (item.tag === 'SCIENTIST' || item.tag === 'LINGUIST' || item.tag === 'SCHOLAR') {
     return item.tag;
   }
   const xmlId = toXmlId(item.hdcXmlId ?? item.xmlId ?? item.xmlID ?? item.xmlid ?? item.name, 'CUSTOMSKILL');
@@ -552,22 +588,89 @@ function noteWithSource(item) {
   return notes.join(' | ');
 }
 
+function foundrySkillMatchName(skill) {
+  const name = String(skill?.name ?? '').trim();
+  const alias = String(skill?.alias ?? '').trim();
+  const input = String(skill?.input ?? '').trim();
+  return name || alias || input;
+}
+
+function skillRollOptionPrefix(skill) {
+  const xmlId = resolveSkillXmlId(skill);
+  if (xmlId === 'PROFESSIONAL_SKILL') {
+    return 'PS';
+  }
+  if (xmlId === 'SCIENCE_SKILL') {
+    return 'SS';
+  }
+  if (['KNOWLEDGE_SKILL', 'AREA_KNOWLEDGE', 'CITY_KNOWLEDGE'].includes(xmlId)) {
+    return 'KS';
+  }
+  return 'SKILL';
+}
+
+function resolveFoundrySkillRollBinding(target) {
+  const normalizedTarget = lowerKey(target);
+  if (!normalizedTarget) {
+    return { target };
+  }
+  const matches = asArray(ir.skills).filter((skill) => {
+    if (!skill || skill.tag === 'LIST' || skill.isGroup) {
+      return false;
+    }
+    const variants = [skill.name, skill.alias, skill.input]
+      .filter(isPresent)
+      .map(lowerKey);
+    return variants.includes(normalizedTarget);
+  });
+  if (matches.length !== 1) {
+    return { target };
+  }
+  return {
+    target: foundrySkillMatchName(matches[0]),
+    optionPrefix: skillRollOptionPrefix(matches[0]),
+  };
+}
+
+function categorizedSkillRollOptionId(optionId, optionPrefix) {
+  const current = String(optionId ?? '').trim().toUpperCase();
+  if (!optionPrefix || !/^(?:SKILL|PS|KS|SS)(?:1PER(?:5|20))?$/.test(current)) {
+    return optionId;
+  }
+  const penaltySuffix = current.match(/1PER(?:5|20)$/)?.[0] ?? '';
+  return `${optionPrefix}${penaltySuffix}`;
+}
+
 function childrenForItem(item) {
   const children = [];
   for (const [modifierIndex, modifier] of asArray(item.modifiers).entries()) {
     const value = numberValue(modifier.value ?? modifier.baseCost, 0);
     const xmlId = toXmlId(modifier.xmlId ?? modifier.xmlID ?? modifier.xmlid ?? modifier.name, 'MODIFIER');
+    const nonEmptyComments = isPresent(modifier.comments) && String(modifier.comments).trim()
+      ? String(modifier.comments)
+      : undefined;
+    const nonEmptyInput = isPresent(modifier.input) && String(modifier.input).trim()
+      ? String(modifier.input)
+      : undefined;
+    const nonEmptyOptionAlias = isPresent(modifier.optionAlias) && String(modifier.optionAlias).trim()
+      ? String(modifier.optionAlias)
+      : undefined;
     const canonicalAlias = xmlId === 'REQUIRESASKILLROLL'
       ? 'Requires A Roll'
       : (modifier.alias ?? modifier.name);
     const canonicalInput = xmlId === 'REQUIRESASKILLROLL'
       ? undefined
       : modifier.input;
+    const heroDesignerSkillRollTarget = nonEmptyOptionAlias ?? nonEmptyComments ?? nonEmptyInput ?? 'Skill roll';
+    const skillRollBinding = resolveFoundrySkillRollBinding(nonEmptyComments ?? heroDesignerSkillRollTarget);
+    const canonicalOptionId = xmlId === 'REQUIRESASKILLROLL'
+      ? categorizedSkillRollOptionId(modifier.optionId ?? modifier.option, skillRollBinding.optionPrefix)
+      : modifier.optionId;
     const canonicalOptionAlias = xmlId === 'REQUIRESASKILLROLL'
-      ? (modifier.comments ?? modifier.input ?? (modifier.optionAlias && modifier.optionAlias !== 'Skill roll' ? modifier.optionAlias : 'Skill roll'))
+      ? heroDesignerSkillRollTarget
       : modifier.optionAlias;
     const canonicalComments = xmlId === 'REQUIRESASKILLROLL'
-      ? ''
+      ? skillRollBinding.target
       : modifier.comments;
     children.push(xml('MODIFIER', hdcDefaults({
       ID: modifier.id ?? generatedId('modifier', modifierIndex),
@@ -577,12 +680,11 @@ function childrenForItem(item) {
       POSITION: modifier.position ?? -1,
       BASECOST: value,
       LEVELS: modifier.levels ?? 0,
-      OPTION: modifier.option,
-      OPTIONID: modifier.optionId,
+      OPTION: xmlId === 'REQUIRESASKILLROLL' ? canonicalOptionId : modifier.option,
+      OPTIONID: canonicalOptionId,
       OPTION_ALIAS: canonicalOptionAlias,
       INPUT: canonicalInput,
       COMMENTS: canonicalComments,
-      ISLIMITATION: yesNo(modifier.isLimitation ?? value < 0),
       PRIVATE: 'No',
       FORCEALLOW: yesNo(modifier.forceAllow, 'No'),
     }), [notesElement(modifier)]));
@@ -649,6 +751,13 @@ function normalizeCharacteristics(input) {
   }).join('');
 }
 
+function skillTextValue(item) {
+  if (String(item.alias ?? '').toLowerCase() === 'magic skill' && String(item.name ?? '').toLowerCase() === 'magic skill') {
+    return undefined;
+  }
+  return item.text;
+}
+
 function skillElement(item, index) {
   const isList = item.tag === 'LIST' || item.isGroup || toXmlId(item.xmlId) === 'LIST';
   const tag = isList ? 'LIST' : (item.tag ? toXmlId(item.tag) : 'SKILL');
@@ -658,7 +767,7 @@ function skillElement(item, index) {
       XMLID: 'GENERIC_OBJECT',
       NAME: item.name ?? '',
       ALIAS: item.alias ?? item.name,
-      TEXT: item.text,
+      TEXT: skillTextValue(item),
       POSITION: item.position ?? index,
       LEVELS: numberValue(item.levels, 0),
       BASECOST: numberValue(item.baseCost ?? item.points, 0),
@@ -670,11 +779,11 @@ function skillElement(item, index) {
     NAME: item.name,
     ALIAS: item.alias ?? item.name,
     INPUT: item.input,
-    TEXT: item.text,
+    TEXT: skillTextValue(item),
     POSITION: item.position ?? index,
     LEVELS: numberValue(item.levels, 0),
-    BASECOST: numberValue(item.baseCost ?? item.points, 0),
-    CHARACTERISTIC: item.characteristic,
+      BASECOST: numberValue(item.baseCost ?? item.points, 0),
+    CHARACTERISTIC: item.characteristic ?? SKILL_CHARACTERISTIC_DEFAULTS.get(resolveSkillXmlId(item)),
     ROLL: item.roll,
     FAMILIARITY: yesNo(item.familiarity),
     PROFICIENCY: yesNo(item.proficiency),
@@ -689,7 +798,7 @@ function skillElement(item, index) {
   }), [notesElement(item), ...childrenForItem(item)]);
 }
 
-function characteristicChildElement(item, index) {
+function characteristicChildElement(item, index, children = childrenForItem(item), equipment = false) {
   const type = toXmlId(item.type ?? item.xmlId ?? item.tag, 'STR');
   return xml(type, hdcDefaults({
     ID: item.id ?? generatedId(type, index),
@@ -699,10 +808,68 @@ function characteristicChildElement(item, index) {
     POSITION: item.position ?? index,
     LEVELS: numberValue(item.levels, 0),
     BASECOST: numberValue(item.baseCost, 0),
+    PARENTID: item.parentId,
     AFFECTS_PRIMARY: yesNo(item.affectsPrimary, 'Yes'),
     AFFECTS_TOTAL: yesNo(item.affectsTotal, 'Yes'),
     ADD_MODIFIERS_TO_BASE: yesNo(item.addModifiersToBase, 'No'),
-  }), [notesElement(item), ...childrenForItem(item)]);
+  }), [notesElement(item), ...children]);
+}
+
+function normalizeReputationPerk(item) {
+  const existingAdders = asArray(item.adders);
+  const existingXmlIds = new Set(existingAdders.map((adder) => toXmlId(adder.xmlId ?? adder.xmlID ?? adder.xmlid ?? adder.name)));
+  const reputationText = [item.name, item.alias, item.input, item.notes].filter(isPresent).join(' ').toLowerCase();
+  const explicitScope = toXmlId(item.reputationScope ?? item.scope);
+  const scopeOption = ['SMALLGROUP', 'MEDIUMGROUP', 'LARGEGROUP'].includes(explicitScope)
+    ? explicitScope
+    : /\b(city|town|region|province)\b/.test(reputationText)
+      ? 'MEDIUMGROUP'
+      : 'SMALLGROUP';
+  const scope = {
+    SMALLGROUP: { baseCost: 0, alias: 'A small to medium sized group' },
+    MEDIUMGROUP: { baseCost: 1, alias: 'A medium-sized group' },
+    LARGEGROUP: { baseCost: 2, alias: 'A large group' },
+  }[scopeOption];
+  const requestedRoll = String(item.reputationRoll ?? item.roll ?? '11').match(/\b(8|11|14)\b/)?.[1] ?? '11';
+  const howWell = {
+    8: { baseCost: -1, alias: '8-' },
+    11: { baseCost: 0, alias: '11-' },
+    14: { baseCost: 1, alias: '14-' },
+  }[requestedRoll];
+  const adders = [...existingAdders];
+  if (!existingXmlIds.has('HOWWIDE')) {
+    adders.push({
+      xmlId: 'HOWWIDE',
+      alias: 'How Widely Known',
+      baseCost: scope.baseCost,
+      option: scopeOption,
+      optionId: scopeOption,
+      optionAlias: scope.alias,
+      required: true,
+      displayInString: false,
+    });
+  }
+  if (!existingXmlIds.has('HOWWELL')) {
+    adders.push({
+      xmlId: 'HOWWELL',
+      alias: 'How Well Known',
+      baseCost: howWell.baseCost,
+      option: requestedRoll,
+      optionId: requestedRoll,
+      optionAlias: howWell.alias,
+      required: true,
+      displayInString: false,
+    });
+  }
+  const sheetPoints = numberValue(item.points ?? item.baseCost, 0);
+  const levelCost = Math.max(1, scope.baseCost + howWell.baseCost);
+  const inferredLevels = sheetPoints > 0 ? Math.max(1, Math.round(sheetPoints / levelCost)) : 1;
+  return {
+    ...item,
+    baseCost: 0,
+    levels: numberValue(item.levels, 0) > 0 ? item.levels : inferredLevels,
+    adders,
+  };
 }
 
 function genericElement(tag, idPrefix, item, index) {
@@ -713,6 +880,9 @@ function genericElement(tag, idPrefix, item, index) {
     : tag === 'TALENT'
       ? resolveTalentXmlId(item)
       : toXmlId(item.xmlId ?? item.xmlID ?? item.xmlid ?? item.name, tag === 'MANEUVER' ? 'MANEUVER' : 'GENERIC_OBJECT');
+  if (tag === 'PERK' && xmlId === 'REPUTATION') {
+    item = normalizeReputationPerk(item);
+  }
   const resolvedManeuver = isManeuver ? resolveMartialManeuver(item) : undefined;
   const maneuverDefaults = resolvedManeuver?.defaults;
   const maneuverDetail = isManeuver ? maneuverDetailText(item, resolvedManeuver) : [item.alias, item.effect, item.notes].filter(isPresent).join(': ');
@@ -731,9 +901,22 @@ function genericElement(tag, idPrefix, item, index) {
       CARRIED: tag === 'PERK' ? yesNo(item.carried) : undefined,
     }), [notesElement(item), ...childrenForItem(item)]);
   }
+  if (tag === 'PERK' && xmlId === 'WELL_CONNECTED') {
+    return xml('WELL_CONNECTED', hdcDefaults({
+      ID: item.id ?? generatedId(idPrefix, index),
+      XMLID: 'WELL_CONNECTED',
+      NAME: '',
+      ALIAS: 'Well-Connected',
+      POSITION: item.position ?? index,
+      LEVELS: 0,
+      BASECOST: numberValue(item.baseCost ?? item.points, 3),
+      PARENTID: item.parentId,
+      INTBASED: yesNo(item.intBased, 'No'),
+    }), [notesElement(item), ...childrenForItem(item)]);
+  }
   return xml(isList ? 'LIST' : tag, hdcDefaults({
     ID: item.id ?? generatedId(idPrefix, index),
-    XMLID: xmlId,
+    XMLID: isManeuver ? 'MANEUVER' : xmlId,
     NAME: isManeuver ? resolvedManeuver.baseName : item.name,
     ALIAS: isManeuver ? (item.name ?? resolvedManeuver.baseName) : (item.alias ?? item.name),
     INPUT: item.input,
@@ -794,6 +977,7 @@ function defaultPowerLvlCost(item, xmlId, isCustomPower, isCompound) {
   const lvlCostByXmlId = {
     CUSTOMPOWER: 1,
     COMPOUNDPOWER: 1,
+    ENERGYBLAST: 5,
     DARKNESS: {
       SIGHTGROUP: 5,
       HEARINGGROUP: 3,
@@ -817,6 +1001,7 @@ function defaultPowerLvlCost(item, xmlId, isCustomPower, isCompound) {
     FORCEFIELD: 3,
     KBRESISTANCE: 1,
     LIFESUPPORT: 1,
+    LUCK: 5,
     MENTALDEFENSE: 1,
     POWERDEFENSE: 1,
     REGENERATION: {
@@ -853,6 +1038,7 @@ function defaultPowerFlags(xmlId) {
   const defaults = {
     CUSTOMPOWER: { doesBody: false, doesDamage: false, doesKnockback: false, killing: false },
     COMPOUNDPOWER: { doesBody: false, doesDamage: false, doesKnockback: false, killing: false },
+    ENERGYBLAST: { doesBody: true, doesDamage: true, doesKnockback: true, killing: false },
     DARKNESS: { doesBody: false, doesDamage: false, doesKnockback: false, killing: false },
     DETECT: { doesBody: false, doesDamage: false, doesKnockback: false, killing: false },
     ENDURANCERESERVE: { doesBody: false, doesDamage: false, doesKnockback: false, killing: false },
@@ -862,6 +1048,7 @@ function defaultPowerFlags(xmlId) {
     FORCEFIELD: { doesBody: false, doesDamage: false, doesKnockback: false, killing: false },
     KBRESISTANCE: { doesBody: false, doesDamage: false, doesKnockback: false, killing: false },
     LIFESUPPORT: { doesBody: false, doesDamage: false, doesKnockback: false, killing: false },
+    LUCK: { doesBody: false, doesDamage: false, doesKnockback: false, killing: false },
     MENTALDEFENSE: { doesBody: false, doesDamage: false, doesKnockback: false, killing: false },
     POWERDEFENSE: { doesBody: false, doesDamage: false, doesKnockback: false, killing: false },
     REGENERATION: { doesBody: false, doesDamage: false, doesKnockback: false, killing: false },
@@ -891,12 +1078,26 @@ function buildPowerAttributes(item, options) {
     defaultFlags,
   } = options;
 
+  const xmlId = isCompound ? 'COMPOUNDPOWER' : resolvePowerXmlId(item);
+  const explicitDefenseInput = String(item.defense ?? '').trim().toUpperCase();
+  const defaultDefenseInput = {
+    ENERGYBLAST: 'ED',
+    HANDTOHANDATTACK: 'PD',
+    HKA: 'PD',
+    RKA: 'PD',
+    TELEKINESIS: 'PD',
+  }[xmlId];
+  const powerInput = isPresent(item.input)
+    ? item.input
+    : ['PD', 'ED', 'MD'].includes(explicitDefenseInput)
+      ? explicitDefenseInput
+      : defaultDefenseInput ?? '';
   const attrs = {
     ID: item.id ?? generatedId(equipment ? 'equipment' : 'power', index),
-    XMLID: isCompound ? 'COMPOUNDPOWER' : resolvePowerXmlId(item),
+    XMLID: xmlId,
     NAME: item.name,
     ALIAS: powerAlias,
-    INPUT: item.input ?? '',
+    INPUT: powerInput,
     TEXT: item.text,
     POSITION: item.position ?? index,
     LEVELS: levels,
@@ -922,24 +1123,12 @@ function buildPowerAttributes(item, options) {
     USECUSTOMENDCOLUMN: yesNo(item.useCustomEndColumn, 'No'),
   };
 
-  const shouldEmitGenericPowerFields = isCustomPower;
-  const explicitLvlCost = item.lvlCost ?? item.levelCost;
-  if (shouldEmitGenericPowerFields && isPresent(explicitLvlCost)) {
-    attrs.LVLCOST = explicitLvlCost;
-  }
+  attrs.DOESBODY = yesNo(item.doesBody ?? defaultFlags.doesBody, 'No');
+  attrs.DOESDAMAGE = yesNo(item.doesDamage ?? defaultFlags.doesDamage, 'No');
+  attrs.DOESKNOCKBACK = yesNo(item.doesKnockback ?? defaultFlags.doesKnockback, 'No');
+  attrs.KILLING = yesNo(item.killing ?? defaultFlags.killing, 'No');
 
-  if (shouldEmitGenericPowerFields || hasExplicitPowerField(item, 'doesBody')) {
-    attrs.DOESBODY = yesNo(item.doesBody ?? defaultFlags.doesBody, 'No');
-  }
-  if (shouldEmitGenericPowerFields || hasExplicitPowerField(item, 'doesDamage')) {
-    attrs.DOESDAMAGE = yesNo(item.doesDamage ?? defaultFlags.doesDamage, 'No');
-  }
-  if (shouldEmitGenericPowerFields || hasExplicitPowerField(item, 'doesKnockback')) {
-    attrs.DOESKNOCKBACK = yesNo(item.doesKnockback ?? defaultFlags.doesKnockback, 'No');
-  }
-  if (shouldEmitGenericPowerFields || hasExplicitPowerField(item, 'killing')) {
-    attrs.KILLING = yesNo(item.killing ?? defaultFlags.killing, 'No');
-  }
+  const shouldEmitGenericPowerFields = isCustomPower;
   if (shouldEmitGenericPowerFields || hasExplicitPowerField(item, 'defense')) {
     attrs.DEFENSE = item.defense ?? 'NONE';
   }
@@ -977,11 +1166,11 @@ function powerElement(item, index, equipment = false) {
   for (const [childIndex, child] of asArray(item.subPowers ?? item.children).entries()) {
     const normalizedChild = { ...child, parentId: child.parentId ?? item.id };
     if (isCharacteristicTag(normalizedChild.type ?? normalizedChild.xmlId ?? normalizedChild.tag)) {
-      children.push(characteristicChildElement(normalizedChild, childIndex));
+      children.push(characteristicChildElement(normalizedChild, childIndex, childrenForItem(normalizedChild), equipment));
     } else if (normalizedChild.kind === 'skill') {
       children.push(skillElement(normalizedChild, childIndex));
     } else {
-      children.push(powerElement(normalizedChild, childIndex, false));
+      children.push(powerElement(normalizedChild, childIndex, equipment));
     }
   }
 
@@ -1012,6 +1201,16 @@ function powerElement(item, index, equipment = false) {
       PRICE: equipment ? item.price : undefined,
       WEIGHT: weight,
     }), [notesElement(item), ...children]);
+  }
+
+  if (isCharacteristicTag(xmlId)) {
+    return characteristicChildElement({
+      ...item,
+      type: xmlId,
+      alias: powerAlias,
+      baseCost,
+      levels,
+    }, index, children, equipment);
   }
 
   return xml('POWER', hdcDefaults(buildPowerAttributes(item, {
@@ -1046,6 +1245,10 @@ function defaultDisadAdders(xmlId) {
     PSYCHOLOGICALLIMITATION: [
       { xmlId: 'SITUATION', alias: 'Situation Is', baseCost: 5, option: 'UNCOMMON', optionId: 'UNCOMMON', optionAlias: '(Uncommon', selected: true, includeInBase: true, required: true },
       { xmlId: 'INTENSITY', alias: 'Intensity Is', baseCost: 0, option: 'MODERATE', optionId: 'MODERATE', optionAlias: 'Moderate', selected: true, includeInBase: true, required: true },
+    ],
+    SOCIALLIMITATION: [
+      { xmlId: 'OCCUR', alias: 'Circumstances Occur', baseCost: 5, option: 'OCCASIONALLY', optionId: 'OCCASIONALLY', optionAlias: 'Infrequently', selected: true, includeInBase: true, required: true },
+      { xmlId: 'EFFECTS', alias: 'Effects of Restrictions', baseCost: 0, option: 'MINOR', optionId: 'MINOR', optionAlias: 'Minor', selected: true, includeInBase: true, required: true },
     ],
     SUSCEPTIBILITY: [
       { xmlId: 'DICE', alias: 'Number of Dice', baseCost: 0, option: '1D6', optionId: '1D6', optionAlias: '1d6 damage', selected: true, includeInBase: true, required: true },
@@ -1157,6 +1360,7 @@ function disadAlias(xmlId) {
   const aliases = {
     PSYCHOLOGICALLIMITATION: 'Psychological Complication',
     PHYSICALLIMITATION: 'Physical Complication',
+    SOCIALLIMITATION: 'Social Complication',
     DISTINCTIVEFEATURES: 'Distinctive Features',
     RIVALRY: 'Rivalry',
     HUNTED: 'Hunted',
