@@ -60,6 +60,16 @@ npm run build:foundry            # from the repo root; output in packages/foundr
 - **Equipment:** rows show each item's price and weight; equipment and its parts have no Free option (it's bought with money, not points).
 - **Inputs with suggested values:** where Hero Designer offers a list (an attack's **Vs.**: PD or ED), the field is a drop-down, with **Custom…** for any other value.
 - **Multipowers:** each slot is priced with the Multipower's limitations as well as its own (except Charges), as Hero Designer prices it.
+- **Costs follow Hero Designer's rules:**
+  - Area Of Effect is +¼ per doubling of its size.
+  - Contacts include their adders, and Reputations their levels.
+  - Followers and Bases are priced from their base points.
+  - Skills use each skill's cost per level, and familiarities cost what Hero Designer charges.
+  - Languages use Hero Designer's fluencies (Idiomatic 4, Imitate dialects 5).
+  - Talents with levels use each talent's cost per level.
+  - Characteristics bought below their base give points back.
+  - Characteristic powers (+CON) cost what the characteristic does.
+- **Equipment lists:** items in a list stay in the item list.
 - **Compound items dropped onto a character** get their parts, and parts that add to a characteristic (a shield's DCV) get hero6e's Active Effects, so the bonus applies straight away.
 - **Icons:** item rows show each item's icon, and every item form has an icon picker (**Use default** clears a custom one). Custom icons are stored in the item's Hero Designer data (a `<FOUNDRY_ICON SRC="…"/>` child element), so they survive editing, dragging items to and from the Items sidebar, and HDC downloads. An icon changed on a hero6e sheet is recorded straight away. Desktop Hero Designer opens files with it but drops it when it saves.
 - **Dropped items:** items dropped onto a character's sheet (from the Items sidebar, a compendium or another character) are written into its Hero Designer data straight away, so the editor doesn't report them as changes made in Foundry. hero6e's own parser builds the item, so it matches an uploaded one.
