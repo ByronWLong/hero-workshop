@@ -1340,6 +1340,17 @@ export default {
   formatModifierValue,
 };
 
+/**
+ * A modifier's value held within its template MINCOST/MAXCOST, as Hero Designer holds it
+ * (Modifier.getTotalValue): Requires A Roll is at most -1/4, so its 14- roll (+1/4 in the
+ * template) comes to -1/4
+ */
+export function clampModifierValue(def: Pick<ModifierDefinition, 'minCost' | 'maxCost'> | undefined, value: number): number {
+  if (def?.minCost !== undefined && value < def.minCost) return def.minCost;
+  if (def?.maxCost !== undefined && value > def.maxCost) return def.maxCost;
+  return value;
+}
+
 /** Hero Designer's 6E level multipliers (Main6E.hdt): a Cone reaches 4x a Radius, a Line 8x */
 const AOE_SHAPES: Record<string, number> = { RADIUS: 2, CONE: 4, LINE: 8, SURFACE: 1, ANY: 1 };
 

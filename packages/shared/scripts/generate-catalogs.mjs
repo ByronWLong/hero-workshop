@@ -179,6 +179,8 @@ const skills = elements(sectionOf('SKILLS')).map((node) => {
     baseCost: num(a.BASECOST),
     lvlCost: num(a.LVLCOST),
     characteristicChoices: choices.length ? choices : undefined,
+    // Breadth options priced per level (Combat/Skill Levels: single attack, HTH, all...)
+    options: elements(node, 'OPTION').length ? elements(node, 'OPTION').map(option) : undefined,
   });
 });
 
@@ -218,6 +220,16 @@ export interface SkillCatalogEntry {
   baseCost?: number;
   lvlCost?: number;
   characteristicChoices?: SkillCatalogChoice[];
+  options?: SkillCatalogOption[];
+}
+
+export interface SkillCatalogOption {
+  xmlId: string;
+  display: string;
+  alias?: string;
+  baseCost?: number;
+  lvlCost?: number;
+  lvlVal?: number;
 }
 
 export interface SkillEnhancerCatalogEntry {

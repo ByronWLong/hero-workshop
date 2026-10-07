@@ -23,6 +23,7 @@ import {
 } from '../generated/catalog6e.js';
 import { SKILL_CATALOG_6E } from '../generated/skillCatalog6e.js';
 import { getPowerDefinition } from '../powerDefinitions.js';
+import { skillLevelCost, skillLevelOption, skillLevelOptions } from '../skillLevels.js';
 import { LABELLED_SKILL_XMLIDS, skillItemName } from '../hdc/foundry.js';
 import { retargetSkillRolls } from './powers.js';
 import { sectionItems, setSectionItems, type ListItem, type SectionId } from './lists.js';
@@ -85,21 +86,14 @@ const BACKGROUND_ALIAS: Record<string, string> = {
   POWERSKILL: 'Power',
 };
 
-const COMBAT_LEVEL_OPTIONS = [
-  { value: 'SINGLE', label: 'With a single attack (2/level)', cost: 2 },
-  { value: 'TIGHT', label: 'With a small group of attacks (3/level)', cost: 3 },
-  { value: 'BROAD', label: 'With a large group of attacks (5/level)', cost: 5 },
-  { value: 'HTH', label: 'With HTH combat (5/level)', cost: 5 },
-  { value: 'RANGED', label: 'With ranged combat (5/level)', cost: 5 },
-  { value: 'ALL', label: 'With all attacks (8/level)', cost: 8 },
-];
-
-const SKILL_LEVEL_OPTIONS = [
-  { value: 'CHARACTERISTIC', label: 'With a single skill or characteristic roll (2/level)', cost: 2 },
-  { value: 'THREE', label: 'With three related skills (3/level)', cost: 3 },
-  { value: 'GROUP', label: 'With a group of similar skills (4/level)', cost: 4 },
-  { value: 'ALL', label: 'With all skills (6/level)', cost: 6 },
-];
+/** A breadth-priced skill's choices (the template's, plus an older value the skill still has) */
+function breadthOptions(xmlid: string, current: string) {
+  const list = (skillLevelOptions(xmlid) ?? []).map((o) => ({ value: o.xmlId, label: `${capitalize(o.display)} (${o.lvlCost ?? 0}/level)` }));
+  const legacy = current && !list.some((o) => o.value === current) ? skillLevelOption(xmlid, current) : undefined;
+  if (legacy) list.push({ value: legacy.xmlId, label: `${capitalize(legacy.display)} (${legacy.lvlCost ?? 0}/level)` });
+  return list;
+}
+const capitalize = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 
 const LANGUAGE_OPTIONS = [
   { value: 'BASIC', label: 'Basic conversation (1)', cost: 1 },
@@ -221,8 +215,8 @@ function skillCost(v: FormValues): number {
   const levels = num(v.levels);
   if (bool(v.everyman)) return 0;
   if (xmlid === 'CUSTOMSKILL') return num(v.cost);
-  if (xmlid === 'COMBAT_LEVELS') return levels * (COMBAT_LEVEL_OPTIONS.find((o) => o.value === v.option)?.cost ?? 2);
-  if (xmlid === 'SKILL_LEVELS') return levels * (SKILL_LEVEL_OPTIONS.find((o) => o.value === v.option)?.cost ?? 2);
+  const breadth = skillLevelCost(xmlid, str(v.option) || skillLevelOptions(xmlid)?.[0]?.xmlId, levels);
+  if (breadth !== undefined) return breadth;
   if (xmlid === 'LANGUAGES') {
     if (bool(v.nativeTongue)) return 0;
     return (LANGUAGE_OPTIONS.find((o) => o.value === v.option)?.cost ?? 2) + (bool(v.literate) ? 1 : 0);
@@ -263,8 +257,8 @@ function skillForm(v: FormValues, isNew: boolean, character?: Character): ItemFo
     fields.push({ name: 'name', label: 'Custom name', type: 'text', value: str(v.name), hint: 'Optional; shown before the skill' });
   }
 
-  if (xmlid === 'COMBAT_LEVELS' || xmlid === 'SKILL_LEVELS') {
-    const list = xmlid === 'COMBAT_LEVELS' ? COMBAT_LEVEL_OPTIONS : SKILL_LEVEL_OPTIONS;
+  if (skillLevelOptions(xmlid)) {
+    const list = breadthOptions(xmlid, str(v.option));
     fields.push({ name: 'option', label: 'Applies to', type: 'select', value: str(v.option), options: options(list, str(v.option) || list[0]!.value) });
   } else if (xmlid === 'LANGUAGES') {
     fields.push(
@@ -359,7 +353,8 @@ function saveSkill(existing: Skill | undefined, v: FormValues, position: number)
   const name = shownName || composed || (existing && existing.xmlid === xmlid ? existing.name : entry?.display ?? 'Skill');
   const cost = skillCost(v);
   const option = str(v.option) || undefined;
-  const optionLabel = [...COMBAT_LEVEL_OPTIONS, ...SKILL_LEVEL_OPTIONS, ...LANGUAGE_OPTIONS].find((o) => o.value === option)?.label;
+  // Hero Designer's OPTION_ALIAS is the option's display ("with HTH Combat")
+  const optionLabel = skillLevelOption(xmlid, option)?.display ?? LANGUAGE_OPTIONS.find((o) => o.value === option)?.label;
   const characteristic = (str(v.characteristic) || entry?.characteristicChoices?.[0]?.characteristic) as Skill['characteristic'];
 
   let adders = existing?.adders;

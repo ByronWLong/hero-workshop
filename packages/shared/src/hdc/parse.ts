@@ -29,10 +29,11 @@ import type {
 import { calculateActiveCost, calculateRealCost, generateId, heroRoundCost } from '../utils.js';
 import { TALENT_CATALOG_6E } from '../generated/catalog6e.js';
 import { SKILL_CATALOG_6E } from '../generated/skillCatalog6e.js';
+import { skillLevelCost } from '../skillLevels.js';
 
 const SKILL_CATALOG_BY_ID = new Map(SKILL_CATALOG_6E.map((s) => [s.xmlId, s]));
 import { getPowerDefinition } from '../powerDefinitions.js';
-import { NND, aoeValue, getModifierByXmlId, isNnd } from '../modifierDefinitions.js';
+import { NND, aoeValue, clampModifierValue, getModifierByXmlId, isNnd } from '../modifierDefinitions.js';
 import {
   CHARACTERISTIC_RULES_6E,
   characteristicCost,
@@ -843,19 +844,8 @@ function parsePowersList(container: unknown): Power[] {
             }
           }
           
-          // Parse SKILL elements inside compound powers (skill enhancers, etc.)
-          const nestedSkills = powerObj['SKILL'];
-          if (nestedSkills) {
-            const skillArr = Array.isArray(nestedSkills) ? nestedSkills : [nestedSkills];
-            for (const skillItem of skillArr) {
-              if (typeof skillItem === 'object' && skillItem !== null) {
-                // Parse skill as power with minimal info for cost calculation
-                const childPower = parsePower(skillItem as Record<string, unknown>);
-                childPower.parentId = power.id;
-                powers.push(childPower);
-              }
-            }
-          }
+          // Skills, perks and talents in the compound, priced as such
+          powers.push(...parseCompoundNonPowerParts(powerObj, power.id));
         }
       }
     }
@@ -875,7 +865,8 @@ function parsePowersList(container: unknown): Power[] {
     // A framework adds its reserve/pool to its slots
     const own = power.ownCost ?? { real: 0, active: 0 };
     power.realCost = own.real + childPowers.reduce((sum, child) => sum + (child.realCost ?? 0), 0);
-    power.activeCost = own.active + childPowers.reduce((sum, child) => sum + (child.activeCost ?? 0), 0);
+    // A framework's Active Points are its reserve's or pool's, as Hero Designer shows them
+    power.activeCost = isFramework(power.type) ? own.active : own.active + childPowers.reduce((sum, child) => sum + (child.activeCost ?? 0), 0);
     if (!isFramework(power.type)) power.baseCost = power.activeCost;
   };
   powers.forEach(total);
@@ -973,40 +964,10 @@ function parseSkill(obj: Record<string, unknown>): Skill {
     totalCost = Math.ceil(baseCost + levelCost + adderCost);
   }
   
-  // Combat Skill Levels have costs based on broadness (option)
-  // SINGLE = 2 CP/level, TIGHT = 3 CP/level, BROAD/HTH/RANGED = 5 CP/level, ALL = 8 CP/level
-  if (xmlid === 'COMBAT_LEVELS') {
-    const cslCostPerLevel: Record<string, number> = {
-      'SINGLE': 2,     // Single Attack
-      'TIGHT': 3,      // Three Maneuvers or Tight Group  
-      'SMALL': 3,      // Small Group (alias for tight)
-      'HTH': 5,        // All HTH Combat
-      'RANGED': 5,     // All Ranged Combat
-      'BROAD': 5,      // All HTH or All Ranged
-      'ALL': 8,        // All Combat
-      'DCV': 8,        // Overall DCV (like ALL)
-      'OCV': 8,        // Overall OCV (like ALL)
-    };
-    const costPerLevel = cslCostPerLevel[option] ?? 2; // Default to SINGLE if unknown
-    totalCost = levels * costPerLevel;
-  }
-  
-  // Regular Skill Levels have costs based on broadness (option)
-  // SINGLE/CHARACTERISTIC = 2 CP/level, THREE = 3 CP/level, GROUP = 4 CP/level, ALL = 6 CP/level
-  if (xmlid === 'SKILL_LEVELS') {
-    const slCostPerLevel: Record<string, number> = {
-      'SINGLE': 2,          // Single Skill
-      'CHARACTERISTIC': 2,  // Single Skill or Characteristic Roll
-      'THREE': 3,           // Three Related Skills
-      'TIGHT': 3,           // Tight Group of Skills
-      'GROUP': 4,           // Broad Group of Skills
-      'BROAD': 4,           // Broad Group of Skills
-      'OVERALL': 6,         // All Skills based on a Characteristic
-      'ALL': 6,             // All Skills based on a Characteristic
-    };
-    const costPerLevel = slCostPerLevel[option] ?? 2; // Default to SINGLE if unknown
-    totalCost = levels * costPerLevel;
-  }
+  // Combat, Skill, Mental Combat and Penalty Skill Levels: the template's cost per level for
+  // their breadth (CSLs with HTH Combat are 8/level, with all attacks 10)
+  const breadthCost = skillLevelCost(xmlid, option, levels);
+  if (breadthCost !== undefined) totalCost = Math.ceil(breadthCost + adderCost);
   
   // Apply modifiers (limitations reduce cost, advantages would increase active cost)
   // For skills, we only care about limitations which reduce the real cost
@@ -1390,12 +1351,23 @@ function parsePower(obj: Record<string, unknown>): Power {
     .reduce((sum, m) => sum + Math.abs(m.value ?? 0), 0);
   
   // Active Points = base * (1 + advantage total)
-  const activeCost = heroRoundCost(trueBaseCost * (1 + advantageTotal));
-  
+  let activeCost = heroRoundCost(trueBaseCost * (1 + advantageTotal));
+
   // Real Cost = Active Points / (1 + limitation total)
   let realCost = activeCost;
   if (limitationTotal > 0) {
     realCost = heroRoundCost(activeCost / (1 + limitationTotal));
+  }
+
+  // An Endurance Reserve's Recovery is a power nested in it, with its own cost and modifiers
+  if (xmlid === 'ENDURANCERESERVE') {
+    const nested = obj['POWER'];
+    for (const rec of Array.isArray(nested) ? nested : nested ? [nested] : []) {
+      if (typeof rec !== 'object' || rec === null || getAttr(rec as Record<string, unknown>, 'XMLID') !== 'ENDURANCERESERVEREC') continue;
+      const recovery = parsePower(rec as Record<string, unknown>);
+      activeCost += recovery.activeCost ?? 0;
+      realCost += recovery.realCost ?? 0;
+    }
   }
 
   // Calculate END Cost if not specified in XML
@@ -1602,10 +1574,36 @@ function parseEquipmentList(container: unknown): Equipment[] {
     children.forEach(total);
     const own = item.ownCost ?? { real: 0, active: 0 };
     item.realCost = own.real + children.reduce((sum, c) => sum + (c.realCost ?? 0), 0);
-    item.activeCost = own.active + children.reduce((sum, c) => sum + (c.activeCost ?? 0), 0);
+    item.activeCost = isFramework(item.xmlId) ? own.active : own.active + children.reduce((sum, c) => sum + (c.activeCost ?? 0), 0);
   };
   equipment.forEach(total);
   return equipment.sort((a, b) => (a.position ?? 0) - (b.position ?? 0));
+}
+
+/**
+ * A Compound Power's skill, perk and talent parts (Hero Designer allows them, e.g. a magic
+ * sword's Combat Skill Levels; hero6e makes each a part of the compound, and CSLs there apply to
+ * its attacks). Each is read as a power-shaped part, priced as a skill, perk or talent.
+ */
+function parseCompoundNonPowerParts(obj: Record<string, unknown>, parentId: string): Power[] {
+  const parts: Power[] = [];
+  for (const tag of ['SKILL', 'PERK', 'TALENT'] as const) {
+    const found = obj[tag];
+    for (const el of Array.isArray(found) ? found : found ? [found] : []) {
+      if (typeof el !== 'object' || el === null) continue;
+      const rec = el as Record<string, unknown>;
+      const priced = tag === 'SKILL' ? parseSkill(rec) : tag === 'PERK' ? parsePerk(rec) : parseTalent(rec);
+      parts.push({
+        ...parsePower(rec),
+        name: priced.name,
+        parentId,
+        baseCost: priced.baseCost,
+        activeCost: priced.baseCost,
+        realCost: priced.realCost,
+      });
+    }
+  }
+  return parts;
 }
 
 /**
@@ -1642,7 +1640,9 @@ function parseEquipmentItem(obj: Record<string, unknown>): Equipment {
     for (const nested of nestedArr) {
       if (typeof nested === 'object' && nested !== null) {
         const nestedObj = nested as Record<string, unknown>;
-        
+        // An Endurance Reserve's Recovery is part of the reserve's own cost, not an item part
+        if (getAttr(nestedObj, 'XMLID') === 'ENDURANCERESERVEREC') continue;
+
         // Parse fully as a Power object
         const childPower = parsePower(nestedObj);
         childPower.parentId = getAttr(obj, 'ID'); // Link to parent
@@ -1698,7 +1698,16 @@ function parseEquipmentItem(obj: Record<string, unknown>): Equipment {
       }
     }
   }
-  
+
+  for (const part of parseCompoundNonPowerParts(obj, getAttr(obj, 'ID'))) {
+    subPowers.push(part);
+    totalActiveCost += part.activeCost ?? 0;
+    totalRealCost += part.realCost ?? 0;
+    childPowerDescriptions.push(`${part.name} (Real Cost: ${part.realCost ?? 0})`);
+  }
+  // Parts in the order Hero Designer lists them
+  subPowers.sort((a, b) => (a.position ?? 0) - (b.position ?? 0));
+
   // Calculate advantage/limitation totals for the main power
   const advantageTotal = modifiers
     .filter((m) => (m.value ?? 0) > 0)
@@ -1711,6 +1720,12 @@ function parseEquipmentItem(obj: Record<string, unknown>): Equipment {
   if (totalRealCost === 0) {
     totalActiveCost = heroRoundCost((baseCost + leveled.cost + adderCost) * (1 + advantageTotal));
     totalRealCost = limitationTotal > 0 ? heroRoundCost(totalActiveCost / (1 + limitationTotal)) : totalActiveCost;
+  }
+  // An Endurance Reserve adds its Recovery, priced as the powers section prices it
+  if (xmlid === 'ENDURANCERESERVE') {
+    const reserve = parsePower(obj);
+    totalActiveCost = reserve.activeCost ?? totalActiveCost;
+    totalRealCost = reserve.realCost ?? totalRealCost;
   }
   
   // Build description - include modifier details and child power details
@@ -1797,7 +1812,11 @@ function parseModifiers(obj: Record<string, unknown>): Modifier[] {
       
       // Add adder costs to the modifier value
       modValue += adderCost;
-      
+
+      // Hero Designer holds a modifier within its template MINCOST/MAXCOST (Requires A Roll is
+      // at most -1/4, so a 14- roll is -1/4, not +1/4)
+      modValue = clampModifierValue(modDef, modValue);
+
       const alias = getAttr(mod, 'ALIAS', '');
       const optionAlias = getAttr(mod, 'OPTION_ALIAS', '');
       

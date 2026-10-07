@@ -28,6 +28,23 @@ describe('skill costs', () => {
     expect(cost('9150')).toBe(3);
   });
 
+  it("prices Combat, Skill, Mental and Penalty Skill Levels at the template's cost for their breadth", () => {
+    const xml = blankHdc().replace('<SKILLS />', `<SKILLS>
+    <SKILL XMLID="COMBAT_LEVELS" ID="9200" BASECOST="0.0" LEVELS="2" ALIAS="Combat Skill Levels" OPTION="HTH" OPTIONID="HTH" OPTION_ALIAS="with HTH Combat" />
+    <SKILL XMLID="COMBAT_LEVELS" ID="9201" BASECOST="0.0" LEVELS="1" ALIAS="Combat Skill Levels" OPTION="ALL" OPTIONID="ALL" OPTION_ALIAS="with All Attacks" />
+    <SKILL XMLID="SKILL_LEVELS" ID="9202" BASECOST="0.0" LEVELS="1" ALIAS="Skill Levels" OPTION="OVERALL" OPTIONID="OVERALL" />
+    <SKILL XMLID="MENTAL_COMBAT_LEVELS" ID="9203" BASECOST="0.0" LEVELS="3" ALIAS="Mental Combat Skill Levels" OPTION="SINGLE" OPTIONID="SINGLE" />
+    <SKILL XMLID="PENALTY_SKILL_LEVELS" ID="9204" BASECOST="0.0" LEVELS="10" ALIAS="Penalty Skill Levels" OPTION="SINGLE" OPTIONID="SINGLE" />
+  </SKILLS>`);
+    const c = parseHdcFile(xml);
+    const cost = (id: string) => c.skills.find((s) => s.id === id)?.realCost;
+    expect(cost('9200')).toBe(16); // 8 per level with HTH Combat
+    expect(cost('9201')).toBe(10);
+    expect(cost('9202')).toBe(12);
+    expect(cost('9203')).toBe(3);
+    expect(cost('9204')).toBe(10);
+  });
+
   it("writes a new language at Hero Designer's price for its fluency", () => {
     const xml = blankHdc();
     const c = saveItemForm(parseHdcFile(xml), 'skills', undefined, { xmlid: 'LANGUAGES', input: 'Elven', option: 'IDIOMATIC', literate: false });

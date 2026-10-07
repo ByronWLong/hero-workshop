@@ -11,7 +11,7 @@ import {
   getPowerDefinition,
   type PowerDefinition,
 } from '../powerDefinitions.js';
-import { NND, aoeValue, getAllModifiers, getModifierByXmlId, isNnd, modifierFor, powerSpecificModifiers, type ModifierDefinition } from '../modifierDefinitions.js';
+import { NND, aoeValue, clampModifierValue, getAllModifiers, getModifierByXmlId, isNnd, modifierFor, powerSpecificModifiers, type ModifierDefinition } from '../modifierDefinitions.js';
 import { calculateAdderCost, heroRoundCost } from '../utils.js';
 import { fractionText as fraction } from './lists.js';
 import { skillRollCategory } from '../hdc/foundry.js';
@@ -355,10 +355,10 @@ export { aoeValue } from '../modifierDefinitions.js';
 /** A modifier's value, the way the HDC parser computes it (so saving round-trips) */
 function modifierValue(def: ModifierDefinition | undefined, m: Modifier): number {
   const adders = (m.adders ?? []).reduce((sum, a) => sum + (a.baseCost ?? 0), 0);
-  if (m.xmlId === 'AOE') return aoeValue(m.optionId ?? 'RADIUS', m.levels ?? 4) + adders;
-  if (def?.hasLevels && (m.levels ?? 0) > 0) return (def.baseCost ?? 0) + (m.levels ?? 0) * (def.lvlCost ?? 0) + adders;
+  if (m.xmlId === 'AOE') return clampModifierValue(def, aoeValue(m.optionId ?? 'RADIUS', m.levels ?? 4) + adders);
+  if (def?.hasLevels && (m.levels ?? 0) > 0) return clampModifierValue(def, (def.baseCost ?? 0) + (m.levels ?? 0) * (def.lvlCost ?? 0) + adders);
   const option = def?.options?.find((o) => o.xmlId === m.optionId);
-  if (option) return option.baseCost + adders;
+  if (option) return clampModifierValue(def, option.baseCost + adders);
   return m.value;
 }
 

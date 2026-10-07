@@ -18,6 +18,16 @@ export interface SkillCatalogEntry {
   baseCost?: number;
   lvlCost?: number;
   characteristicChoices?: SkillCatalogChoice[];
+  options?: SkillCatalogOption[];
+}
+
+export interface SkillCatalogOption {
+  xmlId: string;
+  display: string;
+  alias?: string;
+  baseCost?: number;
+  lvlCost?: number;
+  lvlVal?: number;
 }
 
 export interface SkillEnhancerCatalogEntry {
@@ -82,7 +92,29 @@ export const SKILL_CATALOG_6E: SkillCatalogEntry[] = [
   {
     "xmlId": "AUTOFIRE_SKILLS",
     "display": "Autofire Skills",
-    "baseCost": 5
+    "baseCost": 5,
+    "options": [
+      {
+        "xmlId": "ACCURATE",
+        "display": "Accurate Sprayfire",
+        "baseCost": 5
+      },
+      {
+        "xmlId": "CONCENTRATED",
+        "display": "Concentrated Sprayfire",
+        "baseCost": 5
+      },
+      {
+        "xmlId": "RAPID",
+        "display": "Rapid Autofire",
+        "baseCost": 5
+      },
+      {
+        "xmlId": "SKIPOVER",
+        "display": "Skipover Sprayfire",
+        "baseCost": 5
+      }
+    ]
   },
   {
     "xmlId": "BREAKFALL",
@@ -192,13 +224,71 @@ export const SKILL_CATALOG_6E: SkillCatalogEntry[] = [
     "xmlId": "COMBAT_LEVELS",
     "display": "Combat Skill Levels",
     "baseCost": 0,
-    "lvlCost": 2
+    "lvlCost": 2,
+    "options": [
+      {
+        "xmlId": "SINGLE",
+        "display": "with any single attack",
+        "lvlCost": 2,
+        "lvlVal": 1
+      },
+      {
+        "xmlId": "TIGHT",
+        "display": "with a small group of attacks",
+        "lvlCost": 3,
+        "lvlVal": 1
+      },
+      {
+        "xmlId": "BROAD",
+        "display": "with a large group of attacks",
+        "lvlCost": 5,
+        "lvlVal": 1
+      },
+      {
+        "xmlId": "HTH",
+        "display": "with HTH Combat",
+        "lvlCost": 8,
+        "lvlVal": 1
+      },
+      {
+        "xmlId": "RANGED",
+        "display": "with Ranged Combat",
+        "lvlCost": 8,
+        "lvlVal": 1
+      },
+      {
+        "xmlId": "ALL",
+        "display": "with All Attacks",
+        "lvlCost": 10,
+        "lvlVal": 1
+      }
+    ]
   },
   {
     "xmlId": "MENTAL_COMBAT_LEVELS",
     "display": "Mental Combat Skill Levels",
     "baseCost": 0,
-    "lvlCost": 2
+    "lvlCost": 2,
+    "options": [
+      {
+        "xmlId": "SINGLE",
+        "display": "with a single Mental Power",
+        "lvlCost": 1,
+        "lvlVal": 1
+      },
+      {
+        "xmlId": "TIGHT",
+        "display": "with a group of Mental Powers",
+        "lvlCost": 3,
+        "lvlVal": 1
+      },
+      {
+        "xmlId": "BROAD",
+        "display": "with all Mental Powers",
+        "lvlCost": 6,
+        "lvlVal": 1
+      }
+    ]
   },
   {
     "xmlId": "COMPUTER_PROGRAMMING",
@@ -298,7 +388,29 @@ export const SKILL_CATALOG_6E: SkillCatalogEntry[] = [
   },
   {
     "xmlId": "DEFENSE_MANEUVER",
-    "display": "Defense Maneuver"
+    "display": "Defense Maneuver",
+    "options": [
+      {
+        "xmlId": "ONE",
+        "display": "I",
+        "baseCost": 3
+      },
+      {
+        "xmlId": "TWO",
+        "display": "I-II",
+        "baseCost": 5
+      },
+      {
+        "xmlId": "THREE",
+        "display": "I-III",
+        "baseCost": 8
+      },
+      {
+        "xmlId": "FOUR",
+        "display": "I-IV",
+        "baseCost": 10
+      }
+    ]
   },
   {
     "xmlId": "DEMOLITIONS",
@@ -452,7 +564,34 @@ export const SKILL_CATALOG_6E: SkillCatalogEntry[] = [
   {
     "xmlId": "LANGUAGES",
     "display": "Language",
-    "inputLabel": "Language"
+    "inputLabel": "Language",
+    "options": [
+      {
+        "xmlId": "BASIC",
+        "display": "basic conversation",
+        "baseCost": 1
+      },
+      {
+        "xmlId": "FLUENT",
+        "display": "fluent conversation",
+        "baseCost": 2
+      },
+      {
+        "xmlId": "ACCENT",
+        "display": "completely fluent",
+        "baseCost": 3
+      },
+      {
+        "xmlId": "IDIOMATIC",
+        "display": "idiomatic",
+        "baseCost": 4
+      },
+      {
+        "xmlId": "DIALECTS",
+        "display": "imitate dialects",
+        "baseCost": 5
+      }
+    ]
   },
   {
     "xmlId": "LIPREADING",
@@ -547,7 +686,39 @@ export const SKILL_CATALOG_6E: SkillCatalogEntry[] = [
   {
     "xmlId": "PENALTY_SKILL_LEVELS",
     "display": "Penalty Skill Levels",
-    "lvlCost": 3
+    "lvlCost": 3,
+    "options": [
+      {
+        "xmlId": "SINGLE",
+        "display": "to offset a specific negative OCV modifier with any single attack",
+        "lvlCost": 1,
+        "lvlVal": 1
+      },
+      {
+        "xmlId": "THREE",
+        "display": "to offset a specific negative OCV modifier with any three maneuvers or tight group",
+        "lvlCost": 2,
+        "lvlVal": 1
+      },
+      {
+        "xmlId": "ALL",
+        "display": "to offset a specific negative OCV modifier with all attacks",
+        "lvlCost": 3,
+        "lvlVal": 1
+      },
+      {
+        "xmlId": "SINGLEDCV",
+        "display": "to offset a specific negative DCV modifier imposed by any single specific condition",
+        "lvlCost": 2,
+        "lvlVal": 1
+      },
+      {
+        "xmlId": "GROUPDCV",
+        "display": "to offset a specific negative DCV modifier imposed by a group of conditions",
+        "lvlCost": 3,
+        "lvlVal": 1
+      }
+    ]
   },
   {
     "xmlId": "PERSUASION",
@@ -861,7 +1032,57 @@ export const SKILL_CATALOG_6E: SkillCatalogEntry[] = [
   {
     "xmlId": "SKILL_LEVELS",
     "display": "Skill Levels",
-    "lvlCost": 2
+    "lvlCost": 2,
+    "options": [
+      {
+        "xmlId": "CHARACTERISTIC",
+        "display": "with single Skill or Characteristic Roll",
+        "lvlCost": 2,
+        "lvlVal": 1
+      },
+      {
+        "xmlId": "RELATED",
+        "display": "with any three pre-defined Skills",
+        "lvlCost": 3,
+        "lvlVal": 1
+      },
+      {
+        "xmlId": "GROUP",
+        "display": "with all Intellect Skills, all Interaction Skills, or a similar broad group",
+        "lvlCost": 4,
+        "lvlVal": 1
+      },
+      {
+        "xmlId": "AGILITY",
+        "display": "with all Agility Skills",
+        "lvlCost": 6,
+        "lvlVal": 1
+      },
+      {
+        "xmlId": "NONCOMBAT",
+        "display": "with all Non-Combat Skills",
+        "lvlCost": 10,
+        "lvlVal": 1
+      },
+      {
+        "xmlId": "SINGLEMOVEMENT",
+        "display": "with one mode of Movement",
+        "lvlCost": 2,
+        "lvlVal": 1
+      },
+      {
+        "xmlId": "ALLMOVEMENT",
+        "display": "with all modes of Movement",
+        "lvlCost": 3,
+        "lvlVal": 1
+      },
+      {
+        "xmlId": "OVERALL",
+        "display": "Overall",
+        "lvlCost": 12,
+        "lvlVal": 1
+      }
+    ]
   },
   {
     "xmlId": "SLEIGHT_OF_HAND",

@@ -1496,6 +1496,23 @@ export const SPECIAL_POWERS: Record<string, PowerDefinition> = {
     usesEnd: false,
   },
 
+  // An Endurance Reserve's Recovery: nested in the reserve, 2 points per 3 REC (Main6E.hdt)
+  ENDURANCERESERVEREC: {
+    xmlId: 'ENDURANCERESERVEREC',
+    display: 'Recovery',
+    description: "The Recovery of an Endurance Reserve: the END it regains each time it recovers.",
+    baseCost: 0,
+    lvlCost: 2,
+    lvlVal: 3,
+    levelStart: 1,
+    minVal: 0,
+    duration: 'PERSISTENT',
+    range: 'SELF',
+    target: 'SELFONLY',
+    types: [], // only inside an Endurance Reserve, so not offered on its own
+    usesEnd: false,
+  },
+
   CLINGING: {
     xmlId: 'CLINGING',
     display: 'Clinging',
