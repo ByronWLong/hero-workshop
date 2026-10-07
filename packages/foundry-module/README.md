@@ -79,6 +79,10 @@ npm run build:foundry            # from the repo root; output in packages/foundr
 - **Compound items dropped onto a character** get their parts, and parts that add to a characteristic (a shield's DCV) get hero6e's Active Effects, so the bonus applies straight away.
 - **Icons:** item rows show each item's icon, and every item form has an icon picker (**Use default** clears a custom one). Custom icons are stored in the item's Hero Designer data (a `<FOUNDRY_ICON SRC="…"/>` child element), so they survive editing, dragging items to and from the Items sidebar, and HDC downloads. An icon changed on a hero6e sheet is recorded straight away. Desktop Hero Designer opens files with it but drops it when it saves.
 - **Dropped items:** items dropped onto a character's sheet (from the Items sidebar, a compendium or another character) are written into its Hero Designer data straight away, so the editor doesn't report them as changes made in Foundry. hero6e's own parser builds the item, so it matches an uploaded one.
+- **Copying from sheets you can see:** a player can open a creature in a compendium (or any actor they can see) and drag its powers, skills and other abilities onto their own character. Dropping still needs ownership of the character dropped on.
+  - hero6e only lets an actor's owners start a drag; Hero Workshop lets anyone who can see the sheet, as core Foundry does.
+  - Items dragged off hero6e's actor sheets now carry their drag data (hero6e 5.0 set none).
+  - Multipowers, lists and compound powers can be dragged too, and arrive with their slots or parts.
 - **Drag and drop:**
   - Drag a row out of the editor onto the Items sidebar (or one of its folders) to make a world item. Lists and frameworks become a folder holding the parent item and its members, as in hero6e's compendiums.
   - Compound powers (most equipment) stay a single world item, with their parts kept in the item's Hero Designer data. Compounds dragged from a hero6e actor sheet to the sidebar are handled the same way. When one is dropped onto an actor, Hero Workshop adds its parts as child items, which is how hero6e shows compounds.
