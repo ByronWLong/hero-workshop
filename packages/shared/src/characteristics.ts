@@ -86,7 +86,9 @@ export function characteristicCost(
   maximum?: number,
   rule: CharacteristicRule | undefined = CHARACTERISTIC_RULES_6E[type],
 ): number {
-  if (!rule || levels <= 0) return 0;
+  if (!rule || levels === 0) return 0;
+  // Bought below its base, a characteristic gives points back (Hero Designer's Characteristic.getTotalCost)
+  if (levels < 0) return Math.ceil(levels * rule.costPerPoint);
   let cost = levels * rule.costPerPoint;
   const value = rule.base + levels;
   if (maximum !== undefined && value > maximum) {

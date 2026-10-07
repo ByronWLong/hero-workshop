@@ -43,6 +43,7 @@ import {
   PERK_CATALOG_6E,
   TALENT_CATALOG_6E,
   type CatalogAdder,
+  type CatalogOption,
   type CatalogEntry,
 } from '../generated/catalog6e.js';
 import { HdcDocument, type HdcItemSection, setIcon } from './document.js';
@@ -320,7 +321,9 @@ function nextPosition(container: XmlElement): number {
 }
 
 /** Items whose children are nested elements rather than PARENTID references */
+/** Compound powers (and equipment items' parts) nest inside their item; lists and frameworks link members by PARENTID */
 function nestsChildren(el: XmlElement): boolean {
+  if (el.name === 'LIST' || isFramework(el.name)) return false;
   return el.getAttr('XMLID') === 'COMPOUNDPOWER' || el.parent?.name === 'EQUIPMENT';
 }
 
@@ -838,6 +841,10 @@ function reconcileAdder(ctx: WriteContext, owner: XmlElement, beforeById: Map<st
       if (a.lvlVal !== undefined) el.setAttr('LVLVAL', String(a.lvlVal));
     }
     if (!same(b.lvlCost, a.lvlCost)) el.setAttr('LVLCOST', String(a.lvlCost ?? 0));
+    if (!same(b.optionId, a.optionId)) {
+      el.setAttr('OPTION', a.optionId ?? '');
+      el.setAttr('OPTIONID', a.optionId ?? '');
+    }
     if (!same(b.optionAlias, a.optionAlias)) el.setAttr('OPTION_ALIAS', a.optionAlias ?? '');
     if (!same(b.selected, a.selected)) el.setAttr('SELECTED', a.selected === false ? 'NO' : 'YES');
     if (!same(b.includeInBase, a.includeInBase)) el.setAttr('INCLUDEINBASE', yesNo(a.includeInBase));
@@ -865,6 +872,8 @@ function createAdder(ctx: WriteContext, a: Adder): XmlElement {
     NAME: '',
     LVLCOST: a.lvlCost !== undefined ? String(a.lvlCost) : undefined,
     LVLVAL: a.lvlVal !== undefined ? String(a.lvlVal) : undefined,
+    OPTION: a.optionId,
+    OPTIONID: a.optionId,
     OPTION_ALIAS: a.optionAlias,
     SHOWALIAS: 'Yes',
     PRIVATE: 'No',
@@ -903,6 +912,15 @@ const BACKGROUND_PREFIXES: Record<string, string> = {
   CK: 'CITY_KNOWLEDGE',
   TF: 'TRANSPORT_FAMILIARITY',
   WF: 'WEAPON_FAMILIARITY',
+};
+
+/** Hero Designer's 6E language fluencies (Main6E.hdt): BASECOST is the option's price */
+const LANGUAGE_FLUENCY: Record<string, { cost: number; alias: string }> = {
+  BASIC: { cost: 1, alias: 'basic conversation' },
+  FLUENT: { cost: 2, alias: 'fluent conversation' },
+  ACCENT: { cost: 3, alias: 'completely fluent' },
+  IDIOMATIC: { cost: 4, alias: 'idiomatic' },
+  DIALECTS: { cost: 5, alias: 'imitate dialects' },
 };
 
 export function lookupSkillCatalog(nameOrXmlId: string): SkillCatalogEntry | undefined {
@@ -979,14 +997,26 @@ const SKILL_SPEC: ItemSpec<Skill> = {
       el.setAttr('CHARACTERISTIC', a.characteristic);
     }
     if (!same(b.proficiency, a.proficiency)) el.setAttr('PROFICIENCY', yesNo(a.proficiency));
-    if (!same(b.familiarity, a.familiarity)) el.setAttr('FAMILIARITY', yesNo(a.familiarity));
+    if (!same(b.familiarity, a.familiarity)) {
+      el.setAttr('FAMILIARITY', yesNo(a.familiarity));
+      // Hero Designer writes a familiarity's BASECOST as 0, and the skill's own base otherwise
+      const choices = lookupSkillCatalog(xmlId)?.characteristicChoices ?? [];
+      const base = choices.find((c) => c.characteristic === el.getAttr('CHARACTERISTIC'))?.baseCost ?? choices[0]?.baseCost;
+      if (a.familiarity && !a.proficiency) el.setAttr('BASECOST', '0.0');
+      else if (base !== undefined) el.setAttr('BASECOST', hdCost(base));
+    }
     if (!same(b.everyman, a.everyman)) el.setAttr('EVERYMAN', yesNo(a.everyman));
     if (!same(b.nativeTongue, a.nativeTongue)) el.setAttr('NATIVE_TONGUE', yesNo(a.nativeTongue));
     if (!same(b.option, a.option)) {
       el.setAttr('OPTION', a.option ?? '');
       el.setAttr('OPTIONID', a.option ?? '');
+      const fluency = xmlId === 'LANGUAGES' ? LANGUAGE_FLUENCY[a.option ?? ''] : undefined;
+      if (fluency) {
+        el.setAttr('BASECOST', hdCost(fluency.cost));
+        el.setAttr('OPTION_ALIAS', fluency.alias);
+      }
     }
-    if (!same(b.optionAlias, a.optionAlias)) el.setAttr('OPTION_ALIAS', a.optionAlias ?? '');
+    if (!same(b.optionAlias, a.optionAlias) && !(xmlId === 'LANGUAGES' && LANGUAGE_FLUENCY[a.option ?? ''])) el.setAttr('OPTION_ALIAS', a.optionAlias ?? '');
     if (!same(b.notes, a.notes)) setNotes(el, a.notes);
     // ROLL is stored only for custom skills; elsewhere it is derived
     if (!same(b.roll, a.roll) && el.hasAttr('ROLL') && a.roll !== undefined) el.setAttr('ROLL', hdInt(a.roll));
@@ -1021,6 +1051,7 @@ const SKILL_SPEC: ItemSpec<Skill> = {
       (parsed.input ? choices.find((c) => c.characteristic === 'GENERAL') : undefined) ??
       choices[0];
     const isCustom = xmlId === 'CUSTOMSKILL';
+    const fluency = xmlId === 'LANGUAGES' ? LANGUAGE_FLUENCY[s.option ?? 'FLUENT'] : undefined;
     const alias = isCustom ? s.alias || s.name : parsed.alias ?? s.alias ?? cat?.display ?? s.name;
     // A custom name displays as "Name: ALIAS" (see parseSkill); strip that back to NAME
     const bareName = s.name.endsWith(`: ${alias}`) ? s.name.slice(0, -(alias.length + 2)) : s.name;
@@ -1032,7 +1063,8 @@ const SKILL_SPEC: ItemSpec<Skill> = {
     const el = createElement('SKILL', {
       XMLID: xmlId,
       ID: '',
-      BASECOST: hdCost(isCustom ? s.baseCost : (choice?.baseCost ?? cat?.baseCost ?? 0)),
+      // A familiarity has no base cost of its own (Hero Designer writes 0; hero6e prices from it)
+      BASECOST: hdCost(isCustom ? s.baseCost : s.familiarity && !s.proficiency ? 0 : (fluency?.cost ?? choice?.baseCost ?? cat?.baseCost ?? 0)),
       LEVELS: hdInt(s.levels),
       ALIAS: alias,
       POSITION: '0',
@@ -1044,9 +1076,9 @@ const SKILL_SPEC: ItemSpec<Skill> = {
       PROFICIENCY: yesNo(s.proficiency),
       LEVELSONLY: 'No',
       EVERYMAN: s.everyman ? 'Yes' : undefined,
-      OPTION: s.option,
-      OPTIONID: s.option,
-      OPTION_ALIAS: s.optionAlias,
+      OPTION: s.option ?? (fluency ? 'FLUENT' : undefined),
+      OPTIONID: s.option ?? (fluency ? 'FLUENT' : undefined),
+      OPTION_ALIAS: fluency?.alias ?? s.optionAlias,
       NATIVE_TONGUE: s.nativeTongue ? 'Yes' : undefined,
       ROLL: isCustom && s.roll ? hdInt(s.roll) : undefined,
     });
@@ -1359,16 +1391,33 @@ function addRequiredAdders(
   }
   if (!added.length) return 0;
 
-  const fit = added.find(({ adder }) => (adder.options?.length ?? 0) > 1);
-  if (targetPoints !== undefined && fit) {
-    const options = fit.adder.options!;
-    const others = el.elements('ADDER').reduce((sum, a) => sum + adderElementCost(a), 0) - adderElementCost(fit.el);
-    const distance = (cost: number | undefined) => Math.abs(targetPoints - others - (cost ?? 0));
-    const option = options.reduce((best, o) => (distance(o.baseCost) < distance(best.baseCost) ? o : best), options[0]!);
-    fit.el.setAttr('BASECOST', hdCost(option.baseCost ?? fit.adder.baseCost));
-    fit.el.setAttr('OPTION', option.xmlId);
-    fit.el.setAttr('OPTIONID', option.xmlId);
-    fit.el.setAttr('OPTION_ALIAS', option.display);
+  const choosing = added.filter(({ adder }) => (adder.options?.length ?? 0) > 1);
+  if (targetPoints !== undefined && choosing.length) {
+    // The options (across all the required adders) that add up closest to the points, preferring
+    // ones the text names ("Uncommon", "1 1/2x BODY") and then the template's first choices
+    const others = el.elements('ADDER').reduce((sum, a) => sum + adderElementCost(a), 0) - choosing.reduce((s, c) => s + adderElementCost(c.el), 0);
+    const text = label.toLowerCase();
+    const named = (o: CatalogOption) => [o.display, o.alias].some((d) => d && text.includes(d.replace(/^\(/, '').toLowerCase()));
+    let best: { picks: CatalogOption[]; miss: number; score: number } | undefined;
+    const search = (i: number, picks: CatalogOption[], sum: number, score: number, budget: { left: number }) => {
+      if (budget.left-- <= 0) return;
+      if (i === choosing.length) {
+        const miss = Math.abs(targetPoints - others - sum);
+        if (!best || miss < best.miss || (miss === best.miss && score < best.score)) best = { picks: [...picks], miss, score };
+        return;
+      }
+      choosing[i]!.adder.options!.forEach((o, rank) => {
+        search(i + 1, [...picks, o], sum + (o.baseCost ?? 0), score + (named(o) ? 0 : 100) + rank, budget);
+      });
+    };
+    search(0, [], 0, 0, { left: 20000 });
+    best?.picks.forEach((option, i) => {
+      const fit = choosing[i]!;
+      fit.el.setAttr('BASECOST', hdCost(option.baseCost ?? fit.adder.baseCost));
+      fit.el.setAttr('OPTION', option.xmlId);
+      fit.el.setAttr('OPTIONID', option.xmlId);
+      fit.el.setAttr('OPTION_ALIAS', option.alias ?? option.display);
+    });
   }
   ctx.change(`${label}: added required ${added.map((a) => a.adder.display).join(', ')}`);
   return el.elements('ADDER').reduce((sum, a) => sum + adderElementCost(a), 0);
@@ -1422,8 +1471,27 @@ const PERK_SPEC: ItemSpec<Perk> = {
   create(ctx, p) {
     if (p.isGroup) return listElement(ctx, p);
     const xmlId = PERK_XMLIDS[p.type] ?? p.type;
-    const el = genericItem('PERK', xmlId, p);
+    const entry = PERK_CATALOG.get(xmlId);
+    // ALIAS is the perk's label ("Contact"); the name is the contact (INPUT) or the perk's own NAME
+    const label = entry?.display ?? p.alias ?? p.name;
+    const named = p.name && p.name !== label && p.name !== p.alias ? p.name : '';
+    const el = genericItem('PERK', xmlId, { ...p, alias: xmlId === 'CUSTOMPERK' ? p.alias || p.name : label });
     if (xmlId === 'CUSTOMPERK') el.setAttr('NAME', p.name);
+    else if (xmlId === 'CONTACT') {
+      el.setAttr('INPUT', named);
+      // A Contact costs its levels (its roll) plus its adders; a bare cost becomes levels
+      el.setAttr('BASECOST', '0.0');
+      if (!p.levels) el.setAttr('LEVELS', hdInt(Math.max(1, (p.baseCost ?? 1) - adderCost(p.adders))));
+    }
+    else if (named) el.setAttr('NAME', named);
+    // A Base, Vehicle or Follower costs 1 per 5 of its points (Hero Designer reads BASEPOINTS)
+    if (xmlId === 'VEHICLE_BASE' || xmlId === 'FOLLOWER') {
+      el.setAttr('BASECOST', '0.0');
+      el.setAttr('NAME', p.name === label ? '' : p.name);
+      el.setAttr('NUMBER', '1');
+      el.setAttr('BASEPOINTS', String(Math.round((p.baseCost ?? 0) * 5)));
+      el.setAttr('DISADPOINTS', '0');
+    }
     appendChildren(ctx, el, p);
     addRequiredAdders(ctx, el, PERK_CATALOG.get(xmlId), p.name);
     if (!PERK_CATALOG.has(xmlId)) ctx.warn(`${p.name}: unknown perk type ${xmlId}; Hero Designer may drop it.`);
@@ -1446,7 +1514,9 @@ const TALENT_SPEC: ItemSpec<Talent> = {
   create(ctx, t) {
     if (t.isGroup) return listElement(ctx, t);
     const xmlId = TALENT_XMLIDS[t.type] ?? t.type;
-    const el = genericItem('TALENT', xmlId, t, { CHARACTERISTIC: t.characteristic });
+    // A custom talent's cost is its LEVELS (as Hero Designer writes them)
+    const custom = xmlId === 'CUSTOMTALENT';
+    const el = genericItem('TALENT', xmlId, custom ? { ...t, baseCost: 0, levels: t.baseCost } : t, { CHARACTERISTIC: t.characteristic, ...(custom ? { ROLL: '0' } : {}) });
     appendChildren(ctx, el, t);
     addRequiredAdders(ctx, el, TALENT_CATALOG.get(xmlId), t.name);
     if (!TALENT_CATALOG.has(xmlId)) ctx.warn(`${t.name}: unknown talent type ${xmlId}; Hero Designer may drop it.`);

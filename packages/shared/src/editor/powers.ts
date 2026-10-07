@@ -11,7 +11,7 @@ import {
   getPowerDefinition,
   type PowerDefinition,
 } from '../powerDefinitions.js';
-import { NND, getAllModifiers, getModifierByXmlId, isNnd, modifierFor, powerSpecificModifiers, type ModifierDefinition } from '../modifierDefinitions.js';
+import { NND, aoeValue, getAllModifiers, getModifierByXmlId, isNnd, modifierFor, powerSpecificModifiers, type ModifierDefinition } from '../modifierDefinitions.js';
 import { calculateAdderCost, heroRoundCost } from '../utils.js';
 import { fractionText as fraction } from './lists.js';
 import { skillRollCategory } from '../hdc/foundry.js';
@@ -350,13 +350,7 @@ export function setAdderLevels(draft: PowerDraft, id: string, levels: number): P
 // Modifiers
 // =============================================================================
 
-const AOE_SHAPES: Record<string, number> = { RADIUS: 1, CONE: 2, LINE: 4, SURFACE: 0.5 };
-
-/** Area of Effect: +1/4 per 4m of effective radius (larger shapes count for less), rounded up */
-export function aoeValue(shape: string, size: number): number {
-  if (size <= 0) return 0.25;
-  return Math.ceil(size / (AOE_SHAPES[shape] ?? 1) / 4) * 0.25;
-}
+export { aoeValue } from '../modifierDefinitions.js';
 
 /** A modifier's value, the way the HDC parser computes it (so saving round-trips) */
 function modifierValue(def: ModifierDefinition | undefined, m: Modifier): number {

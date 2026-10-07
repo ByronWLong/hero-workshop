@@ -1626,7 +1626,7 @@ export const CHARACTERISTIC_POWERS: Record<string, PowerDefinition> = {
     abbreviation: 'CON',
     description: 'Increases the character\'s Constitution characteristic.',
     baseCost: 0,
-    lvlCost: 2,
+    lvlCost: 1,
     lvlVal: 1,
     levelStart: 1,
     minVal: 1,

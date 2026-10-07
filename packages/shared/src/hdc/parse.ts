@@ -26,9 +26,13 @@ import type {
   Rules,
   CharacteristicType,
 } from '../types.js';
-import { generateId, heroRoundCost } from '../utils.js';
+import { calculateActiveCost, calculateRealCost, generateId, heroRoundCost } from '../utils.js';
+import { TALENT_CATALOG_6E } from '../generated/catalog6e.js';
+import { SKILL_CATALOG_6E } from '../generated/skillCatalog6e.js';
+
+const SKILL_CATALOG_BY_ID = new Map(SKILL_CATALOG_6E.map((s) => [s.xmlId, s]));
 import { getPowerDefinition } from '../powerDefinitions.js';
-import { NND, getModifierByXmlId, isNnd } from '../modifierDefinitions.js';
+import { NND, aoeValue, getModifierByXmlId, isNnd } from '../modifierDefinitions.js';
 import {
   CHARACTERISTIC_RULES_6E,
   characteristicCost,
@@ -948,8 +952,26 @@ function parseSkill(obj: Record<string, unknown>): Skill {
   const familiarity = getAttrBool(obj, 'FAMILIARITY');
   const everyman = getAttrBool(obj, 'EVERYMAN');
   const option = getAttr(obj, 'OPTION', '');
-  
-  let totalCost = Math.ceil(baseCost + levels + adderCost);
+
+  // Hero Designer (Skill.getTotalCost): base + levels at the template's cost per level for the
+  // skill's characteristic + adders; a familiarity has no base or levels and costs at least its
+  // familiarity cost
+  const entry = SKILL_CATALOG_BY_ID.get(xmlid);
+  const choices = entry?.characteristicChoices ?? [];
+  const choice = choices.find((c) => c.characteristic === getAttr(obj, 'CHARACTERISTIC', '')) ?? choices[0];
+  const lvlCost = choice?.lvlCost ?? entry?.lvlCost;
+  const lvlVal = choice?.lvlVal ?? 1;
+  const proficiency = getAttrBool(obj, 'PROFICIENCY');
+  let totalCost: number;
+  if (!entry || xmlid === 'CUSTOMSKILL' || lvlCost === undefined) {
+    totalCost = Math.ceil(baseCost + levels + adderCost);
+  } else if (familiarity && !proficiency) {
+    totalCost = Math.max(entry.familiarityCost ?? 1, adderCost);
+  } else {
+    let levelCost = (levels / lvlVal) * lvlCost;
+    if (lvlCost < lvlVal) levelCost = levelCost > 0 && levelCost < 1 ? 1 : Math.round(levelCost - 1e-9);
+    totalCost = Math.ceil(baseCost + levelCost + adderCost);
+  }
   
   // Combat Skill Levels have costs based on broadness (option)
   // SINGLE = 2 CP/level, TIGHT = 3 CP/level, BROAD/HTH/RANGED = 5 CP/level, ALL = 8 CP/level
@@ -1060,8 +1082,8 @@ function parsePerk(obj: Record<string, unknown>): Perk {
   // Build display name based on perk type
   let displayName = '';
   if (xmlid === 'CONTACT') {
-    // Contact: Name Roll- (roll = 8 + (levels - 1) = 7 + levels)
-    const contactRoll = 7 + levels;
+    // Contact: "Name Roll-"; Hero Designer's roll is 8- at 1 level, 11- at 2, +1 per level after
+    const contactRoll = contactRollFor(levels);
     displayName = ` Contact:  ${input || nameAttr || 'Unknown'} ${contactRoll}-`;
   } else if (xmlid === 'VEHICLE_BASE') {
     // "Starbase: Vehicles & Bases"
@@ -1117,20 +1139,24 @@ function parsePerk(obj: Record<string, unknown>): Perk {
   let totalCost = 0;
   let activeCost = 0; // Track active cost before list discounts
   
-  if (xmlid === 'VEHICLE_BASE') {
-    // Vehicles & Bases: cost = BASEPOINTS / 5 (1 CP per 5 points in the base)
+  if (xmlid === 'VEHICLE_BASE' || xmlid === 'FOLLOWER') {
+    // Vehicles & Bases, Followers: 1 CP per 5 points built on, +5 per doubling of their number
     const basePoints = getAttrNum(obj, 'BASEPOINTS', 0);
-    totalCost = Math.ceil(basePoints / 5);
+    const number = Math.max(1, getAttrNum(obj, 'NUMBER', 1));
+    totalCost = Math.ceil(basePoints / 5) + 5 * Math.ceil(Math.log2(number));
     activeCost = totalCost;
   } else if (xmlid === 'CONTACT') {
-    // Contact: LEVELS is the cost (1 per level typically)
-    totalCost = levels > 0 ? levels : 1;
-    activeCost = totalCost;
+    // Contact: 1 point per level (at least 1) plus its adders (useful skills, loyalty...), then modifiers
+    const modifiers = parseModifiers(obj);
+    activeCost = calculateActiveCost(Math.max(1, levels) + adderCost, modifiers);
+    totalCost = Math.max(1, calculateRealCost(activeCost, modifiers));
   } else if (xmlid === 'REPUTATION' || xmlid === 'POSITIVE_REPUTATION') {
-    // Reputation: cost is from adders only (LEVELS is effect magnitude, not cost)
-    // The LEVELS attribute describes the reaction roll bonus (+X/+Xd6), not cost
-    // Adders with INCLUDEINBASE="Yes" contribute to the base cost
-    activeCost = Math.ceil(Math.abs(baseCost) + adderCost);
+    // Hero Designer (Reputation.java): each level (+1/+1d6) costs how widely plus how well it's
+    // known (at least 1); other adders add to that
+    const scope = adders.filter((a) => a.xmlId === 'HOWWIDE' || a.xmlId === 'HOWWELL');
+    const perLevel = Math.max(1, calculateAdderCost(scope));
+    const others = calculateAdderCost(adders.filter((a) => !scope.includes(a)));
+    activeCost = Math.max(1, Math.ceil(Math.abs(baseCost) + Math.max(1, levels) * perLevel + others));
     totalCost = activeCost; // Real cost will be adjusted by list discount later
   } else {
     totalCost = Math.ceil(Math.abs(baseCost + adderCost + levels));
@@ -1156,6 +1182,14 @@ function parsePerk(obj: Record<string, unknown>): Perk {
   };
 }
 
+/** Hero Designer's Contact roll (Contact.getRoll): 8- at 1 level, 11- at 2, +1 per level after */
+export function contactRollFor(levels: number): number {
+  if (levels <= 1) return 8;
+  return 11 + levels - 2;
+}
+
+const TALENT_CATALOG = new Map(TALENT_CATALOG_6E.map((t) => [t.xmlId, t]));
+
 function parseTalent(obj: Record<string, unknown>): Talent {
   // HDC files use XMLID for the talent type
   const xmlid = getAttr(obj, 'XMLID', '');
@@ -1164,10 +1198,15 @@ function parseTalent(obj: Record<string, unknown>): Talent {
   const levels = getAttrNum(obj, 'LEVELS', 0);
   const baseCost = getAttrNum(obj, 'BASECOST', 0);
   
-  // For custom talents, LEVELS is the cost; otherwise baseCost + adders
+  // For custom talents, LEVELS is the cost; otherwise baseCost + levels at the template's cost per level + adders
   const adders = parseAdders(obj);
   const adderCost = calculateAdderCost(adders);
-  const totalCost = xmlid === 'CUSTOMTALENT' ? levels : Math.ceil(baseCost + levels + adderCost);
+  const entry = TALENT_CATALOG.get(xmlid);
+  // An option can price its levels differently (Deadly Blow's circumstances)
+  const option = entry?.options?.find((o) => o.xmlId === getAttr(obj, 'OPTIONID', ''));
+  const lvlCost = option?.lvlCost ?? entry?.lvlCost;
+  const perLevel = lvlCost !== undefined ? lvlCost / ((option?.lvlCost !== undefined ? option.lvlVal : entry?.lvlVal) || 1) : 1;
+  const totalCost = xmlid === 'CUSTOMTALENT' ? levels : Math.ceil(baseCost + levels * perLevel + adderCost);
   
   return {
     id: getAttr(obj, 'ID') || generateId(),
@@ -1753,21 +1792,8 @@ function parseModifiers(obj: Record<string, unknown>): Modifier[] {
         modValue = (modDef.baseCost || 0) + (levels * (modDef.lvlCost || 0));
       }
       
-      // For AOE (Area of Effect), calculate value based on area size and shape
-      // Different shapes have multipliers - LINE gets 4x distance for same cost as RADIUS
-      // Formula: +1/4 per 4m of effective radius, round up
-      if (xmlid === 'AOE' && levels > 0) {
-        const shapeMultipliers: Record<string, number> = {
-          'RADIUS': 1,
-          'CONE': 2,
-          'LINE': 4,
-          'SURFACE': 0.5,
-        };
-        const shapeMultiplier = shapeMultipliers[optionId] || 1;
-        const effectiveRadius = levels / shapeMultiplier;
-        const costLevels = Math.ceil(effectiveRadius / 4);
-        modValue = costLevels * 0.25;
-      }
+      // Area of Effect: +1/4 per doubling of its size, as Hero Designer prices it
+      if (xmlid === 'AOE' && levels > 0) modValue = aoeValue(optionId || 'RADIUS', levels);
       
       // Add adder costs to the modifier value
       modValue += adderCost;
@@ -1862,6 +1888,7 @@ function parseAdders(obj: Record<string, unknown>, preserveHierarchy: boolean = 
           lvlCost: lvlCost || undefined,
           lvlVal: lvlVal !== 1 ? lvlVal : undefined,
           notes: getAttr(add, 'NOTES') || undefined,
+          optionId: getAttr(add, 'OPTIONID') || undefined,
           optionAlias: optionAlias || undefined,
           includeInBase: includeInBase,
           selected: isSelected,

@@ -376,6 +376,8 @@ export interface Adder {
   lvlCost?: number;
   lvlVal?: number;
   notes?: string;
+  /** The template option chosen (OPTIONID), e.g. a Reputation's LARGEGROUP */
+  optionId?: string;
   optionAlias?: string;
   includeInBase?: boolean;
   selected?: boolean; // True if this adder is selected (for weapon elements, etc.)

@@ -104,8 +104,9 @@ const SKILL_LEVEL_OPTIONS = [
 const LANGUAGE_OPTIONS = [
   { value: 'BASIC', label: 'Basic conversation (1)', cost: 1 },
   { value: 'FLUENT', label: 'Fluent conversation (2)', cost: 2 },
-  { value: 'IDIOMATIC', label: 'Completely fluent, with accent (3)', cost: 3 },
-  { value: 'IMITATE', label: 'Imitate dialects (4)', cost: 4 },
+  { value: 'ACCENT', label: 'Completely fluent, with accent (3)', cost: 3 },
+  { value: 'IDIOMATIC', label: 'Idiomatic, native accent (4)', cost: 4 },
+  { value: 'DIALECTS', label: 'Imitate dialects (5)', cost: 5 },
 ];
 
 // =============================================================================

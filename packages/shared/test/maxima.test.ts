@@ -25,7 +25,8 @@ describe('characteristic costs', () => {
     expect(characteristicCost('DEX', 5)).toBe(10);
     expect(characteristicCost('SWIMMING', 4)).toBe(2);
     expect(characteristicCost('STUN', 10)).toBe(5);
-    expect(characteristicCost('STR', -5)).toBe(0);
+    // Sold below the base: points back, as Hero Designer charges them
+    expect(characteristicCost('STR', -5)).toBe(-5);
   });
 
   it('doubles levels above the maximum, like Hero Designer', () => {
@@ -137,5 +138,14 @@ describe('non-character templates', () => {
 
     const base = parseHdcFile(blankHdc(undefined, 'builtIn.Base6E.hdt'));
     expect(base.characteristics.map((c) => `${c.type}:${c.totalValue}`)).toEqual(['PD:2', 'ED:2', 'BODY:2', 'BASESIZE:0']);
+  });
+});
+
+describe('characteristics below their base', () => {
+  it('give points back, as Hero Designer charges them', async () => {
+    const { characteristicCost } = await import('../src/index.js');
+    expect(characteristicCost('DEX', -2)).toBe(-4);
+    expect(characteristicCost('STR', -3)).toBe(-3);
+    expect(characteristicCost('END', -5)).toBe(-1);
   });
 });

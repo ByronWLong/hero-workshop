@@ -5,7 +5,7 @@
 export { XmlDocument, XmlElement, XmlText, XmlParseError, parseXml, createElement } from './xml.js';
 export { decodeHdcBytes, encodeHdcUtf16, detectHdcEncoding, type HdcEncoding } from './encoding.js';
 export { HdcDocument, HDC_SECTIONS, HDC_ITEM_SECTIONS, ICON_ATTR, getIcon, setIcon, type HdcSection, type HdcItemSection } from './document.js';
-export { parseHdcFile, parseHdcDocument } from './parse.js';
+export { parseHdcFile, parseHdcDocument, contactRollFor } from './parse.js';
 export { extractItems, insertItems, type ItemTransfer, type InsertOptions } from './transfer.js';
 export { repairForFoundry, type RepairResult } from './repair.js';
 export {
@@ -32,3 +32,4 @@ export {
   type FoundryValidationIssue,
 } from './foundry.js';
 export { SKILL_CATALOG_6E, SKILL_ENHANCER_CATALOG_6E, type SkillCatalogEntry } from '../generated/skillCatalog6e.js';
+export { PERK_CATALOG_6E, TALENT_CATALOG_6E, DISADVANTAGE_CATALOG_6E, type CatalogEntry } from '../generated/catalog6e.js';

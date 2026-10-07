@@ -51,3 +51,13 @@ describe("a power's own definition of a modifier", () => {
     expect(powerCosts(draft).real).toBe(27); // 40 / 1.5
   });
 });
+
+describe('Area Of Effect', () => {
+  it("prices each doubling of the area at +1/4, as Hero Designer's 6E template does", async () => {
+    const { aoeValue } = await import('../src/index.js');
+    expect([1, 4, 7, 8, 12, 16, 32, 64].map((m) => aoeValue('RADIUS', m))).toEqual([0.25, 0.25, 0.5, 0.5, 0.75, 0.75, 1, 1.25]);
+    expect([8, 16, 32].map((m) => aoeValue('CONE', m))).toEqual([0.25, 0.5, 0.75]);
+    expect([16, 32, 64].map((m) => aoeValue('LINE', m))).toEqual([0.25, 0.5, 0.75]);
+    expect([2, 4, 8].map((m) => aoeValue('SURFACE', m))).toEqual([0.25, 0.5, 0.75]);
+  });
+});

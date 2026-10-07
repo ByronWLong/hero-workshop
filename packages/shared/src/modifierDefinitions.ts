@@ -1339,3 +1339,17 @@ export default {
   calculateModifierValue,
   formatModifierValue,
 };
+
+/** Hero Designer's 6E level multipliers (Main6E.hdt): a Cone reaches 4x a Radius, a Line 8x */
+const AOE_SHAPES: Record<string, number> = { RADIUS: 2, CONE: 4, LINE: 8, SURFACE: 1, ANY: 1 };
+
+/**
+ * Area of Effect, as Hero Designer prices it in 6E (AreaEffect.getTotalValue): +1/4 for each
+ * doubling of the area's size over the shape's multiplier, at least +1/4 (4m Radius +1/4,
+ * 8m +1/2, 16m +3/4, 32m +1)
+ */
+export function aoeValue(shape: string, size: number): number {
+  if (size <= 0) return 0.25;
+  const doublings = Math.ceil(Math.log(size / (AOE_SHAPES[shape] ?? 1)) / Math.log(2) - 1e-9);
+  return Math.max(1, doublings) * 0.25;
+}
