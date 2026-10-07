@@ -2,7 +2,10 @@
   <div class="hw-list-toolbar">
     <span class="hint">{{tab.count}} {{#if (eq tab.count 1)}}entry{{else}}entries{{/if}} · {{tab.points}} pts</span>
     {{#if tab.canAdd}}
-    <div class="hw-inline-buttons">
+    <div class="hw-inline-buttons hw-add-bar">
+      {{#if tab.addChoices}}
+      {{> "modules/hero-workshop/templates/partials/typeahead.hbs" field=tab.addField clear=true groups=tab.addChoices placeholder=tab.addPlaceholder icon="fa-plus" cssClass="hw-add-typeahead"}}
+      {{/if}}
       <button type="button" data-action="addItem" data-section="{{tab.section}}"><i class="fa-solid fa-plus" inert></i> Add {{tab.noun}}</button>
     </div>
     {{/if}}

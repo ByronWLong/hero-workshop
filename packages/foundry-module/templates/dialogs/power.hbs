@@ -11,37 +11,17 @@
   </div>
   {{/if}}
 
-  <div class="hw-icon-field">
-    <button type="button" class="hw-icon-pick" data-action="pickIcon" data-tooltip="Choose icon" aria-label="Choose icon">
-      <img src="{{icon.src}}" alt="">
-    </button>
-    <div>
-      <span class="hint">{{#if icon.custom}}Custom icon{{else}}Default icon{{/if}}</span>
-      {{#if icon.custom}}<a class="hw-icon-clear" data-action="clearIcon">Use default</a>{{/if}}
-    </div>
-  </div>
-
   {{#if isPower}}
   <div class="form-group">
     <label>Power</label>
     <div class="form-fields">
-      <select data-field="xmlId">
-        <option value="CUSTOM" {{#if isCustom}}selected{{/if}}>— Custom power —</option>
-        {{#each powerChoices as |group|}}
-        <optgroup label="{{group.label}}">
-          {{#each group.options}}<option value="{{value}}" {{#if selected}}selected{{/if}}>{{label}}</option>{{/each}}
-        </optgroup>
-        {{/each}}
-      </select>
+      {{> "modules/hero-workshop/templates/partials/typeahead.hbs" field="xmlId" text=powerType.text groups=powerType.groups placeholder="Type to search powers…" ariaLabel="Power"}}
     </div>
     {{#if definition.description}}<p class="hint">{{definition.description}}</p>{{/if}}
   </div>
   {{/if}}
 
-  <div class="form-group">
-    <label>{{#if isCustom}}Name{{else if isPower}}Custom name{{else}}Name{{/if}}</label>
-    <input type="text" data-field="name" value="{{draft.name}}" placeholder="{{#if framework}}{{framework.name}}{{else}}{{definition.display}}{{/if}}">
-  </div>
+  {{> "modules/hero-workshop/templates/partials/identity.hbs" id=identity.id label=identity.label field="name" value=draft.name icon=icon placeholder=identity.placeholder}}
 
   {{#if framework}}
   <div class="form-group">

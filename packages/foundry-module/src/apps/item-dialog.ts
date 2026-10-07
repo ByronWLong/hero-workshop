@@ -6,6 +6,7 @@
 import {
   itemForm,
   itemFormValues,
+  newItemFormValues,
   saveItemForm,
   type Character,
   type FormSection,
@@ -23,7 +24,12 @@ export interface ItemDialogOptions {
   defaultIcon?: string;
   /** Keeps dialogs for different documents apart (copies of an item share its HDC ID) */
   idScope?: string;
+  /** A new item's type, already chosen (the editor's "Add" type-ahead) */
+  type?: string;
 }
+
+/** Selects with more choices than this are type-ahead boxes */
+const TYPEAHEAD_MIN = 10;
 
 /** Existing items get one dialog each; new-item dialogs are always fresh */
 export const itemDialogId = (section: string, itemId?: string, idScope?: string) =>
@@ -40,6 +46,7 @@ export class ItemDialog extends HeroWorkshopApplication {
       addAttack: ItemDialog.#onAddAttack,
       pickIcon: ItemDialog.#onPickIcon,
       clearIcon: ItemDialog.#onClearIcon,
+      clearName: ItemDialog.#onClearName,
     },
   };
 
@@ -51,7 +58,10 @@ export class ItemDialog extends HeroWorkshopApplication {
   #values: FormValues;
 
   constructor(readonly config: ItemDialogOptions) {
-    const values = itemFormValues(config.character(), config.section, config.itemId);
+    const values =
+      config.type && !config.itemId
+        ? newItemFormValues(config.character(), config.section, config.type)
+        : itemFormValues(config.character(), config.section, config.itemId);
     super({
       id: itemDialogId(config.section, config.itemId, config.idScope),
       window: { title: itemForm(config.section, values, !config.itemId, config.character()).title },
@@ -62,8 +72,25 @@ export class ItemDialog extends HeroWorkshopApplication {
   async _prepareContext() {
     const form = itemForm(this.config.section, this.#values, !this.config.itemId, this.config.character());
     const custom = String(this.#values.icon ?? '');
+    const icon = { src: custom || this.config.defaultIcon || DEFAULT_ICON, custom: !!custom };
+    // The icon sits on the name's line (a complication's description stands in for a name)
+    const identityName = form.fields.find((f) => f.name === 'name')?.name ?? form.fields.find((f) => f.name === 'detail')?.name;
     // Checklists are shown under their options' headings
     const fields = form.fields.map((field) => {
+      if (field.name === identityName) {
+        return { ...field, identity: { id: `${this.id}-${field.name}`, label: field.label, field: field.name, value: field.value, hint: field.hint, icon } };
+      }
+      // Long lists (skills, talents, complications) are searched by typing
+      if (field.type === 'select' && (field.options?.length ?? 0) > TYPEAHEAD_MIN) {
+        return {
+          ...field,
+          typeahead: {
+            text: field.options?.find((o) => o.selected)?.label ?? '',
+            groups: [{ label: '', options: field.options }],
+            placeholder: `Type to search ${field.label.toLowerCase()}s…`,
+          },
+        };
+      }
       if (field.type !== 'attacks') return field;
       const groups: { name: string; options: typeof field.options }[] = [];
       for (const option of field.options ?? []) {
@@ -77,7 +104,9 @@ export class ItemDialog extends HeroWorkshopApplication {
     return {
       ...form,
       fields,
-      icon: { src: custom || this.config.defaultIcon || DEFAULT_ICON, custom: !!custom },
+      icon,
+      // Forms without a name show the icon on its own line
+      iconOnly: !identityName,
       costs: form.costLabel ? [{ label: 'Cost', value: `${form.cost} ${form.costLabel}` }] : [],
       buttons: [{ type: 'submit', icon: 'fa-solid fa-check', label: this.config.itemId ? 'Save' : 'Add', cssClass: 'bright' }],
     };
@@ -124,6 +153,11 @@ export class ItemDialog extends HeroWorkshopApplication {
 
   static #onClearIcon(this: ItemDialog) {
     this.#values = { ...this.#values, icon: '' };
+    void this.render();
+  }
+
+  static #onClearName(this: ItemDialog, _event: Event, target: HTMLElement) {
+    this.#values = { ...this.#values, [target.dataset.fieldName ?? 'name']: '' };
     void this.render();
   }
 

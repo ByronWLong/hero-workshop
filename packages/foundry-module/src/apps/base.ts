@@ -17,6 +17,8 @@ export const PARTIALS = [
   'editor/tab-info.hbs',
   'editor/tab-list.hbs',
   'editor/summary.hbs',
+  'partials/typeahead.hbs',
+  'partials/identity.hbs',
   ].map(template),
 ];
 
@@ -177,7 +179,166 @@ export class HeroWorkshopApplication extends api.HandlebarsApplicationMixin(api.
         target.click();
       }
     });
+    this.#listenForTypeaheads(signal);
   }
+
+  /**
+   * Type-ahead choices (templates/partials/typeahead.hbs): focusing shows every choice under
+   * its heading; typing narrows them to those containing every word (in the name or its
+   * heading), with the best match highlighted; arrows move, Enter, Tab or a click chooses,
+   * Escape puts the previous choice back.
+   */
+  #listenForTypeaheads(signal: AbortSignal): void {
+    const inputOf = (target: EventTarget | null) =>
+      (target as HTMLElement | null)?.matches?.('input.hw-typeahead-input') ? (target as HTMLInputElement) : undefined;
+    const choose = (input: HTMLInputElement, option: HTMLElement | null | undefined) => {
+      const field = input.dataset.typeahead;
+      if (!option?.dataset.value || !field) return;
+      input.value = input.dataset.typeaheadClear !== undefined ? '' : (option.textContent ?? '');
+      input.dataset.original = input.value;
+      closeTypeahead(input);
+      this.onFieldChange(field, option.dataset.value, input);
+    };
+
+    this.element.addEventListener(
+      'focusin',
+      (event) => {
+        const input = inputOf(event.target);
+        if (!input) return;
+        input.dataset.original = input.value;
+        const list = typeaheadList(input);
+        filterTypeahead(list, '');
+        openTypeahead(input);
+        const current = [...list.querySelectorAll<HTMLElement>('.hw-typeahead-option')].find((o) => o.textContent === input.value);
+        setActiveOption(list, current ?? visibleOptions(list)[0]);
+        // After the click that focused it, so the click doesn't undo the selection
+        setTimeout(() => input.select(), 0);
+      },
+      { signal },
+    );
+    this.element.addEventListener(
+      'input',
+      (event) => {
+        const input = inputOf(event.target);
+        if (!input) return;
+        const list = typeaheadList(input);
+        openTypeahead(input);
+        setActiveOption(list, filterTypeahead(list, input.value));
+      },
+      { signal },
+    );
+    this.element.addEventListener(
+      'keydown',
+      (event) => {
+        const input = inputOf(event.target);
+        if (!input) return;
+        const list = typeaheadList(input);
+        const options = visibleOptions(list);
+        const active = list.querySelector<HTMLElement>('.hw-typeahead-option.active:not([hidden])');
+        switch (event.key) {
+          case 'ArrowDown':
+          case 'ArrowUp': {
+            event.preventDefault();
+            if (list.hidden) openTypeahead(input);
+            const step = event.key === 'ArrowDown' ? 1 : -1;
+            const at = active ? options.indexOf(active) : -1;
+            setActiveOption(list, options[Math.min(options.length - 1, Math.max(0, at + step))]);
+            return;
+          }
+          case 'Enter':
+            // Never submits the form
+            event.preventDefault();
+            event.stopPropagation();
+            if (!list.hidden) choose(input, active);
+            return;
+          case 'Tab':
+            if (!list.hidden && input.value !== input.dataset.original) choose(input, active);
+            return;
+          case 'Escape':
+            if (list.hidden) return;
+            // Closes the list, not the window
+            event.preventDefault();
+            event.stopPropagation();
+            input.value = input.dataset.original ?? '';
+            closeTypeahead(input);
+            return;
+        }
+      },
+      { signal },
+    );
+    this.element.addEventListener(
+      'mousedown',
+      (event) => {
+        const option = (event.target as HTMLElement | null)?.closest?.<HTMLElement>('.hw-typeahead-option');
+        if (!option) return;
+        // Keeps the focus in the box (so it doesn't close first)
+        event.preventDefault();
+        const input = option.closest('.hw-typeahead')?.querySelector<HTMLInputElement>('input.hw-typeahead-input');
+        if (input) choose(input, option);
+      },
+      { signal },
+    );
+    this.element.addEventListener(
+      'focusout',
+      (event) => {
+        const input = inputOf(event.target);
+        if (!input) return;
+        // Leaving without choosing keeps the previous choice
+        input.value = input.dataset.original ?? '';
+        closeTypeahead(input);
+      },
+      { signal },
+    );
+  }
+}
+
+const typeaheadList = (input: HTMLInputElement) =>
+  input.closest('.hw-typeahead')!.querySelector<HTMLElement>('.hw-typeahead-list')!;
+
+const visibleOptions = (list: HTMLElement) => [...list.querySelectorAll<HTMLElement>('.hw-typeahead-option:not([hidden])')];
+
+function openTypeahead(input: HTMLInputElement): void {
+  typeaheadList(input).hidden = false;
+  input.setAttribute('aria-expanded', 'true');
+}
+
+function closeTypeahead(input: HTMLInputElement): void {
+  typeaheadList(input).hidden = true;
+  input.setAttribute('aria-expanded', 'false');
+}
+
+function setActiveOption(list: HTMLElement, option: HTMLElement | undefined): void {
+  for (const other of list.querySelectorAll('.hw-typeahead-option.active')) other.classList.remove('active');
+  if (!option) return;
+  option.classList.add('active');
+  option.scrollIntoView({ block: 'nearest' });
+}
+
+/**
+ * Shows the choices containing every typed word (in the name, its other names or its heading) and the headings
+ * that still have some. Returns the best match: the first name that starts with the text typed,
+ * else the first shown.
+ */
+function filterTypeahead(list: HTMLElement, query: string): HTMLElement | undefined {
+  const typed = query.trim().toLowerCase();
+  const words = typed.split(/\s+/).filter(Boolean);
+  const groups = new Set<string>();
+  let first: HTMLElement | undefined;
+  let prefix: HTMLElement | undefined;
+  for (const option of list.querySelectorAll<HTMLElement>('.hw-typeahead-option')) {
+    const name = (option.textContent ?? '').toLowerCase();
+    const other = `${option.dataset.group ?? ''} ${option.dataset.keywords ?? ''}`.toLowerCase();
+    const match = words.every((w) => name.includes(w) || other.includes(w));
+    option.hidden = !match;
+    if (!match) continue;
+    groups.add(option.dataset.group ?? '');
+    first ??= option;
+    if (!prefix && typed && name.startsWith(typed)) prefix = option;
+  }
+  for (const heading of list.querySelectorAll<HTMLElement>('.hw-typeahead-group')) heading.hidden = !groups.has(heading.dataset.group ?? '');
+  const empty = list.querySelector<HTMLElement>('.hw-typeahead-empty');
+  if (empty) empty.hidden = !!first;
+  return prefix ?? first;
 }
 
 /**

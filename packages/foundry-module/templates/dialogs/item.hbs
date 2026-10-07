@@ -1,14 +1,17 @@
 <div class="hw-scroll standard-form hw-dialog-body">
-  <div class="hw-icon-field">
-    <button type="button" class="hw-icon-pick" data-action="pickIcon" data-tooltip="Choose icon" aria-label="Choose icon">
-      <img src="{{icon.src}}" alt="">
-    </button>
-    <div>
-      <span class="hint">{{#if icon.custom}}Custom icon{{else}}Default icon{{/if}}</span>
-      {{#if icon.custom}}<a class="hw-icon-clear" data-action="clearIcon">Use default</a>{{/if}}
-    </div>
-  </div>
+  {{#if iconOnly}}{{> "modules/hero-workshop/templates/partials/identity.hbs" label="Icon" icon=icon}}{{/if}}
   {{#each fields as |field|}}
+  {{#if field.identity}}
+  {{> "modules/hero-workshop/templates/partials/identity.hbs" field.identity}}
+  {{else if field.typeahead}}
+  <div class="form-group">
+    <label>{{field.label}}</label>
+    <div class="form-fields">
+      {{> "modules/hero-workshop/templates/partials/typeahead.hbs" field=field.name text=field.typeahead.text groups=field.typeahead.groups placeholder=field.typeahead.placeholder ariaLabel=field.label}}
+    </div>
+    {{#if field.hint}}<p class="hint">{{field.hint}}</p>{{/if}}
+  </div>
+  {{else}}
   <div class="form-group {{#if (or (eq field.type "textarea") (eq field.type "attacks"))}}stacked{{/if}}">
     <label for="hw-field-{{field.name}}">{{field.label}}</label>
     <div class="form-fields">
@@ -41,5 +44,6 @@
     </div>
     {{#if field.hint}}<p class="hint">{{field.hint}}</p>{{/if}}
   </div>
+  {{/if}}
   {{/each}}
 </div>

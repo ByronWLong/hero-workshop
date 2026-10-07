@@ -12,6 +12,7 @@ import {
   saveItemForm,
   powerDraft,
   powerFormView,
+  powerTypeChoices,
   removeAdder,
   removeModifier,
   removeSubPower,
@@ -49,6 +50,8 @@ export interface PowerDialogOptions {
   defaultIcon?: string;
   /** A part of a piece of equipment (equipment is bought with money, so it's never "free") */
   inEquipment?: boolean;
+  /** A new power's power, already chosen (the editor's "Add" type-ahead) */
+  xmlId?: string;
 }
 
 const kindAllowsFree = (kind: PowerKind) => kind !== 'list';
@@ -81,6 +84,7 @@ export class PowerDialog extends HeroWorkshopApplication {
       convertToSpell: PowerDialog.#onConvertToSpell,
       convertAllSpells: PowerDialog.#onConvertAllSpells,
       clearIcon: PowerDialog.#onClearIcon,
+      clearName: PowerDialog.#onClearName,
     },
   };
 
@@ -94,7 +98,8 @@ export class PowerDialog extends HeroWorkshopApplication {
   #customInput = false;
 
   constructor(readonly config: PowerDialogOptions) {
-    const draft = powerDraft(config.character(), config.section, config.itemId, config.kind);
+    const blank = powerDraft(config.character(), config.section, config.itemId, config.xmlId ? 'power' : config.kind);
+    const draft = config.xmlId && !config.itemId ? selectPower(blank, config.xmlId) : blank;
     // New items pick their kind in the form, so their title names only the section
     const noun = config.isPart
       ? 'part'
@@ -126,6 +131,15 @@ export class PowerDialog extends HeroWorkshopApplication {
     const input = this.#draft.input ?? '';
     return {
       ...view,
+      powerType: {
+        text: view.isCustom ? 'Custom power' : (view.definition?.display ?? ''),
+        groups: powerTypeChoices(),
+      },
+      identity: {
+        id: `${this.id}-name`,
+        label: 'Name',
+        placeholder: view.framework?.name ?? (view.isCustom ? 'Custom power' : view.definition?.display) ?? '',
+      },
       inputChoice: examples && {
         examples: examples.map((value) => ({ value, selected: value === input && !this.#customInput })),
         custom: this.#customInput || (!!input && !examples.includes(input)),
@@ -288,6 +302,10 @@ export class PowerDialog extends HeroWorkshopApplication {
 
   static #onClearIcon(this: PowerDialog) {
     this.#update({ ...this.#draft, icon: '' });
+  }
+
+  static #onClearName(this: PowerDialog) {
+    this.#update({ ...this.#draft, name: '' });
   }
 
   static #onSubmit(this: PowerDialog) {

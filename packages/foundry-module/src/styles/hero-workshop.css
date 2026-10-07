@@ -817,23 +817,152 @@
   object-fit: cover;
 }
 
-.hero-workshop .hw-icon-field {
+/* An item's icon and name on one line; each × restores the default */
+.hero-workshop .hw-identity {
   display: flex;
   align-items: center;
-  gap: 0.75rem;
-  margin-bottom: 0.75rem;
+  gap: var(--hw-gap);
 }
 
-.hero-workshop .hw-icon-field > div {
-  display: flex;
-  flex-direction: column;
+.hero-workshop .hw-icon-wrap {
+  position: relative;
+  flex: 0 0 auto;
 }
 
 .hero-workshop .hw-icon-pick {
-  flex: 0 0 auto;
-  width: 56px;
-  height: 56px;
-  padding: 2px;
+  display: block;
+  width: 2.25rem;
+  height: 2.25rem;
+  padding: 1px;
+}
+
+.hero-workshop .hw-name-wrap {
+  position: relative;
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+}
+
+.hero-workshop .hw-name-wrap input {
+  flex: 1;
+  padding-right: 1.6rem;
+}
+
+.hero-workshop .hw-clear {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 1rem;
+  height: 1rem;
+  font-size: 0.6rem;
+  line-height: 1;
+  border-radius: 50%;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+}
+
+.hero-workshop .hw-clear:hover {
+  color: var(--color-text-primary);
+  background: var(--hw-hover);
+}
+
+.hero-workshop .hw-icon-clear {
+  position: absolute;
+  top: -0.35rem;
+  right: -0.35rem;
+  background: var(--background);
+  border: 1px solid var(--color-border);
+}
+
+.hero-workshop .hw-name-clear {
+  position: absolute;
+  top: 50%;
+  right: 0.35rem;
+  transform: translateY(-50%);
+}
+
+/* Type-ahead choices: a search box over a grouped list */
+.hero-workshop .hw-typeahead {
+  position: relative;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.hero-workshop .hw-typeahead-input {
+  width: 100%;
+  padding-left: 1.6rem;
+}
+
+.hero-workshop .hw-typeahead-icon {
+  position: absolute;
+  top: 50%;
+  left: 0.5rem;
+  transform: translateY(-50%);
+  font-size: 0.7rem;
+  color: var(--color-text-secondary);
+  pointer-events: none;
+}
+
+.hero-workshop .hw-typeahead-list {
+  position: absolute;
+  z-index: 100;
+  top: calc(100% + 2px);
+  left: 0;
+  right: 0;
+  max-height: 18rem;
+  margin: 0;
+  padding: 0.25rem 0;
+  list-style: none;
+  overflow-y: auto;
+  background: var(--background);
+  backdrop-filter: blur(6px);
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  box-shadow: 0 4px 12px rgb(0 0 0 / 35%);
+}
+
+.hero-workshop .hw-typeahead-group {
+  padding: 0.35rem 0.6rem 0.15rem;
+  font-size: var(--font-size-11);
+  font-weight: bold;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-form-label);
+}
+
+.hero-workshop .hw-typeahead-option {
+  padding: 0.2rem 0.6rem 0.2rem 1rem;
+  cursor: pointer;
+}
+
+.hero-workshop .hw-typeahead-option:hover {
+  background: var(--hw-hover);
+}
+
+.hero-workshop .hw-typeahead-option.active {
+  background: color-mix(in srgb, var(--color-text-primary) 18%, transparent);
+  color: var(--color-text-emphatic, var(--color-text-primary));
+}
+
+.hero-workshop .hw-typeahead-empty {
+  padding: 0.25rem 0.6rem;
+}
+
+.hero-workshop .hw-typeahead-group[hidden],
+.hero-workshop .hw-typeahead-option[hidden],
+.hero-workshop .hw-typeahead-empty[hidden],
+.hero-workshop .hw-typeahead-list[hidden] {
+  display: none;
+}
+
+/* The list tabs' "Add a … by name" box */
+.hero-workshop .hw-add-bar {
+  flex-wrap: nowrap;
+}
+
+.hero-workshop .hw-add-typeahead {
+  width: 16rem;
+  flex: 0 1 16rem;
 }
 
 .hero-workshop .hw-icon-pick img {

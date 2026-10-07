@@ -697,3 +697,48 @@ export function saveItemForm(character: Character, section: FormSection, itemId:
     }
   }
 }
+
+// =============================================================================
+// Choosing a type (the forms' type fields and the "Add" type-ahead)
+// =============================================================================
+
+export interface TypeChoiceGroup {
+  /** Heading the choices are listed under ('' for none) */
+  label: string;
+  /** keywords: other names it's found by (an abbreviation, an older name) */
+  options: { value: string; label: string; keywords?: string }[];
+}
+
+/** The field a section's items are typed by, and its choices, or undefined (maneuvers) */
+export function typeChoices(section: FormSection): { field: string; groups: TypeChoiceGroup[] } | undefined {
+  const flat = (field: string, list: { value: string; label: string }[]) => ({
+    field,
+    groups: [{ label: '', options: [...list].sort((a, b) => a.label.localeCompare(b.label)) }],
+  });
+  switch (section) {
+    case 'skills':
+      return flat('xmlid', SKILL_CATALOG_6E.map((s) => ({ value: s.xmlId, label: s.display })));
+    case 'perks':
+      return flat('type', PERK_TYPES.map((p) => ({ value: p.value, label: perkLabel(p.value) })));
+    case 'talents':
+      return flat('type', TALENT_TYPES.map((t) => ({ value: t.value, label: talentEntry(t.value)?.display ?? t.value })));
+    case 'disadvantages':
+      return flat('type', DISAD_TYPES.map((d) => ({ value: d.value, label: disadLabel(d.value) })));
+    default:
+      return undefined;
+  }
+}
+
+/** Form values for a new item of the given type (a talent starts at its catalog cost) */
+export function newItemFormValues(character: Character, section: FormSection, type: string): FormValues {
+  const values = itemFormValues(character, section);
+  const field = typeChoices(section)?.field;
+  if (!field) return values;
+  const next: FormValues = { ...values, [field]: type };
+  if (section === 'talents') {
+    const entry = talentEntry(type);
+    const perLevel = TALENT_TYPES.find((t) => t.value === type)?.perLevel;
+    next.cost = (perLevel ? (entry?.lvlCost ?? entry?.baseCost) : entry?.baseCost) ?? values.cost;
+  }
+  return next;
+}

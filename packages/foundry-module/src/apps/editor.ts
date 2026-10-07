@@ -16,13 +16,16 @@ import {
   extractItems,
   insertItems,
   parseHdcFile,
+  powerTypeChoices,
   removeItem,
   setCharacteristicValue,
+  typeChoices,
   updateHdc,
   withInsertedItems,
   withMaxima,
   type Character,
   type CharacteristicType,
+  type FormSection,
   type HdcWriteReport,
   type ItemTransfer,
   type PowerKind,
@@ -196,6 +199,11 @@ export class HeroWorkshopEditor extends HeroWorkshopApplication {
         points: rows.reduce((n, r) => n + r.cost, 0),
         // A single world item's editor saves only that item, so nothing else can be added
         canAdd: !this.session.view?.visibleTabs,
+        // Type a power, skill, talent… to open its form with it chosen
+        addChoices:
+          id === 'powers' || id === 'equipment' ? powerTypeChoices() : typeChoices(id as FormSection)?.groups,
+        addField: `addType.${id}`,
+        addPlaceholder: id === 'equipment' ? 'Add equipment by power…' : `Add a ${SECTION_NOUNS[id]} by name…`,
       };
     };
     const characteristics = buildCharacteristicsView(character);
@@ -309,6 +317,11 @@ export class HeroWorkshopEditor extends HeroWorkshopApplication {
   protected onFieldChange(field: string, value: string): void {
     const [kind, key] = field.split('.') as [string, string];
     let character = this.#character;
+
+    if (kind === 'addType') {
+      void this.editItem(key as SectionId, undefined, undefined, value);
+      return;
+    }
 
     if (kind === 'drift') {
       if (value === 'true') this.#driftSelected.add(key);
@@ -424,7 +437,7 @@ export class HeroWorkshopEditor extends HeroWorkshopApplication {
   }
 
   /** Opens the item dialog for a new (no id) or existing item */
-  async editItem(section: SectionId, itemId?: string, kind?: PowerKind): Promise<void> {
+  async editItem(section: SectionId, itemId?: string, kind?: PowerKind, type?: string): Promise<void> {
     // An item's dialog that's already open just comes to the front
     if (itemId) {
       const instances = (foundry.applications as unknown as { instances: Map<string, { bringToFront(): void }> }).instances;
@@ -440,6 +453,7 @@ export class HeroWorkshopEditor extends HeroWorkshopApplication {
         section,
         itemId,
         kind,
+        xmlId: type,
         defaultIcon: itemId ? this.session.itemImage?.(itemId) : undefined,
         character: () => this.#character,
         onSave: (character) => this.setCharacter(character),
@@ -449,6 +463,7 @@ export class HeroWorkshopEditor extends HeroWorkshopApplication {
     await new ItemDialog({
       section,
       itemId,
+      type,
       defaultIcon: itemId ? this.session.itemImage?.(itemId) : undefined,
       character: () => this.#character,
       onSave: (character) => this.setCharacter(character),

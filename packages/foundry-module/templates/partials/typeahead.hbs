@@ -1,0 +1,16 @@
+{{!-- A type-ahead choice: type to filter (grouped), arrows + Enter or a click to choose.
+      field: what changes; text: the current choice's label; clear: empty the box after a choice;
+      icon: the box's icon (a magnifying glass by default) --}}
+<div class="hw-typeahead {{cssClass}}">
+  <input type="text" class="hw-typeahead-input" data-typeahead="{{field}}" {{#if clear}}data-typeahead-clear{{/if}} value="{{text}}"
+    placeholder="{{placeholder}}" aria-label="{{#if ariaLabel}}{{ariaLabel}}{{else}}{{placeholder}}{{/if}}" autocomplete="off" spellcheck="false"
+    role="combobox" aria-autocomplete="list" aria-expanded="false">
+  <i class="fa-solid {{#if icon}}{{icon}}{{else}}fa-magnifying-glass{{/if}} hw-typeahead-icon" inert></i>
+  <ul class="hw-typeahead-list" role="listbox" hidden>
+    {{#each groups as |group|}}
+    {{#if group.label}}<li class="hw-typeahead-group" role="presentation" data-group="{{group.label}}">{{group.label}}</li>{{/if}}
+    {{#each group.options}}<li class="hw-typeahead-option" role="option" data-value="{{value}}" data-group="{{group.label}}"{{#if keywords}} data-keywords="{{keywords}}"{{/if}}>{{label}}</li>{{/each}}
+    {{/each}}
+    <li class="hw-typeahead-empty hint" role="presentation" hidden>No matches</li>
+  </ul>
+</div>

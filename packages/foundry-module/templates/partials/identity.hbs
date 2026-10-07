@@ -1,0 +1,20 @@
+{{!-- An item's icon and name on one line, each with a small × that restores the default --}}
+<div class="form-group hw-identity-group">
+  <label for="{{id}}">{{label}}</label>
+  <div class="form-fields hw-identity">
+    <span class="hw-icon-wrap">
+      <button type="button" class="hw-icon-pick" data-action="pickIcon"
+        data-tooltip="{{#if icon.custom}}Custom icon (click to change){{else}}Choose an icon{{/if}}" aria-label="Choose icon">
+        <img src="{{icon.src}}" alt="">
+      </button>
+      {{#if icon.custom}}<a class="hw-clear hw-icon-clear" data-action="clearIcon" data-tooltip="Use the default icon" aria-label="Use the default icon"><i class="fa-solid fa-xmark" inert></i></a>{{/if}}
+    </span>
+    {{#if field}}
+    <span class="hw-name-wrap">
+      <input id="{{id}}" type="text" name="{{field}}" data-field="{{field}}" value="{{value}}" placeholder="{{placeholder}}">
+      {{#if value}}<a class="hw-clear hw-name-clear" data-action="clearName" data-field-name="{{field}}" data-tooltip="Clear" aria-label="Clear {{label}}"><i class="fa-solid fa-xmark" inert></i></a>{{/if}}
+    </span>
+    {{/if}}
+  </div>
+  {{#if hint}}<p class="hint">{{hint}}</p>{{/if}}
+</div>

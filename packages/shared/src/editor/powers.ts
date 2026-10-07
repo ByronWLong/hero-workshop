@@ -15,6 +15,7 @@ import { NND, aoeValue, clampModifierValue, getAllModifiers, getModifierByXmlId,
 import { calculateAdderCost, heroRoundCost } from '../utils.js';
 import { fractionText as fraction } from './lists.js';
 import { skillRollCategory } from '../hdc/foundry.js';
+import type { TypeChoiceGroup } from './items.js';
 
 /** Requires A Roll options that roll a skill: SKILL, PS, KS, SS (each with -1 per 5/20 AP variants) */
 const SKILL_ROLL_OPTION = /^(SKILL|PS|KS|SS)(1PER5|1PER20)?$/;
@@ -596,6 +597,28 @@ export function powerChoices(selected: string) {
   for (const [label, pred] of CATEGORY_RULES) take(label, pred);
   take('Other', () => true);
   return groups;
+}
+
+/** Older or everyday names people search for, by power */
+const POWER_SEARCH_NAMES: Record<string, string> = {
+  FORCEFIELD: 'armor force field',
+  ENERGYBLAST: 'energy blast',
+  EGOATTACK: 'ego attack',
+  FORCEWALL: 'force wall',
+  MISSILEDEFLECTION: 'missile deflection',
+};
+
+/** Power choices for a type-ahead: grouped by category, then a custom power */
+export function powerTypeChoices(): TypeChoiceGroup[] {
+  const keywords = (xmlId: string) =>
+    [getPowerDefinition(xmlId)?.abbreviation, POWER_SEARCH_NAMES[xmlId]].filter(Boolean).join(' ') || undefined;
+  return [
+    ...powerChoices('').map((g) => ({
+      label: g.label,
+      options: g.options.map(({ value, label }) => ({ value, label, keywords: keywords(value) })),
+    })),
+    { label: 'Custom', options: [{ value: 'CUSTOM', label: 'Custom power' }] },
+  ];
 }
 
 export function modifierChoices(powerXmlId?: string) {
