@@ -2,7 +2,7 @@
   "id": "hero-workshop",
   "title": "Hero Workshop",
   "description": "Friendly character and item editing for the Hero System 6e (Unofficial) system. Edits write back to the actor's Hero Designer (.hdc) data, so characters stay compatible with desktop Hero Designer.",
-  "version": "0.4.5",
+  "version": "0.4.6",
   "authors": [
     {
       "name": "Byron Long"

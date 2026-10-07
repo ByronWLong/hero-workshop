@@ -69,6 +69,12 @@ npm run build:foundry            # from the repo root; output in packages/foundr
   - Talents with levels use each talent's cost per level.
   - Characteristics bought below their base give points back.
   - Characteristic powers (+CON) cost what the characteristic does.
+  - Combat Skill Levels, Skill Levels, Mental Combat Skill Levels and Penalty Skill Levels are priced by what they apply to (HTH Combat 8 per level, all attacks 10, Overall Skill Levels 12), and the form offers Hero Designer's choices.
+  - Modifiers stay within Hero Designer's limits, so Requires A Roll 14- is a -¼ limitation.
+  - Charges price Continuing, Recoverable and Boostable as Hero Designer does.
+  - An Endurance Reserve includes its Recovery.
+  - A Multipower's Active Points are its reserve's.
+- **Compound items with skills, perks or talents** (a sword with +2 OCV) show those parts and include them in the item's cost.
 - **Equipment lists:** items in a list stay in the item list.
 - **Compound items dropped onto a character** get their parts, and parts that add to a characteristic (a shield's DCV) get hero6e's Active Effects, so the bonus applies straight away.
 - **Icons:** item rows show each item's icon, and every item form has an icon picker (**Use default** clears a custom one). Custom icons are stored in the item's Hero Designer data (a `<FOUNDRY_ICON SRC="…"/>` child element), so they survive editing, dragging items to and from the Items sidebar, and HDC downloads. An icon changed on a hero6e sheet is recorded straight away. Desktop Hero Designer opens files with it but drops it when it saves.
