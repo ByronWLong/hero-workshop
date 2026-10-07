@@ -9,6 +9,9 @@
 
 import { MODIFIER_CATALOG_6E, POWER_CATALOG_6E, type CatalogEntry } from './generated/catalog6e.js';
 
+/** Hero Designer's template has a few unclosed brackets ("Costs Endurance (to maintain") */
+const balanced = (s: string) => s + ')'.repeat(Math.max(0, (s.match(/\(/g) ?? []).length - (s.match(/\)/g) ?? []).length));
+
 // ============================================================================
 // TYPES
 // ============================================================================
@@ -1150,10 +1153,17 @@ for (const entry of MODIFIER_CATALOG_6E) {
 const POWER_SPECIFIC = new Map<string, ModifierDefinition[]>();
 const POWER_SPECIFIC_BY_ID: Record<string, ModifierDefinition> = {};
 for (const power of POWER_CATALOG_6E) {
-  const own = (power.modifiers ?? []).map((e) => getModifierByXmlId(e.xmlId) ?? POWER_SPECIFIC_BY_ID[e.xmlId] ?? modifierFromCatalog(e));
+  // A power's own definition can differ from a general modifier with the same XMLID (Drain's
+  // Costs Endurance (to maintain) has no Full/Half options), so it's kept as the power defines it
+  const own = (power.modifiers ?? []).map((e) => modifierFromCatalog(e));
   if (!own.length) continue;
   POWER_SPECIFIC.set(power.xmlId, own);
   for (const m of own) POWER_SPECIFIC_BY_ID[m.xmlId] ??= m;
+}
+
+/** A modifier as this power defines it, else the general definition */
+export function modifierFor(xmlId: string, powerXmlId?: string): ModifierDefinition | undefined {
+  return (powerXmlId && POWER_SPECIFIC.get(powerXmlId)?.find((m) => m.xmlId === xmlId)) || getModifierByXmlId(xmlId);
 }
 
 /** Modifiers this power can take beyond the general ones */
@@ -1168,7 +1178,7 @@ function modifierFromCatalog(e: CatalogEntry): ModifierDefinition {
   const isLimitation = e.isLimitation ?? (baseCost < 0 || (baseCost === 0 && (e.lvlCost ?? 0) < 0));
   return {
     xmlId: e.xmlId,
-    display: e.display.replace(/\s*\(\[LVL\]\)|\s*\[LVL\]/g, '').trim(),
+    display: balanced(e.display.replace(/\s*\(\[LVL\]\)|\s*\[LVL\]/g, '').trim()),
     abbreviation: e.abbreviation,
     baseCost,
     lvlCost: e.lvlCost,

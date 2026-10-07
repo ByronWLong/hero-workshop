@@ -37,3 +37,17 @@ describe('heroic and power-specific modifiers', () => {
     expect(setModifierOption(added, hands.id, 'ONEANDAHALF').modifiers[0]!.value).toBe(-0.25);
   });
 });
+
+describe("a power's own definition of a modifier", () => {
+  it("uses Drain's Costs Endurance (to maintain), not the general one with Full/Half options", () => {
+    expect(modifierChoices('DRAIN').limitations).toContainEqual({ value: 'COSTSENDTOMAINTAIN', label: 'Costs Endurance (to maintain)' });
+    expect(modifierChoices().limitations.find((l) => l.value === 'COSTSENDTOMAINTAIN')?.label).toBe('Costs END To Maintain');
+    const xml = blankHdc().replace('<POWERS />', `<POWERS>
+    <POWER XMLID="DRAIN" ID="9950" BASECOST="0.0" LEVELS="4" ALIAS="Drain" POSITION="0" NAME="Ward" INPUT="Magic" QUANTITY="1" />
+  </POWERS>`);
+    const c = parseHdcFile(xml);
+    const draft = addModifier(powerDraft(c, 'powers', '9950'), 'COSTSENDTOMAINTAIN');
+    expect(draft.modifiers[0]).toMatchObject({ value: -0.5, optionId: undefined, name: 'Costs Endurance (to maintain)' });
+    expect(powerCosts(draft).real).toBe(27); // 40 / 1.5
+  });
+});

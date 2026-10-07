@@ -11,7 +11,7 @@ import {
   getPowerDefinition,
   type PowerDefinition,
 } from '../powerDefinitions.js';
-import { NND, getAllModifiers, getModifierByXmlId, isNnd, powerSpecificModifiers, type ModifierDefinition } from '../modifierDefinitions.js';
+import { NND, getAllModifiers, getModifierByXmlId, isNnd, modifierFor, powerSpecificModifiers, type ModifierDefinition } from '../modifierDefinitions.js';
 import { calculateAdderCost, heroRoundCost } from '../utils.js';
 import { fractionText as fraction } from './lists.js';
 import { skillRollCategory } from '../hdc/foundry.js';
@@ -375,8 +375,9 @@ function modifierName(def: ModifierDefinition | undefined, m: Modifier): string 
   return m.optionAlias ? `${base} (${m.optionAlias})` : base;
 }
 
-function refreshModifier(m: Modifier): Modifier {
-  const def = m.xmlId ? getModifierByXmlId(m.xmlId) : undefined;
+/** Recomputes a modifier's value and name (by the definition of the power it's on, if given) */
+function refreshModifier(m: Modifier, powerXmlId?: string): Modifier {
+  const def = m.xmlId ? modifierFor(m.xmlId, powerXmlId) : undefined;
   const value = modifierValue(def, m);
   return { ...m, value, name: modifierName(def, m), isAdvantage: value > 0, isLimitation: value < 0 };
 }
@@ -389,7 +390,7 @@ export function addModifier(draft: PowerDraft, xmlId: string): PowerDraft {
     if (!avad || avad.xmlId !== 'AVAD') return draft;
     return setModifierAdder(setModifierOption(added, avad.id, NND.option), avad.id, NND.adder, true);
   }
-  const def = getModifierByXmlId(xmlId);
+  const def = modifierFor(xmlId, draft.xmlId);
   if (!def) return draft;
   const option = xmlId === 'AOE' ? def.options?.find((o) => o.xmlId === 'RADIUS') ?? def.options?.[0] : !def.hasLevels ? def.options?.[0] : undefined;
   const modifier = refreshModifier({
@@ -403,7 +404,7 @@ export function addModifier(draft: PowerDraft, xmlId: string): PowerDraft {
     levels: xmlId === 'AOE' ? 4 : def.hasLevels ? 1 : undefined,
     optionId: option?.xmlId,
     optionAlias: option?.display,
-  });
+  }, draft.xmlId);
   return { ...draft, modifiers: [...draft.modifiers, modifier] };
 }
 
@@ -425,14 +426,14 @@ export function setModifierOption(draft: PowerDraft, id: string, optionId: strin
     ...draft,
     modifiers: draft.modifiers.map((m) => {
       if (m.id !== id) return m;
-      const option = (m.xmlId ? getModifierByXmlId(m.xmlId) : undefined)?.options?.find((o) => o.xmlId === optionId);
-      return refreshModifier({ ...m, optionId, optionAlias: option?.display ?? optionId });
+      const option = (m.xmlId ? modifierFor(m.xmlId, draft.xmlId) : undefined)?.options?.find((o) => o.xmlId === optionId);
+      return refreshModifier({ ...m, optionId, optionAlias: option?.display ?? optionId }, draft.xmlId);
     }),
   };
 }
 
 export function setModifierLevels(draft: PowerDraft, id: string, levels: number): PowerDraft {
-  return { ...draft, modifiers: draft.modifiers.map((m) => (m.id === id ? refreshModifier({ ...m, levels: Math.max(1, levels) }) : m)) };
+  return { ...draft, modifiers: draft.modifiers.map((m) => (m.id === id ? refreshModifier({ ...m, levels: Math.max(1, levels) }, draft.xmlId) : m)) };
 }
 
 // =============================================================================
@@ -494,13 +495,13 @@ export function setModifierAdder(draft: PowerDraft, id: string, adderXmlId: stri
     modifiers: draft.modifiers.map((m) => {
       if (m.id !== id) return m;
       const kept = (m.adders ?? []).filter((a) => a.xmlId !== adderXmlId);
-      if (!on) return refreshModifier({ ...m, adders: kept });
-      const def = (m.xmlId ? getModifierByXmlId(m.xmlId) : undefined)?.adders?.find((a) => a.xmlId === adderXmlId);
+      if (!on) return refreshModifier({ ...m, adders: kept }, draft.xmlId);
+      const def = (m.xmlId ? modifierFor(m.xmlId, draft.xmlId) : undefined)?.adders?.find((a) => a.xmlId === adderXmlId);
       if (!def) return m;
       // Hero Designer's alias is the display without its abbreviation ("All Or Nothing", not "... (NND)")
       const alias = def.abbreviation ? def.display.replace(` (${def.abbreviation})`, '') : def.display;
       const adder: Adder = { id: newId(), xmlId: adderXmlId, name: alias, alias, baseCost: def.baseCost, includeInBase: false, selected: true };
-      return refreshModifier({ ...m, adders: [...kept, adder] });
+      return refreshModifier({ ...m, adders: [...kept, adder] }, draft.xmlId);
     }),
   };
 }
@@ -604,7 +605,8 @@ export function powerChoices(selected: string) {
 }
 
 export function modifierChoices(powerXmlId?: string) {
-  const all = [...Object.values(getAllModifiers()), ...powerSpecificModifiers(powerXmlId)]
+  // The power's own definitions first, so they win over general ones with the same XMLID
+  const all = [...powerSpecificModifiers(powerXmlId), ...Object.values(getAllModifiers())]
     .filter((m, i, list) => list.findIndex((o) => o.xmlId === m.xmlId) === i)
     .sort((a, b) => a.display.localeCompare(b.display));
   return {
@@ -669,7 +671,7 @@ export function powerFormView(character: Character, section: PowerSection, draft
       label: `${a.display} (${a.baseCost}${a.lvlCost ? ` + ${a.lvlCost}/level` : ''})`,
     })),
     modifiers: draft.modifiers.map((m) => {
-      const mdef = m.xmlId ? getModifierByXmlId(m.xmlId) : undefined;
+      const mdef = m.xmlId ? modifierFor(m.xmlId, draft.xmlId) : undefined;
       const nnd = isNnd(m);
       const rollsSkill = m.xmlId === 'REQUIRESASKILLROLL' && SKILL_ROLL_OPTION.test(m.optionId ?? '');
       const skills = rollsSkill ? rollSkillChoices(character) : [];

@@ -44,6 +44,7 @@ export {
   getAllModifiers,
   getModifierByXmlId,
   powerSpecificModifiers,
+  modifierFor,
   NND,
   isNnd,
   calculateModifierValue,
