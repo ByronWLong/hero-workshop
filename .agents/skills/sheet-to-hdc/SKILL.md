@@ -1,80 +1,74 @@
 ---
 name: sheet-to-hdc
-description: Construct and iterate Hero Designer-compatible .hdc files from arbitrary spreadsheet, cell-grid, or Hero Designer HTML export evidence for HERO System characters. Use when an agent needs to semantically analyze Excel/CSV/sheet data, infer HERO System characteristics, skills, powers, complications, equipment, modifiers, adders, and point costs, produce or validate a desktop Hero Designer .hdc XML file, or compare a regenerated Hero Designer HTML export against the source IR to tune missing items.
+description: Construct and iterate Hero Designer-compatible .hdc files from arbitrary spreadsheet, cell-grid, or Hero Designer HTML export evidence for HERO System characters. Use when an agent needs to semantically analyze Excel/CSV/sheet data, infer HERO System characteristics, skills, powers, complications, equipment, modifiers, adders, and point costs, produce or validate a desktop Hero Designer .hdc XML file, or score a generated file against the sheet it came from.
 ---
 
 # Sheet to HDC
 
 ## Overview
 
-Convert an arbitrary HERO System character sheet into a compatible Hero Designer `.hdc` file by combining semantic extraction with deterministic HDC construction tools. Assume the sheet layout is not reliable: cells must be interpreted by meaning, proximity, labels, formulas, section structure, and HERO rules context.
+Convert an arbitrary HERO System character sheet into a Hero Designer `.hdc` that loads in Hero Designer and in Foundry (hero6e + Hero Workshop). Sheets are unreliable: read cells by meaning, proximity, labels, formulas and section structure, then write a normalized IR. The builder turns the IR into a file with **Hero Workshop's own code** (`packages/shared`): its catalogs (generated from Hero Designer's `Main6E.hdt`), its editor operations and costs, and the HDC writer the Foundry module uses. Every item's cost is then checked against the sheet.
+
+Build the shared package first: `npm run build:shared` in the repo root.
 
 ## Workflow
 
-1. Inspect the source sheet into a cell grid.
-2. Semantically map cells into the normalized character IR.
-3. Refine the IR for Hero Designer category and cost compatibility.
-4. Resolve HERO Designer XML IDs, levels, adders, modifiers, and costs.
-5. Build `.hdc` XML from the IR.
-6. Validate the XML and inspect warnings before handoff.
-7. If the user provides a Hero Designer HTML export, compare it against the IR and tune missing item fallbacks before regenerating.
+1. **Grid.** Extract the workbook into a JSON cell grid (`scripts/extract-workbook-grid.ps1`).
+2. **Read the sheet.** Find the point totals first (characteristics, skills, powers, base, experience, complications) and check which rows add up to them. Rows a total leaves out (costs in parentheses, rows without a cost, campaign-granted packages) are **free** items. Note sheet arithmetic that doesn't add up.
+3. **Write the IR** (`references/character-ir.schema.json`, `references/semantic-mapping.md`). Powers and equipment are written as HERO build text (`"build"`), with the sheet's Active Points and Real Cost.
+4. **Build:** `node scripts/build-hdc.mjs <ir.json> <out.hdc> <build-report.md> [--prefabs <dir>]`. It also writes `<out.hdc>.map.json`, linking each IR item to its HDC ID.
+5. **Score:** `node scripts/score-hdc.mjs <ir.json> <out.hdc> <score.md>`. It reports each item's cost against the sheet, custom fallbacks, Foundry validation and the repairs hero6e's import would make.
+6. **Iterate.** Fix the IR (or the scripts) until every difference is either fixed or explained in the IR's `warnings` (the sheet's own arithmetic, house rules). Read the build report: it lists every judgment call (custom modifiers, Limited Powers, powers priced from the sheet).
+7. **Optional: validate in Foundry.** Import the `.hdc` into a throwaway hero6e actor (`actor.uploadFromXml`) and compare hero6e's item costs with the scorer's (see `references/hdc-format.md`, "Foundry").
 
 ## Tools
 
-- Use `scripts/extract-workbook-grid.ps1` to convert `.xlsx` or `.xlsm` sheets into JSON cell grids without needing Excel.
-- Use `scripts/refine-ir-for-hdc.mjs` after semantic extraction to reclassify obvious perks/talents, preserve sheet real costs for custom powers, and avoid Hero Designer point inflation.
-- Use `scripts/build-hdc-from-ir.mjs` to turn a normalized semantic IR JSON file into `.hdc` XML.
-- Use `scripts/validate-hdc.mjs` to check XML well-formedness, required sections, core characteristics, and common compatibility risks.
-- Use `scripts/compare-hero-designer-export.mjs` to compare a regenerated Hero Designer HTML export with the source IR and find dropped items.
-- Use `scripts/refresh-hdc-foundry-compatibility.ps1` only when the source IR is unavailable and a retained HDC must be preserved while applying current Foundry-safe structural metadata. It removes legacy `LVLCOST` from character powers while preserving it on direct equipment entries, and repairs known Stealth, maneuver, attack-defense, confirmed Requires A Roll, Reputation, Hunted, and Psychological Complication fields.
+- `scripts/extract-workbook-grid.ps1`: `.xlsx`/`.xlsm` → JSON cell grid (address, value, formula), without Excel.
+- `scripts/build-hdc.mjs`: IR → `.hdc` through Hero Workshop:
+  - **Skills, perks, talents, martial arts and complications:** built through the editor's item forms. Complications get Hero Designer's required option adders, chosen to reach the sheet's points.
+  - **Contacts and Positive Reputations:** get their levels and option adders.
+  - **Powers and equipment:** built through the editor's power drafts, parsed from build text by `scripts/lib/hero-text.mjs`.
+  - **Requires A Roll:** bound to the character's skill.
+  - **Prefabs:** items with `"prefab"` are copied from a Hero Designer prefab library with fresh IDs.
+  - **Import repairs:** `repairForFoundry` runs last.
+- `scripts/score-hdc.mjs`: per-item costs vs the sheet (read with Hero Workshop's parser), points spent vs the sheet's total, custom fallbacks, Foundry issues.
+- `scripts/lib/hero-text.mjs`: the build-text parser:
+  - **Powers:** matched by Hero Designer's names, abbreviations and synonyms.
+  - **Levels:** read from dice, meters, points, STR, PD/ED or "+N CHAR".
+  - **Adders:** the power's own adders and sense modifiers.
+  - **Modifiers:** each takes the text's value, with XMLID, option and adders from the catalog. NND becomes AVAD (Very Common → Rare) with All Or Nothing. Requires A Roll becomes a Skill roll bound to the named or magic skill; characteristic and fixed rolls are handled too. Focus covers expendability, fragility and mobility, and Charges, AoE (Hero Designer's doubling sizes) and Megascale are supported.
+  - **Unknowns:** an unrecognized limitation worded as a condition ("Only…", "Not…", "Must…") becomes Limited Power. Anything else unknown becomes a custom modifier.
+  - **Sheet costs:** when the sheet's figures say more than the text, the difference becomes a labelled adder or limitation, so costs match the sheet. Each such case is reported.
+- Version 1 IRs (no build text): `build-hdc.mjs` still accepts their structured fields (`hdcXmlId`, `levels`, `modifiers`). `scripts/validate-hdc.mjs`, `scripts/compare-hero-designer-export.mjs` and `scripts/refresh-hdc-foundry-compatibility.ps1` remain for retained files.
 
-## References
+## Commands
 
-- Read `references/semantic-mapping.md` before interpreting a new sheet.
-- Read `references/hdc-format.md` before constructing or debugging `.hdc` XML.
-- Use `references/character-ir.schema.json` as the contract between semantic analysis and `build-hdc-from-ir.mjs`.
-- For exact power and modifier XML IDs in this repo, consult `packages/shared/src/powerDefinitions.ts` and `packages/shared/src/modifierDefinitions.ts`.
-
-## Conversion Commands
-
-From the skill directory:
-
-```powershell
-powershell -ExecutionPolicy Bypass -File .\scripts\extract-workbook-grid.ps1 -InputPath ".\character.xlsx" -OutputPath ".\sheet-grid.json"
-node .\scripts\refine-ir-for-hdc.mjs .\character-ir.json .\character.refined.ir.json .\sheet-grid.json
-node .\scripts\build-hdc-from-ir.mjs .\character.refined.ir.json .\character.hdc
-node .\scripts\validate-hdc.mjs .\character.hdc
-node .\scripts\compare-hero-designer-export.mjs .\character.refined.ir.json .\character.html .\hd-export-compare.json
-```
-
-For a retained HDC baseline with no recoverable IR:
+From the repo root:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File .\scripts\refresh-hdc-foundry-compatibility.ps1 -InputPath ".\existing.hdc" -OutputPath ".\character.generated.hdc"
-node .\scripts\validate-hdc.mjs .\character.generated.hdc
+powershell -ExecutionPolicy Bypass -File .agents\skills\sheet-to-hdc\scripts\extract-workbook-grid.ps1 -InputPath ".\character.xlsx" -OutputPath ".\character.grid.json"
+node .agents\skills\sheet-to-hdc\scripts\build-hdc.mjs .\character.ir.json .\character.hdc .\character.build.md --prefabs ..\fantasy-hero-compendium\sources\tons
+node .agents\skills\sheet-to-hdc\scripts\score-hdc.mjs .\character.ir.json .\character.hdc .\character.score.md
 ```
-
-If the runtime starts in the workspace root instead of the skill directory, resolve the same files relative to the skill folder and run them in the same order. If the runtime cannot execute PowerShell or Node directly, invoke equivalent local commands that call the same scripts.
 
 ## Semantic Rules
 
-- Treat sheet totals, formulas, labels, and nearby annotations as evidence, not as source-of-truth fields.
-- Preserve uncertain interpretations in IR `warnings` and item `notes`; do not silently discard ambiguous data.
-- Prefer canonical Hero Designer XML IDs when confidence is high. Use `GENERIC` only when preserving text is safer than guessing.
-- Before building, run the refinement pass when a sheet-grid is available; it corrects common sheet-derived category drift such as Contacts, Favors, Reputation, base contributions, and Danger Sense.
-- For uncertain sheet-derived powers and skills, prefer Hero Designer custom objects (`CUSTOMPOWER`, `CUSTOMSKILL`) over invented XML IDs so the item survives Hero Designer import/export.
-- For `CUSTOMPOWER`, preserve the sheet's real/visible cost in `BASECOST` and keep `LEVELS` at `0` unless the item explicitly requires custom levels. Do not use active cost as character cost.
-- Default the root `CHARACTER` template to `builtIn.Heroic6E.hdt` unless the source IR explicitly requests another template. For fantasy/heroic sheets, default `CHARACTER_INFO.GENRE` to `Fantasy Hero` rather than a generic Champions label.
-- Preserve direct Foundry compatibility: omit top-level power/equipment `LVLCOST` (Foundry's item model does not define it) and modifier `ISLIMITATION`; provide attack defense in `INPUT`; emit explicit `DOESBODY`, `DOESDAMAGE`, `DOESKNOCKBACK`, and `KILLING` flags on every power; emit required Reputation adders; and encode Requires A Roll with Hero Designer's short binding label in `OPTION_ALIAS`, the emitted skill `NAME` or `ALIAS` in `COMMENTS`, and the correct `SKILL`/`PS`/`KS`/`SS` `OPTIONID` category.
-- Emit canonical required adders for roll-bearing complications instead of relying on Hero Designer to repair them during a load/save cycle; `SOCIALLIMITATION` specifically needs `OCCUR` and `EFFECTS` for Foundry rendering.
-- Use `LIST` containers aggressively when the source sheet has visual power clusters such as racial abilities, acquired powers, tribunal powers, spell lists, or grouped equipment.
-- When power names repeatedly use the same leading prefix pattern, such as `Tribunal:`, `Spell:`, `Faerie:`, or `Skaven:`, treat that repeated prefix as evidence for a `LIST` container even if the sheet does not draw an explicit visual box around the group.
-- When equipment text can be partially resolved, prefer `COMPOUNDPOWER` with real child stats/powers plus a fallback custom child for any remaining narrative effect text.
-- Keep the original display text in `name`, `alias`, `input`, or `notes` even when normalized XML IDs are resolved.
-- Recalculate deterministic values in the builder when possible, but preserve explicit point totals from the sheet in notes if they disagree.
-- When the sheet marks an item as free or discounted, such as `[1pt free]`, preserve the underlying item cost/mechanics and emit the free portion as a negative generic adder instead of erasing the item's actual definition.
-- Validate every generated `.hdc`; fix high-confidence structural issues before reporting completion.
+- **Sheet evidence:** treat totals, formulas, labels and annotations as evidence, not fields. Reconcile the sheet's totals; put every unexplained difference in `warnings`.
+- **Build text:** write powers as HERO build text in book notation:
+  - **Power phrase first:** "Blast 6d6, Armor Piercing (+¼)".
+  - **Advantages, then limitations:** each written "Name (detail; value)", e.g. "OAF (staff; -1), Requires A Roll (Wizardry; -½)".
+  - **Commas:** keep them out of modifier names; put details in the parentheses.
+  - **Sheet notation:** "[+1/4]" and "-½" are accepted too.
+- **Costs:** give the sheet's `activeCost` and `realCost` for every power. The builder prices what the text doesn't say from them and reports it.
+- **Free items:** mark items the sheet doesn't count `"free": true` (cost multiplier 0). This covers campaign packages, racial abilities in parentheses, and points paid by others.
+- **Magic:** a casting skill is a Power skill (`POWERSKILL`), not a Professional Skill. Spells' "Requires A Magic Roll" / "Skill Roll: X" become a Skill roll bound to that skill. Set the IR's `magicSkill`.
+- **Skill levels:** give each skill's `points` (or `levels`). Under an enhancer (Scholar, Linguist, Scientist, Well-Connected) the builder counts the enhancer's 1-point saving.
+- **Attack links:** Combat Skill Levels name the attacks they apply to (`"attacks"`: the power or equipment names); Foundry applies them only to those.
+- **Prefabs:** use `"prefab"` for equipment that exists in a prefab library (e.g. the private Fantasy Hero compendium's TONS items) rather than re-deriving it.
+- **Customs:** prefer Hero Designer's own powers and modifiers. A custom modifier is fine for campaign-specific ones ("Tuned for Powerstone", "Spellcaster Signature", "Independent"); use `"custom": true` for items that are only a name ("Item to be determined").
+- **Templates:** default to `builtIn.Heroic6E.hdt` and Fantasy Hero for fantasy sheets.
+- **Maxima:** set characteristic maxima only when the sheet's rules turn them on.
 
 ## Output Standard
 
-Return the generated `.hdc`, the IR file if useful for auditability, and validation warnings. If a sheet field cannot be mapped with confidence, make the generated file loadable and document the ambiguity rather than fabricating exact HERO mechanics. Prefer instructions and outputs that are portable across agent runtimes rather than assuming a Codex-specific interface.
+Return the `.hdc`, the IR, the build report and the score. Report the cost match rate, the points spent against the sheet's total with each difference explained, custom fallbacks, and any Foundry issues. Never fabricate mechanics to make a cost match: price the difference from the sheet, label it, and say so.

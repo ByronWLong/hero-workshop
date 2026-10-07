@@ -1,21 +1,23 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://hero-workshop.local/schema/character-ir.json",
-  "title": "Sheet to HDC Character IR",
+  "title": "Sheet to HDC Character IR (version 2)",
+  "description": "The contract between reading a sheet and scripts/build-hdc.mjs. Costs are the sheet's: the builder checks Hero Designer's pricing against them and score-hdc.mjs reports every difference. Version 1 fields (hdcXmlId, levels, modifiers and adders as objects) are still accepted for powers without build text.",
   "type": "object",
   "additionalProperties": true,
   "properties": {
-    "version": { "type": "string", "default": "6.0" },
-    "source": { "type": "string" },
-    "warnings": { "type": "array", "items": { "type": "string" } },
+    "version": { "type": "string", "default": "2" },
+    "source": { "type": "string", "description": "The workbook the IR was read from" },
+    "template": { "type": "string", "default": "builtIn.Heroic6E.hdt" },
+    "magicSkill": { "type": "string", "description": "The skill spells' Requires A Magic Roll rolls against (a Power skill's name), when the text doesn't name one" },
+    "sheetTotal": { "type": "number", "description": "The points the sheet says the character spends; the scorer compares against it" },
+    "warnings": { "type": "array", "items": { "type": "string" }, "description": "Sheet arithmetic that doesn't add up, house rules, and every judgment call a reader should know about" },
     "basicConfiguration": {
       "type": "object",
-      "additionalProperties": true,
       "properties": {
         "basePoints": { "type": "number" },
         "disadPoints": { "type": "number" },
-        "experience": { "type": "number" },
-        "exportTemplate": { "type": "string" }
+        "experience": { "type": "number" }
       }
     },
     "characterInfo": {
@@ -23,89 +25,127 @@
       "additionalProperties": true,
       "properties": {
         "characterName": { "type": "string" },
-        "alternateIdentities": { "type": "string" },
         "playerName": { "type": "string" },
-        "height": { "type": "number", "description": "Centimeters unless heightUnit is in." },
-        "heightUnit": { "enum": ["cm", "in"] },
-        "weight": { "type": "number", "description": "Kilograms unless weightUnit is lb." },
-        "weightUnit": { "enum": ["kg", "lb"] },
-        "hairColor": { "type": "string" },
-        "eyeColor": { "type": "string" },
         "campaignName": { "type": "string" },
         "genre": { "type": "string" },
         "gm": { "type": "string" },
+        "height": { "type": "number", "description": "Centimeters unless heightUnit is in" },
+        "heightUnit": { "enum": ["cm", "in"] },
+        "weight": { "type": "number", "description": "Kilograms unless weightUnit is lb" },
+        "weightUnit": { "enum": ["kg", "lb"] },
+        "hairColor": { "type": "string" },
+        "eyeColor": { "type": "string" },
         "background": { "type": "string" },
         "personality": { "type": "string" },
         "quote": { "type": "string" },
         "tactics": { "type": "string" },
         "campaignUse": { "type": "string" },
         "appearance": { "type": "string" },
-        "notes1": { "type": "string" },
-        "notes2": { "type": "string" },
-        "notes3": { "type": "string" },
-        "notes4": { "type": "string" },
-        "notes5": { "type": "string" }
+        "notes1": { "type": "string" }
       }
     },
-    "characteristics": {
-      "oneOf": [
-        {
-          "type": "object",
-          "additionalProperties": { "type": "number" }
-        },
-        {
-          "type": "array",
-          "items": {
-            "type": "object",
-            "required": ["type"],
-            "additionalProperties": true,
-            "properties": {
-              "type": { "type": "string" },
-              "value": { "type": "number" },
-              "totalValue": { "type": "number" },
-              "levels": { "type": "number" },
-              "notes": { "type": "string" },
-              "sourceRefs": { "type": "array", "items": { "type": "string" } }
-            }
-          }
-        }
-      ]
+    "rules": {
+      "type": "object",
+      "properties": {
+        "races": { "type": "array", "items": { "type": "string" } },
+        "maxima": { "type": "object", "additionalProperties": { "type": "number" }, "description": "Characteristic maxima, only when the sheet's rules turn them on (levels above them cost double)" }
+      }
     },
-    "skills": { "$ref": "#/$defs/items" },
-    "perks": { "$ref": "#/$defs/items" },
-    "talents": { "$ref": "#/$defs/items" },
-    "martialArts": { "$ref": "#/$defs/items" },
-    "powers": { "$ref": "#/$defs/items" },
-    "disadvantages": { "$ref": "#/$defs/items" },
-    "complications": { "$ref": "#/$defs/items" },
-    "equipment": { "$ref": "#/$defs/items" }
+    "characteristics": { "type": "object", "additionalProperties": { "type": "number" }, "description": "Totals: { \"STR\": 23, \"DEX\": 13, ... }" },
+    "skills": { "type": "array", "items": { "$ref": "#/$defs/skill" } },
+    "perks": { "type": "array", "items": { "$ref": "#/$defs/perk" } },
+    "talents": { "type": "array", "items": { "$ref": "#/$defs/talent" } },
+    "martialArts": { "type": "array", "items": { "$ref": "#/$defs/maneuver" } },
+    "complications": { "type": "array", "items": { "$ref": "#/$defs/complication" } },
+    "powers": { "type": "array", "items": { "$ref": "#/$defs/power" } },
+    "equipment": { "type": "array", "items": { "$ref": "#/$defs/power" } }
   },
   "$defs": {
-    "items": {
-      "type": "array",
-      "items": {
-        "type": "object",
-        "additionalProperties": true,
-        "properties": {
-          "id": { "type": "string" },
-          "xmlId": { "type": "string" },
-          "name": { "type": "string" },
-          "alias": { "type": "string" },
-          "input": { "type": "string" },
-          "position": { "type": "number" },
-          "levels": { "type": "number" },
-          "baseCost": { "type": "number" },
-          "lvlCost": { "type": "number" },
-          "points": { "type": "number" },
-          "roll": { "type": "number" },
-          "option": { "type": "string" },
-          "optionAlias": { "type": "string" },
-          "parentId": { "type": "string" },
-          "notes": { "type": "string" },
-          "sourceRefs": { "type": "array", "items": { "type": "string" } },
-          "modifiers": { "$ref": "#/$defs/items" },
-          "adders": { "$ref": "#/$defs/items" }
-        }
+    "common": {
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "For parentId links (lists, enhancers)" },
+        "name": { "type": "string" },
+        "points": { "type": "number", "description": "The sheet's cost" },
+        "free": { "type": "boolean", "description": "Not in the sheet's point total (cost multiplier 0)" },
+        "notes": { "type": "string" },
+        "sourceRefs": { "type": "array", "items": { "type": "string" }, "description": "Cells, e.g. \"Powers!A14:F14\"" }
+      }
+    },
+    "skill": {
+      "allOf": [{ "$ref": "#/$defs/common" }],
+      "properties": {
+        "xmlId": { "type": "string", "description": "Hero Designer's skill (STEALTH, KNOWLEDGE_SKILL, POWERSKILL, LANGUAGES, COMBAT_LEVELS, WEAPON_FAMILIARITY, CUSTOMSKILL...) or enhancer (SCHOLAR, LINGUIST, SCIENTIST, WELL_CONNECTED)" },
+        "group": { "type": "boolean", "description": "A plain list of skills" },
+        "input": { "type": "string", "description": "The subject: KS/PS/SS topic, language, Power skill type" },
+        "characteristic": { "enum": ["STR", "DEX", "CON", "INT", "EGO", "PRE", "GENERAL"] },
+        "levels": { "type": "number", "description": "Bought levels; worked out from points when absent" },
+        "roll": { "type": "number" },
+        "familiarity": { "type": "boolean" },
+        "everyman": { "type": "boolean" },
+        "option": { "type": "string", "description": "Combat/Skill Levels breadth (SINGLE, TIGHT, HTH, RANGED, ALL)" },
+        "fluency": { "enum": ["BASIC", "FLUENT", "ACCENT", "IDIOMATIC", "DIALECTS"] },
+        "literate": { "type": "boolean" },
+        "nativeTongue": { "type": "boolean" },
+        "attacks": { "type": "array", "items": { "type": "string" }, "description": "Combat Skill Levels: the attacks they apply to" },
+        "weapons": { "type": "array", "items": { "type": "string" }, "description": "Weapon Familiarity groups (Common Melee Weapons, Blades, Bows...)" },
+        "parentId": { "type": "string" }
+      }
+    },
+    "perk": {
+      "allOf": [{ "$ref": "#/$defs/common" }],
+      "properties": {
+        "xmlId": { "type": "string", "description": "CONTACT, REPUTATION, FAVOR, FOLLOWER, VEHICLE_BASE, FRINGE_BENEFIT, MONEY, CUSTOMPERK..." },
+        "roll": { "type": "number", "description": "Contact roll (8- 1 level, 11- 2, +1 each after) or Reputation's how well known" },
+        "levels": { "type": "number", "description": "Reputation: its +N/+Nd6" },
+        "detail": { "type": "string", "description": "Contact adders in words (useful / very useful skills or resources, contacts of his own, access to institutions, good relationship, slavishly loyal); Reputation group size" }
+      }
+    },
+    "talent": {
+      "allOf": [{ "$ref": "#/$defs/common" }],
+      "properties": {
+        "xmlId": { "type": "string" },
+        "levels": { "type": "number" }
+      }
+    },
+    "maneuver": {
+      "allOf": [{ "$ref": "#/$defs/common" }],
+      "properties": {
+        "ocv": { "type": "number" },
+        "dcv": { "type": "number" },
+        "phase": { "type": "string" },
+        "dc": { "type": "number" },
+        "effect": { "type": "string" }
+      }
+    },
+    "complication": {
+      "type": "object",
+      "properties": {
+        "type": { "type": "string", "description": "Hero Designer XMLID (HUNTED, PSYCHOLOGICALLIMITATION, VULNERABILITY...) or editor type (PSYCHOLOGICAL_COMPLICATION...)" },
+        "detail": { "type": "string", "description": "Include the frequency and intensity words (Uncommon, Strong, 1 1/2 x BODY): the writer picks Hero Designer's options from them and the points" },
+        "points": { "type": "number" },
+        "notes": { "type": "string" },
+        "sourceRefs": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "power": {
+      "allOf": [{ "$ref": "#/$defs/common" }],
+      "properties": {
+        "kind": { "enum": ["power", "list", "compound", "multipower", "vpp"] },
+        "build": { "type": "string", "description": "HERO build text: \"RKA 2d6, Armor Piercing (+¼); OAF (staff; -1), Requires A Roll (Wizardry; -½)\"" },
+        "activeCost": { "type": "number", "description": "The sheet's Active Points" },
+        "realCost": { "type": "number", "description": "The sheet's Real Cost (character points)" },
+        "defense": { "enum": ["PD", "ED"], "description": "Attacks: the defense they work against" },
+        "skillRoll": { "type": "string", "description": "The skill a Requires A Roll uses, when the text doesn't say" },
+        "custom": { "type": "boolean", "description": "Build a custom power named by the text (priced from the sheet)" },
+        "prefab": { "type": "string", "description": "Copy this item from the --prefabs library instead" },
+        "parts": { "type": "array", "items": { "$ref": "#/$defs/power" }, "description": "A compound power's parts" },
+        "reserve": { "type": "number", "description": "A Multipower's reserve or a pool's size" },
+        "slot": { "enum": ["fixed", "variable"] },
+        "parentId": { "type": "string", "description": "A list or framework's id" },
+        "price": { "type": "number" },
+        "weight": { "type": "number" },
+        "carried": { "type": "boolean" }
       }
     }
   }

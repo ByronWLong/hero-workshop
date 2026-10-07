@@ -103,7 +103,7 @@ Height is stored in inches. Weight is stored in pounds. Longer text fields are c
 - END: 0.2
 - STUN: 0.5
 
-Negative levels should not refund points.
+Levels below the base give points back (Hero Designer's `Characteristic.getTotalCost`): DEX 8 is -4.
 
 ## Lists and Sections
 
@@ -146,10 +146,10 @@ For `CUSTOMPOWER` fallbacks from sheet rows, set `BASECOST` to the sheet-visible
 
 Use `PERK` and `TALENT` sections rather than flattening these into `POWERS`.
 
-- Contacts use `XMLID="CONTACT"` with cost in `LEVELS` and `BASECOST="0"`.
+- Contacts use `XMLID="CONTACT"`, `BASECOST="0"` and the name in `INPUT`. Their cost is their `LEVELS` (the roll: 1 level is 8-, 2 is 11-, +1 per level after, as `Contact.getRoll`) plus their adders (`USEFUL` options, `CONTACTHASCONTACTS`, `ACCESSTOINSTITUTIONS`, `GOODRELATIONSHIP`, `SLAVISHLYLOYAL`...).
 - `WELL_CONNECTED` is a direct `PERKS` child with `NAME=""`, `ALIAS="Well-Connected"`, `BASECOST="3"`, and `INTBASED="No"`. It is a container-like perk enhancer, not a `LIST`: qualifying `CONTACT` and `FAVOR` perks use its `ID` as their `PARENTID`.
-- Positive Reputation uses `XMLID="REPUTATION"`, `BASECOST="0"`, purchased `LEVELS`, and required `HOWWIDE` and `HOWWELL` child adders. Foundry uses `HOWWELL` to derive the Reputation roll, so omitting these adders can leave the imported actor invalid.
-- Vehicle/base contributions use `XMLID="VEHICLE_BASE"`; if only the character-point contribution is known, set `BASEPOINTS` to five times the contribution and `BASECOST="0"`.
+- Positive Reputation uses `XMLID="REPUTATION"`, `BASECOST="0"`, purchased `LEVELS`, and required `HOWWIDE` and `HOWWELL` child adders with `OPTIONID`s. Hero Designer (`Reputation.java`) prices each level at how widely + how well known (at least 1). Foundry uses `HOWWELL` to derive the Reputation roll, so omitting these adders can leave the imported actor invalid.
+- Vehicle/base contributions use `XMLID="VEHICLE_BASE"`, and Followers `XMLID="FOLLOWER"`: `BASECOST="0"`, `LEVELS="0"`, `NUMBER="1"` and `BASEPOINTS` five times the character-point cost. (hero6e 5.0 prices Vehicles & Bases from `LEVELS`, so it shows them at 1 point; Hero Designer's own files have `LEVELS="0"`, so this is hero6e's to fix.)
 - Favors use `XMLID="FAVOR"` with the sheet point value in `BASECOST`.
 - Exact talents such as `DANGER_SENSE` use the sheet point value in `BASECOST` with `LEVELS="0"` unless the talent definition requires levels; uncertain talents use `CUSTOMTALENT`.
 
@@ -162,9 +162,11 @@ Canonical skills with a characteristic-based roll must retain that basis in `CHA
 When a sheet uses known prefixes, prefer canonical skill encoding over a custom fallback:
 
 - `KS: Arcana` → `XMLID="KNOWLEDGE_SKILL"`, `ALIAS="KS"`, `INPUT="Arcana"`
-- `AK: City of Anarch` → `XMLID="AREA_KNOWLEDGE"`, `ALIAS="AK"`, `INPUT="City of Anarch"`
+- `AK: City of Anarch` → `XMLID="KNOWLEDGE_SKILL"`, `INPUT="City of Anarch"` (6E has no separate Area Knowledge; `Main6E.hdt` lists it as a Knowledge Skill type)
 - `PS: Stone Mason` → `XMLID="PROFESSIONAL_SKILL"`, `ALIAS="PS"`, `INPUT="Stone Mason"`
 - `Systems Operation - Bandapa Intel Net` → `XMLID="SYSTEMS_OPERATION"`, `ALIAS="Systems Operation"`, `INPUT="Bandapa Intel Net"`
+
+Hero Designer writes a familiarity (`FAMILIARITY="Yes"`) with `BASECOST="0.0"`; it costs the template's familiarity cost (usually 1). hero6e prices it from `BASECOST`, so writing the skill's base there makes it 3. A skill costs its base plus levels at the template's cost per level for its `CHARACTERISTIC` (most skills 2 per +1, Knowledge/Professional/Science Skills 1) plus adders. Languages store their fluency's price in `BASECOST` (`BASIC` 1, `FLUENT` 2, `ACCENT` 3, `IDIOMATIC` 4, `DIALECTS` 5) with a `LITERACY` adder; a Weapon Familiarity's cost is in its group adders (`COMMONMELEE` 2, `BLADES` 1...). A skill under an enhancer (`SCHOLAR`, `LINGUIST`, `SCIENTIST`, `TRAVELER`, `JACK_OF_ALL_TRADES`) costs 1 less.
 
 Use `CUSTOMSKILL` for uncertain sheet-derived skills rather than inventing IDs like `TORTURE` or `INVENTOR_SPELL_RESEARCH`. Custom skills support `ROLL` and display reliably when paired with normal skill save attributes (`CHARACTERISTIC`, `FAMILIARITY`, `PROFICIENCY`, `LEVELSONLY`, and generic save attributes).
 
@@ -179,7 +181,7 @@ Modifiers are child `MODIFIER` elements:
 - `BASECOST`: fractional value, positive for advantages and negative for limitations
 - `LEVELS`, `OPTION`, `OPTIONID`, `OPTION_ALIAS`, `INPUT`, `COMMENTS`, `NOTES`
 
-Use the sign of `BASECOST` to distinguish advantages from limitations. Do not serialize `ISLIMITATION`; current Foundry HERO 6e modifier models reject it as an unknown property.
+Use the sign of `BASECOST` to distinguish advantages from limitations. Area Of Effect stores its size in `LEVELS` and costs +¼ per doubling (Hero Designer's `AreaEffect`): a Radius's size over 2, a Cone's over 4, a Line's over 8 (4m Radius +¼, 8m +½, 16m +¾, 32m +1). Do not serialize `ISLIMITATION`; current Foundry HERO 6e modifier models reject it as an unknown property.
 
 `REQUIRESASKILLROLL` is a special compatibility case. Use `ALIAS="Requires A Roll"` and leave `INPUT` absent. Put Hero Designer's short skill binding label in `OPTION_ALIAS`, but put the emitted skill's `NAME` or `ALIAS` in `COMMENTS`, because Foundry matches against those identities rather than the rendered detail string. The `OPTIONID` must also match the underlying skill category: `PS` for `PROFESSIONAL_SKILL`, `KS` for Knowledge/Area/City Knowledge, `SS` for `SCIENCE_SKILL`, and `SKILL` for ordinary skills; retain `1PER5` or `1PER20` suffixes when present. For a Professional Skill emitted as `NAME="Magic Skill" INPUT="Wizardry"`, use `OPTIONID="PS"`, `OPTION_ALIAS="Wizardry"`, and `COMMENTS="Magic Skill"`; do not append `: Wizardry`. Populating `INPUT` on the modifier causes Hero Designer to warn that the skill is undefined and can cause the modifier to be stripped on save.
 
@@ -231,6 +233,23 @@ Custom maneuvers use `MANEUVER XMLID="MANEUVER"` with `CUSTOM="Yes"`; never deri
 When the underlying maneuver type is recognizable, set `NAME` and `DISPLAY` to the canonical maneuver name such as `Dodge`, `Grab`, `Flying Grab`, or `Strike`, and keep the custom sheet name in `ALIAS`. This improves downstream compatibility for consumers that classify martial maneuvers by their base maneuver identity rather than by the custom display name.
 
 Put extra sheet-specific action text into `EFFECT` or `NOTES`.
+
+## Foundry
+
+hero6e 5.0 reads costs from the file much as Hero Designer does; checked against three characters, all point-bearing items agree except:
+
+- `VEHICLE_BASE` (see above).
+- Items with `MULTIPLIER="0"` (free): hero6e still counts them in its character totals.
+- Equipment, which costs no character points: some powers price slightly differently (Growth, Duplication, Regeneration options).
+
+To check a file, import it into a throwaway actor in a test world and compare `item.realCost` with the scorer's per-item costs:
+
+```js
+const actor = await Actor.create({ name: 'HW TEST', type: 'pc', flags: { core: { hwTest: true } } });
+await actor.uploadFromXml(xml, { keepExistingName: true });
+```
+
+Delete the actor afterwards.
 
 ## Compatibility Checklist
 
