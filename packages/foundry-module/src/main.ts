@@ -32,6 +32,7 @@ import { getRaceLibrary, registerRaceSettings } from './races/library';
 import { MODULE_ID, createActorSession } from './sync/session';
 import { registerImportRepair, wrapHeroUploads } from './sync/importRepair';
 import { openHeroSheet, registerItemSheetBypass, wrapItemSheets } from './apps/item-sheet-bypass';
+import { makeFamilyRowsDraggable, wrapActorSheetDrag } from './apps/actor-sheet-drag';
 
 /** Lists Foundry-side edits not yet in an actor's stored HDC (for macros and debugging) */
 function driftReport(actor: FoundryActor): { item: string; kind: string; summary: string }[] {
@@ -77,6 +78,18 @@ Hooks.once('setup', () => {
   wrapHeroUploads();
   wrapItemSheets();
 });
+
+// Actor sheet classes are registered after setup
+Hooks.once('ready', () => {
+  if (!isHeroSystem()) return;
+  wrapActorSheetDrag();
+});
+
+// Lists, frameworks and compounds can be dragged off actor sheets too
+Hooks.on('renderActorSheetV2', ((sheet: Parameters<typeof makeFamilyRowsDraggable>[0]) => {
+  if (!isHeroSystem()) return;
+  makeFamilyRowsDraggable(sheet);
+}) as (...args: never[]) => unknown);
 
 // ApplicationV2 fires getHeaderControls<ClassName> for every class in the sheet's hierarchy
 Hooks.on('getHeaderControlsApplicationV2', ((app: { document?: unknown }, controls: HeaderControl[]) => {

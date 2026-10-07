@@ -220,6 +220,26 @@ export async function expandCompound(item: FoundryItem): Promise<FoundryItem[]> 
   return created;
 }
 
+/**
+ * Copies a list, framework or compound (with its members or parts) onto an actor, as hero6e's
+ * upload would create them. The created items go through the usual drop handling, which
+ * writes them into the actor's stored HDC.
+ */
+export async function copyFamilyToActor(item: FoundryItem, actor: ActorWithItems): Promise<FoundryItem[]> {
+  const transfer = await transferFromItem(item);
+  if (!transfer) throw new Error('it has no Hero Designer data');
+  let floor = Date.now();
+  for (const other of actor.items.contents) floor = Math.max(floor, Number(other.system.ID) || 0);
+  const { xml } = insertItems(blankHdc(), transfer, { minId: floor });
+  const ItemClass = CONFIG.Item.documentClass as unknown as HeroItemClass;
+  const parsed = ItemClass.parseItemsFromHeroJsonToItemDataArray(await heroJsonFromXml(xml));
+  if (!parsed.length) throw new Error('hero6e could not make an item from this.');
+  for (const data of parsed) data.img = iconOfFragment(data.system._hdcXml) ?? data.img;
+  const created = await actor.createEmbeddedDocuments('Item', parsed);
+  for (const part of created as (FoundryItem & { setActiveEffects?(): Promise<unknown> })[]) await part.setActiveEffects?.();
+  return created;
+}
+
 interface HeroItem extends FoundryItem {
   childItems: HeroItem[];
   pack?: string | null;
@@ -234,7 +254,8 @@ export async function itemFamily(item: FoundryItem): Promise<FoundryItem[]> {
   const hero = item as HeroItem;
   const members: HeroItem[] = [hero];
   if (item.system.XMLID === 'COMPOUNDPOWER') return members;
-  if (hero.pack && hero.childItemsFromPack) {
+  // A compendium item's members are in its pack's folders; a compendium actor's, on the actor
+  if (hero.pack && !hero.actor && hero.childItemsFromPack) {
     members.push(...(await hero.childItemsFromPack()));
   } else {
     const walk = (parent: HeroItem) => {

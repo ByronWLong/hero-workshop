@@ -21,6 +21,7 @@
     "NewItem": "Hero Workshop Item",
     "ItemCreated": "{name} created with Hero Workshop.",
     "ItemsCopied": "Created {name} in the Items sidebar.",
+    "CopiedToActor": "Copied {name} to {actor}.",
     "NoSection": "Hero Workshop can't add {name} to a character.",
     "OpenHeroSheet": "Open hero6e sheet",
     "OpenItemsInWorkshop": "Open items in Hero Workshop",
