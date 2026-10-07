@@ -37,7 +37,7 @@ import {
   type CharacteristicRule,
 } from '../characteristics.js';
 import { HdcDocument, getIcon } from './document.js';
-import { FRAMEWORK_NAMES, FRAMEWORK_TYPES, frameworkOwnCost, isFramework, slotCost } from '../frameworks.js';
+import { FRAMEWORK_NAMES, FRAMEWORK_TYPES, frameworkOwnCost, inheritedSlotLimitations, isFramework, slotCost } from '../frameworks.js';
 import type { XmlElement } from './xml.js';
 
 type ParserObject = Record<string, unknown>;
@@ -636,13 +636,25 @@ function parseFramework(obj: Record<string, unknown>, tag: (typeof FRAMEWORK_TYP
   } as Power;
 }
 
-/** A framework's slots cost a fraction of their own cost (none, in a Variable Power Pool) */
-function priceSlots(items: { id: string; parentId?: string; realCost?: number; slotFixed?: boolean; type?: string; xmlId?: string }[]): void {
+/**
+ * A framework's slots cost a fraction of their own cost (none, in a Variable Power Pool), with
+ * a Multipower's limitations applied to them as well
+ */
+function priceSlots(
+  items: { id: string; parentId?: string; activeCost?: number; realCost?: number; slotFixed?: boolean; type?: string; xmlId?: string; modifiers?: Modifier[]; isContainer?: boolean }[],
+): void {
   const byId = new Map(items.map((i) => [i.id, i]));
   for (const item of items) {
     const parent = item.parentId ? byId.get(item.parentId) : undefined;
     const parentType = parent?.xmlId ?? parent?.type;
-    if (parent && isFramework(parentType)) item.realCost = slotCost(parentType, item.realCost ?? 0, item.slotFixed ?? false);
+    if (!parent || !isFramework(parentType)) continue;
+    let real = item.realCost ?? 0;
+    const inherited = inheritedSlotLimitations(parentType, parent.modifiers, item.modifiers);
+    if (inherited.length && !item.isContainer && item.activeCost) {
+      const limits = [...(item.modifiers ?? []).filter((m) => (m.value ?? 0) < 0), ...inherited].reduce((sum, m) => sum + Math.abs(m.value ?? 0), 0);
+      real = heroRoundCost(item.activeCost / (1 + limits));
+    }
+    item.realCost = slotCost(parentType, real, item.slotFixed ?? false);
   }
 }
 

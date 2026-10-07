@@ -3,7 +3,7 @@
  * a form renders from it, and saving it back into the character. Framework-independent.
  */
 
-import { FRAMEWORK_NAMES, frameworkOwnCost, isContainerType, isFramework, slotCost, type FrameworkType } from '../frameworks.js';
+import { FRAMEWORK_NAMES, frameworkOwnCost, inheritedSlotLimitations, isContainerType, isFramework, slotCost, type FrameworkType } from '../frameworks.js';
 import type { Adder, Character, Equipment, Modifier, Power } from '../types.js';
 import {
   ALL_POWERS,
@@ -621,9 +621,10 @@ export function modifierChoices(powerXmlId?: string) {
 export function powerFormView(character: Character, section: PowerSection, draft: PowerDraft, itemId?: string) {
   const def = getPowerDefinition(draft.xmlId);
   const parent = containerOf(character, section, draft.parentId);
-  const inherited = parent?.type === 'LIST' ? (parent.modifiers ?? []) : [];
-  const costs = powerCosts(draft, inherited);
   const parentType = typeOf(parent);
+  // A list's modifiers apply to everything in it; a Multipower's limitations to its slots
+  const inherited = parent?.type === 'LIST' ? (parent.modifiers ?? []) : inheritedSlotLimitations(parentType, parent?.modifiers, draft.modifiers);
+  const costs = powerCosts(draft, inherited);
   const framework = FRAMEWORK_OF_KIND[draft.kind];
   return {
     kind: draft.kind,
@@ -709,6 +710,7 @@ export function powerFormView(character: Character, section: PowerSection, draft
       };
     }),
     inherited: inherited.map((m) => `${m.name} (${fraction(m.value)})`),
+    inheritedFrom: parent?.type === 'LIST' ? 'the list' : parent ? `the ${FRAMEWORK_NAMES[(parentType ?? parent.type) as keyof typeof FRAMEWORK_NAMES] ?? 'framework'}` : '',
     subPowers: draft.subPowers.map((p) => ({
       id: p.id,
       name: p.name,

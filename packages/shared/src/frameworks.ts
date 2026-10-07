@@ -8,14 +8,28 @@
  * - A Variable Power Pool costs its pool (LEVELS) plus its control cost (the CONTROLCOST
  *   adder, half the pool by default); its limitations reduce only the control cost. Powers in
  *   the pool cost nothing themselves.
- * - The framework's modifiers don't change its slots' costs (Hero Designer only shows them
- *   alongside the slots).
+ * - A Multipower's limitations also apply to its slots (GenericObject.getRealCostPreList), except
+ *   Charges and any the slot has its own copy of (custom modifiers always apply). Its advantages
+ *   apply only to the reserve. A pool's modifiers don't change its slots, which cost nothing.
  */
 
 import type { Adder, Modifier } from './types.js';
 import { calculateAdderCost, heroRoundCost } from './utils.js';
 
 export const FRAMEWORK_TYPES = ['MULTIPOWER', 'VPP'] as const;
+
+const CUSTOM_MODIFIERS = new Set(['GENERIC_OBJECT', 'CUSTOM_MODIFIER', 'MODIFIER', 'CUSTOM']);
+
+/** The framework's limitations a slot also takes (see above) */
+export function inheritedSlotLimitations(frameworkType: string | undefined, frameworkMods: Modifier[] = [], slotMods: Modifier[] = []): Modifier[] {
+  if (frameworkType !== 'MULTIPOWER') return [];
+  return frameworkMods.filter(
+    (m) =>
+      (m.value ?? 0) < 0 &&
+      m.xmlId !== 'CHARGES' &&
+      (!m.xmlId || CUSTOM_MODIFIERS.has(m.xmlId) || m.xmlId.startsWith('CUSTOM') || !slotMods.some((s) => s.xmlId === m.xmlId)),
+  );
+}
 export type FrameworkType = (typeof FRAMEWORK_TYPES)[number];
 
 export const isFramework = (type: string | undefined): type is FrameworkType =>

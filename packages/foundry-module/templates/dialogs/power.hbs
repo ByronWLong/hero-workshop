@@ -231,7 +231,7 @@
     {{/if}}
     {{/if}}
     {{/each}}
-    {{#if inherited.length}}<p class="hint">From the list: {{#each inherited}}{{this}}{{#unless @last}}, {{/unless}}{{/each}}</p>{{/if}}
+    {{#if inherited.length}}<p class="hint">From {{inheritedFrom}}: {{#each inherited}}{{this}}{{#unless @last}}, {{/unless}}{{/each}}</p>{{/if}}
     <div class="hw-add-modifiers">
       <input type="search" class="hw-picker" data-field="addModifier" data-pick list="{{uid}}-advantages" placeholder="Add an advantage… (type to search)" autocomplete="off">
       <datalist id="{{uid}}-advantages">{{#each modifierChoices.advantages}}<option value="{{label}}" data-value="{{value}}"></option>{{/each}}</datalist>

@@ -44,12 +44,13 @@ describe('frameworks (Multipower, Variable Power Pool)', () => {
     const shield = character.equipment!.find((e) => e.id === '9400')!;
     expect(shield.xmlId).toBe('MULTIPOWER');
     expect(shield.name).toBe('Buckler, Wooden');
-    // Reserve 5 with OAF (-1): 2.5, rounded down; fixed DCV slot 1 (minimum); variable 2d6 HA slot 10/5 = 2
+    // Reserve 5 with OAF (-1): 2.5, rounded down. The Multipower's OAF applies to its slots too:
+    // fixed DCV slot 1 (minimum); variable 2d6 HA slot 10 / 2 = 5 real, 5/5 = 1
     expect(shield.ownCost?.real).toBe(2);
     const tree = buildItemTree(character, 'equipment');
     const shieldRow = row(tree, 'Buckler, Wooden');
-    expect(shieldRow.children.map((c) => [c.name, c.cost])).toEqual([['DCV', 1], ['Shield Bash', 2]]);
-    expect(shieldRow.cost).toBe(5);
+    expect(shieldRow.children.map((c) => [c.name, c.cost])).toEqual([['DCV', 1], ['Shield Bash', 1]]);
+    expect(shieldRow.cost).toBe(4);
     expect(tree).toHaveLength(1);
   });
 
@@ -60,9 +61,9 @@ describe('frameworks (Multipower, Variable Power Pool)', () => {
     expect(draft.reserve).toBe(5);
     expect(powerFormView(character, 'equipment', draft, '9400').framework?.name).toBe('Multipower');
 
-    // Reserve 10 with OAF: 5; slots unchanged (3)
+    // Reserve 10 with OAF: 5; slots unchanged (2)
     let edited = savePowerDraft(character, 'equipment', '9400', { ...draft, reserve: 10 });
-    expect(row(buildItemTree(edited, 'equipment'), 'Buckler, Wooden').cost).toBe(8);
+    expect(row(buildItemTree(edited, 'equipment'), 'Buckler, Wooden').cost).toBe(7);
 
     // The bash becomes a fixed slot: 10/10 = 1
     const bash = powerDraft(edited, 'equipment', '9403');
@@ -132,3 +133,29 @@ describe('a compound power as a Multipower slot', () => {
     expect(row(buildItemTree(resaved, 'equipment'), 'Spiked Buckler').cost).toBe(before.cost);
   });
 });
+
+describe("a Multipower's limitations on its slots", () => {
+  // The HERO System Grimoire's Earthquake: 150-point reserve with -3 of limitations (37 points);
+  // a fixed Telekinesis slot of 150 Active Points with one more -¼ limitation costs 3
+  const lim = (id: string, xmlId: string, cost: string, extra = '') =>
+    `<MODIFIER XMLID="${xmlId}" ID="${id}" BASECOST="${cost}" LEVELS="0" ALIAS="${xmlId}" POSITION="-1" ${extra} />`;
+  const XML = blankHdc().replace('<POWERS />', `<POWERS>
+    <MULTIPOWER XMLID="GENERIC_OBJECT" ID="9700" BASECOST="150.0" LEVELS="0" ALIAS="Multipower" POSITION="0" NAME="Earthquake">
+      ${lim('9701', 'FOCUS', '-1.0', 'OPTION="OAF" OPTIONID="OAF"')}
+      ${lim('9702', 'GESTURES', '-0.25')}${lim('9703', 'INCANTATIONS', '-0.25')}${lim('9704', 'NORANGE', '-0.5')}
+      ${lim('9705', 'REQUIRESASKILLROLL', '-0.5', 'OPTION="SKILL" OPTIONID="SKILL"')}${lim('9706', 'SPELL', '-0.5')}
+    </MULTIPOWER>
+    <POWER XMLID="TELEKINESIS" ID="9710" BASECOST="0.0" LEVELS="40" ALIAS="Telekinesis" POSITION="1" PARENTID="9700" ULTRA_SLOT="Yes" NAME="Summon Earthquake" QUANTITY="1">
+      <MODIFIER XMLID="GENERIC_OBJECT" ID="9711" BASECOST="1.5" LEVELS="0" ALIAS="Area and MegaArea" POSITION="-1" />
+      ${lim('9712', 'GENERIC_OBJECT', '-0.25')}
+    </POWER>
+  </POWERS>`);
+
+  it('prices the slot with them, as Hero Designer does', () => {
+    const powers = parseHdcFile(XML).powers;
+    expect(powers.find((p) => p.id === '9700')!.ownCost?.real).toBe(37);
+    expect(powers.find((p) => p.id === '9710')!.realCost).toBe(3);
+    expect(powers.find((p) => p.id === '9700')!.realCost).toBe(40);
+  });
+});
+
