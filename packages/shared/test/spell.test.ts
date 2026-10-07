@@ -41,4 +41,12 @@ describe('custom Spell modifiers', () => {
     expect(after.powers.map((p) => [p.name, p.realCost])).toEqual(c.powers.map((p) => [p.name, p.realCost]));
     expect(convertCustomSpells(after).count).toBe(0);
   });
+
+  it("reads a power's notes (Hero Designer's NOTES text), not its name", () => {
+    const note = 'A bolt of mystic force.\n\n(The HERO System Grimoire)';
+    const c = parseHdcFile(XML.replace('<NOTES />', `<NOTES>${note}</NOTES>`));
+    expect(c.powers.find((p) => p.id === '9600')!.notes).toBe(note);
+    expect(powerDraft(c, 'powers', '9600').notes).toBe(note);
+    expect(c.powers.find((p) => p.id === '9610')!.notes).toBeUndefined();
+  });
 });

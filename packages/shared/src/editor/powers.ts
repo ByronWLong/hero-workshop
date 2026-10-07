@@ -654,6 +654,9 @@ export function powerFormView(character: Character, section: PowerSection, draft
       display: def.display,
       description: def.description,
       inputLabel: def.inputLabel,
+      // Hero Designer's drop-down for the input ("Vs.": PD, ED), with typed values when it allows others
+      inputExamples: def.inputExamples?.length ? def.inputExamples : undefined,
+      otherInput: def.otherInput !== false,
       levelLabel: def.lvlVal && def.lvlCost ? `${def.lvlCost} pts per ${def.lvlVal === 1 ? 'level' : `${def.lvlVal}`}` : undefined,
       hasLevels: !!def.lvlCost || !!def.options?.some((o) => o.lvlCost),
       options: def.options?.map((o) => ({ value: o.xmlId, label: o.display, selected: o.xmlId === draft.option })),

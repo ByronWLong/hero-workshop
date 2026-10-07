@@ -205,7 +205,8 @@ function extractTextContent(obj: Record<string, unknown>, key: string): string |
   if (!element) return undefined;
   if (typeof element === 'string') return element;
   if (typeof element === 'object' && element !== null) {
-    return (element as Record<string, unknown>)['#text'] as string ?? String(element);
+    const text = (element as Record<string, unknown>)['#text'];
+    return text === undefined ? undefined : String(text);
   }
   return undefined;
 }
@@ -1372,9 +1373,6 @@ function parsePower(obj: Record<string, unknown>): Power {
     endCost = Math.ceil(activeCost / 10);
   }
   
-  // Build description from alias and modifiers
-  const description = alias || '';
-  
   // Store PARENTID for list modifier application
   const parentId = getAttr(obj, 'PARENTID', '');
   
@@ -1397,7 +1395,8 @@ function parsePower(obj: Record<string, unknown>): Power {
     levelCost: lvlCost,
     activeCost: activeCost,
     realCost: realCost,
-    notes: description || getAttr(obj, 'NOTES') || undefined,
+    // The power's own notes (Hero Designer's NOTES text), not its display name
+    notes: extractTextContent(obj, 'NOTES')?.trim() || getAttr(obj, 'NOTES').trim() || undefined,
     type: (xmlid || 'GENERIC') as Power['type'],
     effectDice: getAttr(obj, 'EFFECT_DICE') || getAttr(obj, 'EFFECTDICE') || undefined,
     endCost: endCost,

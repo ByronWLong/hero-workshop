@@ -90,6 +90,8 @@ export class PowerDialog extends HeroWorkshopApplication {
   };
 
   #draft: PowerDraft;
+  /** "Custom…" was chosen for an input that has a drop-down */
+  #customInput = false;
 
   constructor(readonly config: PowerDialogOptions) {
     const draft = powerDraft(config.character(), config.section, config.itemId, config.kind);
@@ -120,8 +122,14 @@ export class PowerDialog extends HeroWorkshopApplication {
       { value: 'vpp', label: 'Power pool', hint: 'a Variable Power Pool' },
       { value: 'list', label: 'List', hint: this.config.section === 'equipment' ? 'a heading that groups gear' : 'a heading that groups powers' },
     ];
+    const examples = view.definition?.inputExamples;
+    const input = this.#draft.input ?? '';
     return {
       ...view,
+      inputChoice: examples && {
+        examples: examples.map((value) => ({ value, selected: value === input && !this.#customInput })),
+        custom: this.#customInput || (!!input && !examples.includes(input)),
+      },
       // Skills can be changed from here only in the editor's own forms (not a compound part's)
       canConvertSkills: !this.config.idScope,
       // Keeps each dialog's search lists apart
@@ -162,6 +170,11 @@ export class PowerDialog extends HeroWorkshopApplication {
     const [kind, id, prop, sub] = field.split('.');
 
     switch (kind) {
+      case 'inputChoice':
+        // A suggested value, or "Custom…" (which shows a text box for any other)
+        this.#customInput = value === '__custom';
+        if (this.#customInput) return this.#update({ ...draft }); // the current value stays, to edit
+        return this.#update({ ...draft, input: value });
       case 'kind':
         return this.#update({ ...draft, kind: value as PowerDraft['kind'] });
       case 'xmlId':

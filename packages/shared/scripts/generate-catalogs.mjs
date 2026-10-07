@@ -125,6 +125,9 @@ function entry(node) {
     exclusive: bool(a.EXCLUSIVE ?? a.EXLUSIVE),
     isLimitation: bool(a.ISLIMITATION),
     inputLabel: a.INPUTLABEL,
+    // Suggested values for the input (Hero Designer's drop-down), and whether others may be typed
+    inputExamples: elements(node, 'EXAMPLE').map(textOf),
+    otherInput: bool(a.OTHERINPUT),
     optionLabel: a.OPTIONLABEL,
     duration: a.DURATION,
     range: a.RANGE,
@@ -338,6 +341,10 @@ export interface CatalogEntry {
   /** Explicit on the few modifiers whose sign doesn't tell */
   isLimitation?: boolean;
   inputLabel?: string;
+  /** Hero Designer's suggested values for the input ("PD", "ED" for an attack's "Vs.") */
+  inputExamples?: string[];
+  /** Whether values other than the examples may be typed */
+  otherInput?: boolean;
   optionLabel?: string;
   duration?: string;
   range?: string;

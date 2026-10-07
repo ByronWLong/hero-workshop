@@ -46,6 +46,9 @@ export interface PowerDefinition {
   description: string;
   /** Label for the power's free-text INPUT (e.g. the characteristic a Drain affects) */
   inputLabel?: string;
+  /** Hero Designer's suggested values for the input (its drop-down); others may be typed when otherInput */
+  inputExamples?: string[];
+  otherInput?: boolean;
   
   // Cost structure
   baseCost: number;
@@ -1997,6 +2000,8 @@ for (const entry of POWER_CATALOG_6E) {
   // Keep hand-written details, but offer every adder and option the template defines
   const fromCatalog = powerFromCatalog(entry);
   existing.inputLabel ??= fromCatalog.inputLabel;
+  existing.inputExamples ??= fromCatalog.inputExamples;
+  existing.otherInput ??= fromCatalog.otherInput;
   const known = new Set((existing.adders ?? []).map((a) => a.xmlId));
   const extraAdders = (fromCatalog.adders ?? []).filter((a) => !known.has(a.xmlId));
   if (extraAdders.length) existing.adders = [...(existing.adders ?? []), ...extraAdders];
@@ -2015,6 +2020,8 @@ function powerFromCatalog(e: CatalogEntry): PowerDefinition {
     abbreviation: e.abbreviation,
     description: e.description ?? '',
     inputLabel: e.inputLabel,
+    inputExamples: e.inputExamples,
+    otherInput: e.otherInput,
     baseCost: e.baseCost ?? 0,
     lvlCost: e.lvlCost ?? 0,
     lvlVal: e.lvlVal ?? 1,

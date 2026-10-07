@@ -346,6 +346,16 @@
   font-size: var(--font-size-12);
 }
 
+.hero-workshop .hw-input-choice {
+  display: flex;
+  gap: var(--hw-gap);
+  flex: 1;
+}
+
+.hero-workshop .hw-input-choice > * {
+  flex: 1;
+}
+
 .hero-workshop .hw-mod-details {
   display: flex;
   flex-wrap: wrap;

@@ -51,6 +51,10 @@ export interface CatalogEntry {
   /** Explicit on the few modifiers whose sign doesn't tell */
   isLimitation?: boolean;
   inputLabel?: string;
+  /** Hero Designer's suggested values for the input ("PD", "ED" for an attack's "Vs.") */
+  inputExamples?: string[];
+  /** Whether values other than the examples may be typed */
+  otherInput?: boolean;
   optionLabel?: string;
   duration?: string;
   range?: string;
@@ -83,6 +87,7 @@ export const POWER_CATALOG_6E: CatalogEntry[] = [
     "levelStart": 1,
     "minCost": 0,
     "inputLabel": "Absorbed Points Go Into",
+    "otherInput": true,
     "optionLabel": "Energy Type",
     "duration": "CONSTANT",
     "range": "SELF",
@@ -170,6 +175,7 @@ export const POWER_CATALOG_6E: CatalogEntry[] = [
     "levelStart": 1,
     "minCost": 0,
     "inputLabel": "Aid to",
+    "otherInput": true,
     "duration": "INSTANT",
     "range": "No",
     "target": "DCV",
@@ -569,6 +575,11 @@ export const POWER_CATALOG_6E: CatalogEntry[] = [
     "minVal": 0,
     "levelStart": 1,
     "inputLabel": "Versus",
+    "inputExamples": [
+      "PD",
+      "ED"
+    ],
+    "otherInput": true,
     "duration": "INSTANT",
     "range": "Yes",
     "target": "DCV",
@@ -1428,6 +1439,12 @@ export const POWER_CATALOG_6E: CatalogEntry[] = [
     "description": "A character with Damage Reduction is tougher than normal characters; only part of any damage which gets through his defenses is applied to his STUN or BODY. Characters purchase Damage Reduction separately for each type of attack (Physical, Energy or Mental), list it as a percentage (it removes 25%, 50%, or 75% of the damage taken), and must define it as Normal or Resistant.",
     "exclusive": false,
     "inputLabel": "Type",
+    "inputExamples": [
+      "Physical",
+      "Energy",
+      "Mental"
+    ],
+    "otherInput": true,
     "duration": "PERSISTENT",
     "range": "SELF",
     "target": "SELFONLY",
@@ -1684,6 +1701,7 @@ export const POWER_CATALOG_6E: CatalogEntry[] = [
     "baseCost": 40,
     "exclusive": true,
     "inputLabel": "Affected By (SFX)",
+    "otherInput": true,
     "duration": "CONSTANT",
     "range": "SELF",
     "target": "SELFONLY",
@@ -1731,6 +1749,7 @@ export const POWER_CATALOG_6E: CatalogEntry[] = [
     "levelStart": 1,
     "exclusive": false,
     "inputLabel": "Dispels",
+    "otherInput": true,
     "duration": "INSTANT",
     "range": "Yes",
     "target": "DCV",
@@ -1799,6 +1818,11 @@ export const POWER_CATALOG_6E: CatalogEntry[] = [
         "baseCost": 0.5,
         "exclusive": true,
         "inputLabel": "Special Effect",
+        "inputExamples": [
+          "Characteristics",
+          "Fire Powers"
+        ],
+        "otherInput": true,
         "warningSign": true
       },
       {
@@ -1835,6 +1859,26 @@ export const POWER_CATALOG_6E: CatalogEntry[] = [
     "levelStart": 1,
     "exclusive": false,
     "inputLabel": "Drains",
+    "inputExamples": [
+      "STR",
+      "DEX",
+      "CON",
+      "INT",
+      "EGO",
+      "PRE",
+      "OCV",
+      "DCV",
+      "OMCV",
+      "DMCV",
+      "SPD",
+      "PD",
+      "ED",
+      "REC",
+      "END",
+      "BODY",
+      "STUN"
+    ],
+    "otherInput": true,
     "duration": "INSTANT",
     "range": "Yes",
     "target": "DCV",
@@ -3518,6 +3562,10 @@ export const POWER_CATALOG_6E: CatalogEntry[] = [
     "minVal": 0,
     "levelStart": 1,
     "inputLabel": "Healing To",
+    "inputExamples": [
+      "BODY"
+    ],
+    "otherInput": true,
     "duration": "INSTANT",
     "range": "No",
     "target": "DCV",
@@ -3769,6 +3817,11 @@ export const POWER_CATALOG_6E: CatalogEntry[] = [
     "minVal": 0,
     "levelStart": 1,
     "inputLabel": "Vs.",
+    "inputExamples": [
+      "PD",
+      "ED"
+    ],
+    "otherInput": true,
     "duration": "INSTANT",
     "range": "No",
     "target": "DCV",
@@ -3881,6 +3934,11 @@ export const POWER_CATALOG_6E: CatalogEntry[] = [
     "minVal": 0,
     "levelStart": 1,
     "inputLabel": "Vs.",
+    "inputExamples": [
+      "PD",
+      "ED"
+    ],
+    "otherInput": true,
     "duration": "INSTANT",
     "range": "Yes",
     "target": "DCV",
@@ -4342,6 +4400,14 @@ export const POWER_CATALOG_6E: CatalogEntry[] = [
     "levelStart": 1,
     "exclusive": false,
     "inputLabel": "Class of Minds",
+    "inputExamples": [
+      "",
+      "Human",
+      "Animal",
+      "Machine",
+      "Alien"
+    ],
+    "otherInput": true,
     "duration": "INSTANT",
     "range": "LOS",
     "target": "ECV",
@@ -4458,6 +4524,14 @@ export const POWER_CATALOG_6E: CatalogEntry[] = [
     "minVal": 0,
     "levelStart": 1,
     "inputLabel": "Class of Minds",
+    "inputExamples": [
+      "",
+      "Human",
+      "Animal",
+      "Machine",
+      "Alien"
+    ],
+    "otherInput": true,
     "duration": "INSTANT",
     "range": "LOS",
     "target": "ECV",
@@ -4597,6 +4671,14 @@ export const POWER_CATALOG_6E: CatalogEntry[] = [
     "minVal": 0,
     "levelStart": 1,
     "inputLabel": "Class of Minds",
+    "inputExamples": [
+      "",
+      "Human",
+      "Animal",
+      "Machine",
+      "Alien"
+    ],
+    "otherInput": true,
     "duration": "INSTANT",
     "range": "LOS",
     "target": "ECV",
@@ -4707,6 +4789,14 @@ export const POWER_CATALOG_6E: CatalogEntry[] = [
     "description": "A character with Mind Link, a variation of Telepathy, can set up a specific link with a receptive (willing) mind, thereby allowing instant mental communication.",
     "baseCost": 5,
     "inputLabel": "Class of Minds",
+    "inputExamples": [
+      "",
+      "Human",
+      "Animal",
+      "Machine",
+      "Alien"
+    ],
+    "otherInput": true,
     "duration": "PERSISTENT",
     "range": "LOS",
     "target": "ECV",
@@ -4833,6 +4923,14 @@ export const POWER_CATALOG_6E: CatalogEntry[] = [
     "minVal": 0,
     "levelStart": 1,
     "inputLabel": "Class of Minds",
+    "inputExamples": [
+      "",
+      "Human",
+      "Animal",
+      "Machine",
+      "Alien"
+    ],
+    "otherInput": true,
     "duration": "CONSTANT",
     "range": "SPECIAL",
     "target": "ECV",
@@ -5089,6 +5187,7 @@ export const POWER_CATALOG_6E: CatalogEntry[] = [
     "minVal": 1,
     "levelStart": 1,
     "inputLabel": "Applies To",
+    "otherInput": true,
     "duration": "INSTANT",
     "range": "No",
     "target": "SELFONLY",
@@ -5107,6 +5206,7 @@ export const POWER_CATALOG_6E: CatalogEntry[] = [
     "minVal": 1,
     "levelStart": 1,
     "inputLabel": "Applies To",
+    "otherInput": true,
     "duration": "INSTANT",
     "range": "No",
     "target": "SELFONLY",
@@ -5122,6 +5222,14 @@ export const POWER_CATALOG_6E: CatalogEntry[] = [
     "baseCost": 60,
     "exclusive": false,
     "inputLabel": "Class of Minds",
+    "inputExamples": [
+      "",
+      "Human",
+      "Animal",
+      "Machine",
+      "Alien"
+    ],
+    "otherInput": true,
     "duration": "CONSTANT",
     "range": "LOS",
     "target": "ECV",
@@ -5774,6 +5882,7 @@ export const POWER_CATALOG_6E: CatalogEntry[] = [
     "minVal": 1,
     "levelStart": 1,
     "inputLabel": "Creature Type",
+    "otherInput": true,
     "duration": "INSTANT",
     "range": "No",
     "target": "N/A",
@@ -6055,6 +6164,14 @@ export const POWER_CATALOG_6E: CatalogEntry[] = [
     "minVal": 0,
     "levelStart": 1,
     "inputLabel": "Class of Minds",
+    "inputExamples": [
+      "",
+      "Human",
+      "Animal",
+      "Machine",
+      "Alien"
+    ],
+    "otherInput": true,
     "duration": "INSTANT",
     "range": "LOS",
     "target": "ECV",
@@ -6322,6 +6439,7 @@ export const POWER_CATALOG_6E: CatalogEntry[] = [
     "minVal": 0,
     "levelStart": 1,
     "inputLabel": "Transform X into Y",
+    "otherInput": true,
     "duration": "INSTANT",
     "range": "Yes",
     "target": "DCV",
@@ -6755,6 +6873,11 @@ export const MODIFIER_CATALOG_6E: CatalogEntry[] = [
     "baseCost": 0.5,
     "exclusive": true,
     "inputLabel": "Special Effect",
+    "inputExamples": [
+      "Characteristics",
+      "Fire Powers"
+    ],
+    "otherInput": true,
     "warningSign": true,
     "types": [
       "ADJUSTMENT"
@@ -7299,6 +7422,7 @@ export const MODIFIER_CATALOG_6E: CatalogEntry[] = [
     "description": "A Sense-Affecting Power with this LImitation only affects one or two Senses in a Sense Group, rather than the entire Sense Group.",
     "baseCost": -0.25,
     "inputLabel": "Affects",
+    "otherInput": true,
     "types": [
       "SENSEAFFECTING"
     ]
@@ -7520,6 +7644,22 @@ export const MODIFIER_CATALOG_6E: CatalogEntry[] = [
     "baseCost": 0,
     "exclusive": true,
     "inputLabel": "Defense",
+    "inputExamples": [
+      "PD",
+      "ED",
+      "Mental Defense",
+      "Flash Defense (Sight)",
+      "Power Defense",
+      "Resistant PD",
+      "Resistant ED",
+      "Resistant Mental Defense",
+      "Resistant Flash Defense (Sight)",
+      "Resistant Power Defense",
+      "Life Support (Self-Contained Breathing); target holds his breath",
+      "any type of Resistant Defense",
+      "target is insulated"
+    ],
+    "otherInput": true,
     "optionLabel": "Defense Change Is",
     "warningSign": true,
     "types": [
@@ -7663,6 +7803,7 @@ export const MODIFIER_CATALOG_6E: CatalogEntry[] = [
     "baseCost": 1,
     "exclusive": true,
     "inputLabel": "can be negated by",
+    "otherInput": true,
     "warningSign": true,
     "adders": [
       {
@@ -8292,7 +8433,8 @@ export const MODIFIER_CATALOG_6E: CatalogEntry[] = [
     "description": "The Time Limit Modifier allows a character to create an effect that lasts for a defined period of time.",
     "baseCost": 0.25,
     "exclusive": true,
-    "inputLabel": "Time Limit variable"
+    "inputLabel": "Time Limit variable",
+    "otherInput": true
   },
   {
     "xmlId": "TRANSDIMENSIONAL",
@@ -9990,7 +10132,8 @@ export const MODIFIER_CATALOG_6E: CatalogEntry[] = [
     "minCost": -0.25,
     "maxCost": -0.25,
     "exclusive": true,
-    "inputLabel": "Powers"
+    "inputLabel": "Powers",
+    "otherInput": true
   },
   {
     "xmlId": "VARIABLELIMITATIONS",
@@ -10211,6 +10354,7 @@ export const PERK_CATALOG_6E: CatalogEntry[] = [
     "minCost": 1,
     "exclusive": false,
     "inputLabel": "Contact Name",
+    "otherInput": true,
     "types": [
       "CONTACT"
     ],
@@ -11230,6 +11374,7 @@ export const PERK_CATALOG_6E: CatalogEntry[] = [
     "minCost": 1,
     "exclusive": false,
     "inputLabel": "Reputation",
+    "otherInput": true,
     "adders": [
       {
         "xmlId": "HOWWIDE",
@@ -11606,7 +11751,11 @@ export const TALENT_CATALOG_6E: CatalogEntry[] = [
     "minCost": 1,
     "maxCost": 6,
     "exclusive": false,
-    "inputLabel": "Environment"
+    "inputLabel": "Environment",
+    "inputExamples": [
+      "no penalties on"
+    ],
+    "otherInput": true
   },
   {
     "xmlId": "LIGHTNING_CALCULATOR",
@@ -11807,6 +11956,7 @@ export const DISADVANTAGE_CATALOG_6E: CatalogEntry[] = [
     "minCost": 0,
     "exclusive": false,
     "inputLabel": "Situation",
+    "otherInput": true,
     "adders": [
       {
         "xmlId": "CHANCETOCHANGE",
@@ -11875,6 +12025,7 @@ export const DISADVANTAGE_CATALOG_6E: CatalogEntry[] = [
     "minCost": 0,
     "exclusive": false,
     "inputLabel": "Substance",
+    "otherInput": true,
     "adders": [
       {
         "xmlId": "EFFECT",
@@ -12048,6 +12199,7 @@ export const DISADVANTAGE_CATALOG_6E: CatalogEntry[] = [
     "minCost": 0,
     "exclusive": false,
     "inputLabel": "DNPC Name",
+    "otherInput": true,
     "adders": [
       {
         "xmlId": "APPEARANCE",
@@ -12137,6 +12289,7 @@ export const DISADVANTAGE_CATALOG_6E: CatalogEntry[] = [
     "minCost": 0,
     "exclusive": false,
     "inputLabel": "Description",
+    "otherInput": true,
     "adders": [
       {
         "xmlId": "CONCEALABILITY",
@@ -12226,6 +12379,7 @@ export const DISADVANTAGE_CATALOG_6E: CatalogEntry[] = [
     "minCost": 0,
     "exclusive": false,
     "inputLabel": "Circumstance",
+    "otherInput": true,
     "adders": [
       {
         "xmlId": "CIRCUMSTANCES",
@@ -12315,6 +12469,7 @@ export const DISADVANTAGE_CATALOG_6E: CatalogEntry[] = [
     "minCost": 0,
     "exclusive": false,
     "inputLabel": "Name of Hunted",
+    "otherInput": true,
     "adders": [
       {
         "xmlId": "APPEARANCE",
@@ -12416,6 +12571,7 @@ export const DISADVANTAGE_CATALOG_6E: CatalogEntry[] = [
     "minCost": 0,
     "exclusive": false,
     "inputLabel": "Limitation",
+    "otherInput": true,
     "adders": [
       {
         "xmlId": "OCCURS",
@@ -12487,6 +12643,7 @@ export const DISADVANTAGE_CATALOG_6E: CatalogEntry[] = [
     "minCost": 0,
     "exclusive": false,
     "inputLabel": "Limitation",
+    "otherInput": true,
     "adders": [
       {
         "xmlId": "SITUATION",
@@ -12547,6 +12704,7 @@ export const DISADVANTAGE_CATALOG_6E: CatalogEntry[] = [
     "minCost": 0,
     "exclusive": false,
     "inputLabel": "Reputation",
+    "otherInput": true,
     "adders": [
       {
         "xmlId": "RECOGNIZED",
@@ -12709,6 +12867,7 @@ export const DISADVANTAGE_CATALOG_6E: CatalogEntry[] = [
     "minCost": 0,
     "exclusive": false,
     "inputLabel": "Description",
+    "otherInput": true,
     "adders": [
       {
         "xmlId": "OCCUR",
@@ -12772,6 +12931,7 @@ export const DISADVANTAGE_CATALOG_6E: CatalogEntry[] = [
     "minCost": 0,
     "exclusive": false,
     "inputLabel": "Condition",
+    "otherInput": true,
     "adders": [
       {
         "xmlId": "DICE",
@@ -12903,6 +13063,7 @@ export const DISADVANTAGE_CATALOG_6E: CatalogEntry[] = [
     "minCost": 0,
     "exclusive": false,
     "inputLabel": "Attack Type",
+    "otherInput": true,
     "adders": [
       {
         "xmlId": "ATTACK",
