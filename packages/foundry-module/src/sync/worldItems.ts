@@ -213,7 +213,11 @@ export async function expandCompound(item: FoundryItem): Promise<FoundryItem[]> 
     copy.setAttr('ID', String(parentId));
     await item.update({ 'system._hdcXml': copy.toString() });
   }
-  return actor.createEmbeddedDocuments('Item', parts, { [OWN_CREATION]: true });
+  const created = await actor.createEmbeddedDocuments('Item', parts, { [OWN_CREATION]: true });
+  // hero6e applies characteristic bonuses (a shield's +DCV, a ring's +OCV) through Active
+  // Effects, which only its upload sets up; parts created here need them made too
+  for (const part of created as (FoundryItem & { setActiveEffects?(): Promise<unknown> })[]) await part.setActiveEffects?.();
+  return created;
 }
 
 interface HeroItem extends FoundryItem {
