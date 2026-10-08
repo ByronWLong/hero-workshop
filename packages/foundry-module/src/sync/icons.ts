@@ -5,7 +5,7 @@
  * icons are put back on the Foundry items after each import.
  */
 
-import { HdcDocument, getIcon, parseXml } from '@hero-workshop/shared';
+import { HdcDocument, getIcon, parseXml, type XmlElement } from '@hero-workshop/shared';
 
 /** Placeholder for items without an icon of their own (e.g. ones not yet in Foundry) */
 export const DEFAULT_ICON = 'icons/svg/item-bag.svg';
@@ -13,6 +13,14 @@ export const DEFAULT_ICON = 'icons/svg/item-bag.svg';
 /** hero6e's defaults come from core's icons/svg and the system's own folder; anything else was chosen */
 export function isCustomIcon(img: unknown): img is string {
   return typeof img === 'string' && img !== '' && !img.startsWith('icons/svg/') && !img.startsWith('systems/');
+}
+
+/**
+ * The icon an item's element records, or for a compound's part without one, the compound's
+ * (in a world or compendium item the parts aren't items of their own, so they show it)
+ */
+export function iconOfElement(el: XmlElement): string | undefined {
+  return getIcon(el) ?? (el.parent?.hasAttr('XMLID') ? getIcon(el.parent) : undefined);
 }
 
 /** The icon recorded on an item's XML fragment */
@@ -42,7 +50,7 @@ export async function applyIcons(actor: FoundryActor): Promise<void> {
     const id = item.system.ID;
     if (id === undefined || id === null || id === '') continue;
     const found = doc.findById(String(id));
-    const icon = found ? getIcon(found) : undefined;
+    const icon = found ? iconOfElement(found) : undefined;
     if (icon && item.img !== icon) updates.push({ _id: item.id, img: icon });
   }
   if (updates.length) await target.updateEmbeddedDocuments('Item', updates);

@@ -22,7 +22,7 @@ import {
   type ItemTransfer,
 } from '@hero-workshop/shared';
 import { applyDrift, detectDrift } from './drift';
-import { iconOfFragment } from './icons';
+import { iconOfFragment, isCustomIcon } from './icons';
 import { MODULE_ID, itemSource } from './session';
 
 /** Drag data for items dragged out of a Hero Workshop editor */
@@ -202,9 +202,16 @@ export async function expandCompound(item: FoundryItem): Promise<FoundryItem[]> 
   const ItemClass = CONFIG.Item.documentClass as unknown as HeroItemClass;
   const parsed = ItemClass.parseItemsFromHeroJsonToItemDataArray(await heroJsonFromXml(xml));
   const parentId = Number(item.system.ID);
+  // Parts without an icon of their own show the compound's, as they did in the world or compendium item
+  const compoundIcon = iconOfFragment(fragment) ?? (isCustomIcon(item.img) ? item.img : undefined);
   const parts = parsed
     .filter((d) => d.system.PARENTID === Number(id))
-    .map((d) => ({ ...d, type: item.type, img: iconOfFragment(d.system._hdcXml) ?? d.img, system: { ...d.system, PARENTID: parentId } }));
+    .map((d) => ({
+      ...d,
+      type: item.type,
+      img: iconOfFragment(d.system._hdcXml) ?? compoundIcon ?? d.img,
+      system: { ...d.system, PARENTID: parentId },
+    }));
   if (!parts.length) return [];
   // Another expansion may have finished while this one was parsing
   if (actor.items.contents.some((i) => i.system.PARENTID === parentId)) return [];
@@ -237,6 +244,14 @@ export async function copyFamilyToActor(item: FoundryItem, actor: ActorWithItems
   const parsed = ItemClass.parseItemsFromHeroJsonToItemDataArray(await heroJsonFromXml(xml));
   if (!parsed.length) throw new Error('hero6e could not make an item from this.');
   for (const data of parsed) data.img = iconOfFragment(data.system._hdcXml) ?? data.img;
+  // A compound's parts without an icon of their own show the compound's
+  const compoundIcons = new Map(
+    parsed.filter((d) => d.system.XMLID === 'COMPOUNDPOWER' && isCustomIcon(d.img)).map((d) => [d.system.ID, d.img]),
+  );
+  for (const data of parsed) {
+    const inherited = data.system.PARENTID ? compoundIcons.get(data.system.PARENTID) : undefined;
+    if (inherited && !iconOfFragment(data.system._hdcXml)) data.img = inherited;
+  }
   const created = await actor.createEmbeddedDocuments('Item', parsed);
   for (const part of created as (FoundryItem & { setActiveEffects?(): Promise<unknown> })[]) await part.setActiveEffects?.();
   return created;
