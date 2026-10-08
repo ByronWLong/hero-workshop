@@ -43,6 +43,7 @@ interface FoundryActor {
   setFlag(scope: string, key: string, value: unknown): Promise<unknown>;
   unsetFlag(scope: string, key: string): Promise<unknown>;
   update(data: Record<string, unknown>): Promise<unknown>;
+  updateEmbeddedDocuments(type: string, updates: Record<string, unknown>[], options?: Record<string, unknown>): Promise<unknown>;
   sheet?: { render(force?: boolean): unknown };
   /** hero6e: re-imports the actor from HDC XML, merging items by HDC ID */
   uploadFromXml(xml: string, options?: Record<string, unknown>): Promise<void>;

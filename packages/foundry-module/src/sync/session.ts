@@ -133,6 +133,7 @@ async function importHdc(actor: FoundryActor, xml: string, options: Record<strin
   // hero6e reports upload failures through a flag rather than by throwing
   const failure = actor.getFlag('hero6efoundryvttv2', 'uploadingError');
   if (failure) throw new Error(`hero6e could not import ${actor.name}: ${String(failure).split('\n')[0]}`);
+  await fixItemNames(actor);
 
   const names: Record<string, string> = {};
   for (const item of actor.items.contents) {
@@ -144,6 +145,22 @@ async function importHdc(actor: FoundryActor, xml: string, options: Record<strin
   await actor.unsetFlag(MODULE_ID, 'syncedNames');
   await actor.setFlag(MODULE_ID, 'syncedNames', names);
   await applyIcons(actor);
+}
+
+/**
+ * hero6e's re-import names each updated item NAME or ALIAS, and its own naming rules
+ * ("PS: Jeweler", "MSR: Sorcery: General") only win when the item's current name already
+ * differs. So an unnamed skill's name flips between "MSR" and "MSR: Wizardry" on every save,
+ * and spells bound to it by name (Requires A Roll) lose their skill every other save.
+ * Puts back the names hero6e builds when it creates the items.
+ */
+async function fixItemNames(actor: FoundryActor): Promise<void> {
+  const updates: { _id: string; name: string }[] = [];
+  for (const item of actor.items.contents as (FoundryItem & { preBuildName?(system?: unknown): string })[]) {
+    const built = item.preBuildName?.(item.system);
+    if (built && built !== item.name) updates.push({ _id: item.id, name: built });
+  }
+  if (updates.length) await actor.updateEmbeddedDocuments('Item', updates);
 }
 
 export function itemSource(item: FoundryItem): DriftItemSource {
