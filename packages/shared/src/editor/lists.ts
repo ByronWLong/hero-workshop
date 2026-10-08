@@ -18,6 +18,11 @@ export interface ItemRowView {
   isGroup: boolean;
   /** A list or framework other items can be put in */
   acceptsChildren: boolean;
+  /**
+   * Powers dropped on it become compound parts: a compound or one of its parts, or (in
+   * Equipment) a single item, which becomes a compound
+   */
+  acceptsParts: boolean;
   /** Custom icon, if the item has one */
   icon?: string;
   /** Costs no points (its own or an enclosing list's/compound's multiplier is 0) */
@@ -113,12 +118,12 @@ function rowCost(section: SectionId, own: number, isGroup: boolean, children: It
 export function buildItemTree(character: Character, section: SectionId): ItemRowView[] {
   const items = sectionItems(character, section);
   const ids = new Set(items.map((i) => i.id));
-  const toRow = (item: ListItem, inherited = 1): ItemRowView => {
+  const toRow = (item: ListItem, inherited = 1, isPart = false): ItemRowView => {
     // Hero Designer: an item without its own multiplier takes its list's/compound's
     const multiplier = (item.multiplier ?? 1) !== 1 ? item.multiplier! : inherited;
     const children = [
       ...items.filter((c) => c.parentId === item.id).map((c) => toRow(c, multiplier)),
-      ...(item.subPowers ?? []).map((c) => toRow(c, multiplier)),
+      ...(item.subPowers ?? []).map((c) => toRow(c, multiplier, true)),
     ];
     const isGroup = !!(item.isGroup || item.isContainer);
     const own = costOf(section, item);
@@ -157,6 +162,10 @@ export function buildItemTree(character: Character, section: SectionId): ItemRow
       isGroup,
       icon: item.icon,
       acceptsChildren: !!item.isGroup || item.type === 'LIST' || FRAMEWORKS.includes(item.xmlId ?? item.type ?? ''),
+      acceptsParts:
+        (section === 'powers' || section === 'equipment') &&
+        (isPart || kind === 'COMPOUNDPOWER' || !!item.subPowers?.length ||
+          (section === 'equipment' && !isGroup && !children.length && kind !== 'LIST' && !isFramework(kind))),
       children,
     };
   };

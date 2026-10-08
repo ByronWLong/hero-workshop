@@ -15,6 +15,7 @@ import {
   combinedRaceMaxima,
   extractItems,
   insertItems,
+  insertParts,
   parseHdcFile,
   powerTypeChoices,
   removeItem,
@@ -132,14 +133,17 @@ export class HeroWorkshopEditor extends HeroWorkshopApplication {
   #keptFromFoundry = 0;
   #review?: { xml: string; report: HdcWriteReport };
   #error?: string;
-  /** Names of items dropped in from Foundry or another editor, for the review */
+  /** Items dropped in from Foundry or another editor, or moved by dragging, for the review */
   #imported: string[] = [];
+  /** Edits folded into the base document before a drop rearranged it, for the review */
+  #folded?: Pick<HdcWriteReport, 'changes' | 'warnings'>;
 
   constructor(options: EditorOptions) {
     super({
       id: `hero-workshop-editor-${options.windowId}`,
-      window: { title: `Hero Workshop: ${options.session.actorName}` },
+      window: { title: `Hero Workshop: ${options.session.actorName}${options.session.view?.readOnly ? ' (read-only)' : ''}` },
     });
+    if (options.session.view?.readOnly) this.makeReadOnly();
     this.session = options.session;
     this.#onAppliedCallback = options.onApplied;
     this.#baseXml = options.session.hdcXml;
@@ -152,7 +156,7 @@ export class HeroWorkshopEditor extends HeroWorkshopApplication {
     this.#driftSelected = new Set(this.#drift.filter((c) => c.recommended).map((c) => c.key));
     // Only interrupt for changes worth keeping. The rest (e.g. items hero6e never imported)
     // are kept as they are unless picked, which is also what skipping the step does
-    this.#stage = this.#drift.some((c) => c.recommended) ? 'drift' : 'edit';
+    this.#stage = this.#drift.some((c) => c.recommended) && !this.readOnly ? 'drift' : 'edit';
     const view = options.session.view;
     if (view?.initialTab) this.tabGroups.primary = view.initialTab;
   }
@@ -198,7 +202,7 @@ export class HeroWorkshopEditor extends HeroWorkshopApplication {
         count: count(rows),
         points: rows.reduce((n, r) => n + r.cost, 0),
         // A single world item's editor saves only that item, so nothing else can be added
-        canAdd: !this.session.view?.visibleTabs,
+        canAdd: !this.session.view?.visibleTabs && !this.readOnly,
         // Type a power, skill, talent… to open its form with it chosen
         addChoices:
           id === 'powers' || id === 'equipment' ? powerTypeChoices() : typeChoices(id as FormSection)?.groups,
@@ -270,6 +274,12 @@ export class HeroWorkshopEditor extends HeroWorkshopApplication {
       case 'applying':
         return { buttons: [] };
       default:
+        if (this.readOnly) {
+          return {
+            status: 'Read-only: nothing here can be changed',
+            buttons: [{ action: 'close', icon: 'fa-solid fa-xmark', label: 'Close' }],
+          };
+        }
         return {
           error,
           status: this.#dirty ? 'Unsaved changes' : this.session.isNew ? 'New character' : 'No changes yet',
@@ -300,8 +310,8 @@ export class HeroWorkshopEditor extends HeroWorkshopApplication {
     const report = this.#review?.report;
     if (!report) return undefined;
     return {
-      changes: report.changes,
-      warnings: report.warnings,
+      changes: [...(this.#folded?.changes ?? []), ...report.changes],
+      warnings: [...(this.#folded?.warnings ?? []), ...report.warnings],
       errors: report.foundryIssues.filter((i) => i.severity === 'error').map((i) => i.message),
       notes: report.foundryIssues.filter((i) => i.severity === 'warning').map((i) => i.message),
       keptFromFoundry: this.#keptFromFoundry,
@@ -454,6 +464,7 @@ export class HeroWorkshopEditor extends HeroWorkshopApplication {
         itemId,
         kind,
         xmlId: type,
+        readOnly: this.readOnly,
         defaultIcon: itemId ? this.session.itemImage?.(itemId) : undefined,
         character: () => this.#character,
         onSave: (character) => this.setCharacter(character),
@@ -464,6 +475,7 @@ export class HeroWorkshopEditor extends HeroWorkshopApplication {
       section,
       itemId,
       type,
+      readOnly: this.readOnly,
       defaultIcon: itemId ? this.session.itemImage?.(itemId) : undefined,
       character: () => this.#character,
       onSave: (character) => this.setCharacter(character),
@@ -494,7 +506,7 @@ export class HeroWorkshopEditor extends HeroWorkshopApplication {
 
   /** Other items can't be added when the editor is working on a single world item */
   get #acceptsDrops(): boolean {
-    return this.#stage === 'edit' && !this.session.view?.visibleTabs;
+    return this.#stage === 'edit' && !this.session.view?.visibleTabs && !this.readOnly;
   }
 
   #listenForDrags(): void {
@@ -525,8 +537,14 @@ export class HeroWorkshopEditor extends HeroWorkshopApplication {
     });
   }
 
+  /** The row a drop lands in: a list or framework takes members, a compound (or a piece of equipment) parts */
+  #dropRow(event: DragEvent): HTMLElement | undefined {
+    const target = event.target as HTMLElement;
+    return target.closest?.<HTMLElement>('.hw-item-row[data-accepts-children], .hw-item-row[data-accepts-parts]') ?? undefined;
+  }
+
   #highlightDropTarget(event?: DragEvent): void {
-    const target = event && (event.target as HTMLElement).closest?.<HTMLElement>('.hw-item-row[data-accepts-children]');
+    const target = event && this.#dropRow(event);
     this.element.querySelectorAll('.hw-drop-target').forEach((r) => r !== target && r.classList.remove('hw-drop-target'));
     target?.classList.add('hw-drop-target');
     this.element.classList.toggle('hw-drop-active', !!event);
@@ -542,19 +560,52 @@ export class HeroWorkshopEditor extends HeroWorkshopApplication {
     const name = buildItemTree(this.#character, section).flatMap(function flat(r): typeof r[] {
       return [r, ...r.children.flatMap(flat)];
     }).find((r) => r.id === id)?.name ?? 'item';
-    return { type: DRAG_TYPE, name, transfer, sourceWindow: this.id };
+    return { type: DRAG_TYPE, name, transfer, sourceWindow: this.id, itemId: id };
+  }
+
+  /**
+   * Writes the edits made so far into the base document, so a drop can rearrange its elements
+   * (e.g. copy a part into another compound) without losing them. Returns their new HDC IDs.
+   */
+  #foldEdits(): Record<string, string> {
+    if (this.#character === this.#original) return {};
+    const { xml, report } = updateHdc(this.#baseXml, this.#character);
+    this.#folded = {
+      changes: [...(this.#folded?.changes ?? []), ...report.changes],
+      warnings: [...(this.#folded?.warnings ?? []), ...report.warnings],
+    };
+    this.#setBase(xml);
+    return report.idMap;
+  }
+
+  #setBase(xml: string): void {
+    this.#baseXml = xml;
+    this.#original = parseHdcFile(xml);
+    this.#character = this.#original;
   }
 
   async #onDrop(event: DragEvent): Promise<void> {
     const data = dragData(event);
     if (!data) return;
+    const row = this.#dropRow(event);
     let transfer: ItemTransfer | undefined;
     let name = 'item';
+    let idMap: Record<string, string> = {};
+    /** The dragged item's HDC ID, when it's copied within this editor */
+    let source: string | undefined;
+
     if (data.type === DRAG_TYPE) {
       const drag = data as unknown as HeroWorkshopDragData;
-      if (drag.sourceWindow === this.id) return;
-      transfer = drag.transfer;
       name = drag.name;
+      if (drag.sourceWindow === this.id) {
+        // Within the editor, an item is copied into the list, framework or compound it's dropped on
+        if (!drag.itemId || !row || row.dataset.itemId === drag.itemId) return;
+        idMap = this.#foldEdits();
+        source = idMap[drag.itemId] ?? drag.itemId;
+        transfer = extractItems(this.#baseXml, source);
+      } else {
+        transfer = drag.transfer;
+      }
     } else if (data.type === 'Item' && typeof data.uuid === 'string') {
       const item = (await fromUuid(data.uuid)) as FoundryItem | null;
       if (!item) return;
@@ -567,13 +618,29 @@ export class HeroWorkshopEditor extends HeroWorkshopApplication {
     } else {
       return;
     }
+    if (!transfer) return;
 
-    // Dropped on a list or framework in the same section: put it inside
-    const row = (event.target as HTMLElement).closest?.<HTMLElement>('.hw-item-row[data-accepts-children]');
-    const section = SECTION_FOR_HDC[transfer.section];
-    const parentId =
-      row && row.dataset.section === section && /^\d+$/.test(row.dataset.itemId ?? '') ? row.dataset.itemId : undefined;
-    this.addItems(transfer, name, parentId);
+    try {
+      if (row && row.dataset.acceptsChildren === undefined) {
+        // A compound, one of its parts, or a piece of equipment (which becomes a compound)
+        if (!source) idMap = this.#foldEdits();
+        this.#addParts(transfer, name, idMap[row.dataset.itemId!] ?? row.dataset.itemId!, source);
+        return;
+      }
+      // Dropped on a list or framework in the same section: put it inside
+      const section = SECTION_FOR_HDC[transfer.section];
+      const listId = row && row.dataset.section === section ? (idMap[row.dataset.itemId!] ?? row.dataset.itemId!) : undefined;
+      const parentId = listId && /^\d+$/.test(listId) ? listId : undefined;
+      if (source) {
+        if (parentId) this.#copyInto(transfer, name, source, parentId);
+        else void this.render();
+        return;
+      }
+      this.addItems(transfer, name, parentId);
+    } catch (e) {
+      ui.notifications.warn(e instanceof Error ? e.message : String(e));
+      void this.render();
+    }
   }
 
   /** Adds copied items to the character, keeping their Hero Designer data intact */
@@ -584,8 +651,43 @@ export class HeroWorkshopEditor extends HeroWorkshopApplication {
     this.#baseXml = xml;
     this.#original = parseHdcFile(xml);
     this.#character = withInsertedItems(this.#character, before, this.#original, section);
-    this.#imported.push(name);
+    this.#imported.push(`Added ${name}`);
     this.changeTab(section, 'primary');
+    void this.render();
+  }
+
+  /**
+   * Adds copies of items to a compound as parts (a single item becomes a compound first).
+   * `source` is the dragged item's HDC ID when it comes from this editor.
+   */
+  #addParts(transfer: ItemTransfer, name: string, targetId: string, source?: string): void {
+    const doc = HdcDocument.parse(this.#baseXml);
+    const target = doc.findById(targetId);
+    if (!target) return;
+    const compound = target.parent?.hasAttr('XMLID') ? target.parent : target;
+    if (source) {
+      const el = doc.findById(source);
+      // Dropped on its own compound, or a compound on one of its own parts
+      if (!el || el === compound || el.parent === compound) return void this.render();
+    }
+    const { xml } = insertParts(this.#baseXml, transfer, targetId);
+    this.#setBase(xml);
+    this.#imported.push(`Added ${name} to ${compound.getAttr('NAME') || compound.getAttr('ALIAS') || 'the compound'}`);
+    void this.render();
+  }
+
+  /** Copies an item of this editor's into a list or framework */
+  #copyInto(transfer: ItemTransfer, name: string, source: string, parentId: string): void {
+    const doc = HdcDocument.parse(this.#baseXml);
+    // Not into itself or one of its own members, nor the list it's already in
+    for (let id: string | undefined = parentId; id; id = doc.findById(id)?.getAttr('PARENTID')) {
+      if (id === source) return void this.render();
+    }
+    if (doc.findById(source)?.getAttr('PARENTID') === parentId) return void this.render();
+    const { xml } = insertItems(this.#baseXml, transfer, { parentId });
+    this.#setBase(xml);
+    const list = doc.findById(parentId);
+    this.#imported.push(`Added ${name} to ${list?.getAttr('NAME') || list?.getAttr('ALIAS') || 'the list'}`);
     void this.render();
   }
 

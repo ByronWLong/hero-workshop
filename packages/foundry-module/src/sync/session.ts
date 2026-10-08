@@ -29,6 +29,8 @@ export interface SessionView {
   applyLabel?: string;
   /** HDC ID of an item whose edit form opens on load */
   focusItemId?: string;
+  /** Shown but not edited (e.g. in a locked compendium): no changes, just a Close button */
+  readOnly?: boolean;
 }
 
 export interface ActorSession {

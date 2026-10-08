@@ -15,6 +15,11 @@ import { NND, aoeValue, clampModifierValue, getAllModifiers, getModifierByXmlId,
 import { calculateAdderCost, heroRoundCost } from '../utils.js';
 import { fractionText as fraction } from './lists.js';
 import { skillRollCategory } from '../hdc/foundry.js';
+import { HdcDocument } from '../hdc/document.js';
+import { parseHdcFile } from '../hdc/parse.js';
+import { extractItems, insertParts, type ItemTransfer } from '../hdc/transfer.js';
+import { blankHdc, updateHdc } from '../hdc/write.js';
+import { createElement } from '../hdc/xml.js';
 import type { TypeChoiceGroup } from './items.js';
 
 /** Requires A Roll options that roll a skill: SKILL, PS, KS, SS (each with -1 per 5/20 AP variants) */
@@ -285,6 +290,38 @@ export function setSubPowers(draft: PowerDraft, subPowers: Power[]): PowerDraft 
 
 export function removeSubPower(draft: PowerDraft, id: string): PowerDraft {
   return { ...draft, subPowers: draft.subPowers.filter((p) => p.id !== id) };
+}
+
+/** A part with new ids throughout, so it's added as a new part wherever it goes */
+function withNewIds(part: Power): Power {
+  return {
+    ...part,
+    id: newId(),
+    parentId: undefined,
+    modifiers: part.modifiers?.map((m) => ({ ...m, id: newId() })),
+    adders: part.adders?.map((a) => ({ ...a, id: newId() })),
+  };
+}
+
+/**
+ * Copied items as compound parts (for a compound's form): a power, or a compound's parts.
+ * Throws for a list or framework, which a compound can't hold.
+ */
+export function partsFromTransfer(transfer: ItemTransfer): Power[] {
+  const doc = HdcDocument.parse(blankHdc());
+  const id = doc.nextId();
+  const scratch = createElement('POWER', { XMLID: 'COMPOUNDPOWER', ALIAS: 'Compound Power', ID: id, POSITION: '0' });
+  doc.ensureSection('EQUIPMENT').appendElement(scratch);
+  const { xml } = insertParts(doc.toString(), transfer, id);
+  return (parseHdcFile(xml).equipment?.[0]?.subPowers ?? []).map(withNewIds);
+}
+
+/** A compound's part as a copy to drop elsewhere (another compound, a character, the Items sidebar) */
+export function transferFromPart(part: Power): ItemTransfer | undefined {
+  const base = blankHdc();
+  const copy = withNewIds(part);
+  const { xml, report } = updateHdc(base, { ...parseHdcFile(base), powers: [copy] });
+  return extractItems(xml, report.idMap[copy.id] ?? copy.id);
 }
 
 /**

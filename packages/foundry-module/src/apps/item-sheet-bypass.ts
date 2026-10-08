@@ -1,8 +1,8 @@
 /**
  * World and compendium items open in Hero Workshop rather than hero6e's item sheet, which adds
- * little for an item that isn't on a character. Items on actors, items the user can't edit
- * (including ones in a locked compendium) and items without Hero Designer data still open
- * hero6e's sheet. "Open hero6e sheet" in the item context menu reaches it on demand, and a
+ * little for an item that isn't on a character. A compendium item that can't be changed (its
+ * compendium is locked, or the user doesn't own it) opens read-only. Items on actors, world
+ * items the user doesn't own and items without Hero Designer data still open hero6e's sheet. "Open hero6e sheet" in the item context menu reaches it on demand, and a
  * client setting turns the behaviour off.
  */
 
@@ -35,9 +35,8 @@ export function openHeroSheet(item: FoundryItem): void {
 /** Whether opening the item (e.g. Foundry's Edit) shows Hero Workshop rather than hero6e's sheet */
 export function opensInWorkshop(item: FoundryItem & { parent?: unknown }): boolean {
   if (item.parent || item.actor) return false;
-  if (!item.isOwner || typeof item.system._hdcXml !== 'string' || !item.system._hdcXml.trim() || !tabForItem(item)) return false;
-  const pack = item.pack ? game.packs.get(item.pack) : undefined;
-  if (pack?.locked) return false;
+  if (!item.isOwner && !item.pack) return false;
+  if (typeof item.system._hdcXml !== 'string' || !item.system._hdcXml.trim() || !tabForItem(item)) return false;
   try {
     return game.settings.get(MODULE_ID, SETTING) !== false;
   } catch {

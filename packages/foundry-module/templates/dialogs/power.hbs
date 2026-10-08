@@ -145,7 +145,7 @@
   <fieldset class="hw-parts">
     <legend>Powers in this compound</legend>
     {{#each subPowers}}
-    <div class="hw-mod-row hw-part" data-action="editPart" data-id="{{id}}" role="button" tabindex="0">
+    <div class="hw-mod-row hw-part" data-action="editPart" data-id="{{id}}" role="button" tabindex="0" draggable="true">
       <span class="hw-mod-name">{{name}}{{#if detail}}<span class="hint hw-item-detail">{{detail}}</span>{{/if}}</span>
       <span class="hw-mod-value">{{cost}}</span>
       <a data-action="removePart" data-id="{{id}}" data-tooltip="Remove" aria-label="Remove {{name}}"><i class="fa-solid fa-xmark" inert></i></a>
@@ -153,6 +153,7 @@
     {{else}}
     <p class="hint">A compound is several powers bought together, like a sword's damage and its defence. Add its first power.</p>
     {{/each}}
+    <p class="hint">Drag powers here from a character, another compound or the Items sidebar; drag a part out to copy it.</p>
     <div class="hw-inline-buttons hw-add-bar hw-add-part">
       {{> "modules/hero-workshop/templates/partials/typeahead.hbs" field="addPart" clear=true groups=powerType.groups placeholder="Add a power by name…" ariaLabel="Add a power by name" icon="fa-plus" cssClass="hw-add-typeahead"}}
       <button type="button" data-action="addPart"><i class="fa-solid fa-plus" inert></i> Add power</button>

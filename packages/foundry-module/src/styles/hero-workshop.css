@@ -422,6 +422,36 @@
   background: var(--hw-hover);
 }
 
+/* A compound's parts list, with something being dragged over it */
+.hero-workshop .hw-parts.hw-drop-target {
+  outline: 2px dashed var(--color-border-highlight);
+  outline-offset: 2px;
+}
+
+.hero-workshop .hw-part[draggable] {
+  cursor: grab;
+}
+
+/* Read-only windows (e.g. an item in a locked compendium): only what views or closes shows */
+.hero-workshop.hw-read-only :is(
+    .hw-add-bar,
+    .hw-add-modifiers,
+    .hw-add-custom,
+    .hw-item-delete,
+    .hw-clear,
+    .hw-step,
+    [data-action^='remove'],
+    [data-action='addAttack'],
+    [data-action='chooseRaces'],
+    [data-action='manageRaces']
+  ) {
+  display: none;
+}
+
+.hero-workshop.hw-read-only .hw-icon-pick {
+  pointer-events: none;
+}
+
 /* ---------------------------------------------------------------- drift / review */
 
 .hero-workshop .hw-drift-change {

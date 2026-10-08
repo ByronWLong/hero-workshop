@@ -22,6 +22,9 @@ export const PARTIALS = [
   ].map(template),
 ];
 
+/** A read-only window's own actions that still work: opening an item or part to view it, downloading */
+const READ_ONLY_ACTIONS = new Set(['editItem', 'editPart', 'download']);
+
 export interface RenderOptions {
   force?: boolean;
   parts?: string[];
@@ -156,8 +159,30 @@ export class HeroWorkshopApplication extends api.HandlebarsApplicationMixin(api.
   /** Called with each changed form control that has a `data-field` attribute */
   protected onFieldChange(_field: string, _value: string, _target: HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement): void {}
 
+  /** Shown but not edited (e.g. an item in a locked compendium) */
+  protected readOnly = false;
+
+  /**
+   * Makes the window view-only: its fields are disabled, and of its own actions only those
+   * that open or download something still work (Foundry's own, like Close and tabs, stay).
+   */
+  protected makeReadOnly(): void {
+    this.readOnly = true;
+    const own = (this.constructor as { DEFAULT_OPTIONS?: { actions?: Record<string, unknown> } }).DEFAULT_OPTIONS?.actions ?? {};
+    const actions = this.options.actions as Record<string, unknown>;
+    for (const name of Object.keys(own)) if (!READ_ONLY_ACTIONS.has(name)) delete actions[name];
+  }
+
   _onRender(context: unknown, options: unknown): void {
     (super._onRender as ((c: unknown, o: unknown) => void) | undefined)?.call(this, context, options);
+    if (this.readOnly) {
+      this.element.classList.add('hw-read-only');
+      // Search boxes still filter; the footer's Close still closes
+      const fields = this.element.querySelectorAll<HTMLInputElement>(
+        '.window-content :is(input, select, textarea, button):not([data-search], [data-action="close"], [data-action="download"])',
+      );
+      for (const field of fields) field.disabled = true;
+    }
     // Wrapping a number field in its steppers moves it, which loses its focus
     const active = document.activeElement;
     const focused =
@@ -187,7 +212,7 @@ export class HeroWorkshopApplication extends api.HandlebarsApplicationMixin(api.
     this.element.addEventListener('change', (event) => {
       const target = event.target as HTMLInputElement;
       const field = target?.dataset?.field;
-      if (!field) return;
+      if (!field || this.readOnly) return;
       if (target.dataset.pick !== undefined) return this.#pick(field, target);
       const value = target.type === 'checkbox' ? String(target.checked) : target.value;
       this.onFieldChange(field, value, target);

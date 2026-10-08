@@ -30,13 +30,13 @@ function openSession(session: ActorSession, windowId: string, onApplied: (docume
   void new HeroWorkshopEditor({ session, windowId, onApplied }).render({ force: true });
 }
 
-/** Checks the actor can be edited, explaining why not if it can't */
-function editableActor(actor: FoundryActor): FoundryActor | undefined {
-  if (actor.token) {
+/** Checks the actor can be edited (or, read-only, shown), explaining why not if it can't */
+function editableActor(actor: FoundryActor, readOnly = false): FoundryActor | undefined {
+  if (actor.token && !readOnly) {
     ui.notifications.warn(game.i18n.format('HERO_WORKSHOP.TokenActor', { name: actor.name }));
     return undefined;
   }
-  if (!actor.isOwner) {
+  if (!actor.isOwner && !readOnly) {
     ui.notifications.warn(game.i18n.format('HERO_WORKSHOP.NotOwner', { name: actor.name }));
     return undefined;
   }
@@ -50,19 +50,21 @@ function editableActor(actor: FoundryActor): FoundryActor | undefined {
 const notifyApplied = (applied: AppliedDocument) =>
   ui.notifications.info(game.i18n.format('HERO_WORKSHOP.Applied', { name: applied.name }));
 
-/** A document in a locked compendium can't be changed; the GM unlocks the compendium first */
-function inLockedPack(document: { name: string; pack?: string | null }): boolean {
+/**
+ * A compendium document that can't be changed (its compendium is locked, or the user doesn't
+ * own it) opens read-only, with just a Close button
+ */
+function viewOnly(document: { pack?: string | null; isOwner: boolean }): boolean {
   const pack = document.pack ? game.packs.get(document.pack) : undefined;
-  if (!pack?.locked) return false;
-  ui.notifications.warn(game.i18n.format('HERO_WORKSHOP.PackLocked', { name: document.name, pack: pack.metadata.label }));
-  return true;
+  return !!pack && (pack.locked || !document.isOwner);
 }
 
 export function openEditor(actor: FoundryActor, view?: SessionView): void {
-  if (inLockedPack(actor)) return;
-  const target = editableActor(actor);
+  const readOnly = viewOnly(actor);
+  const target = editableActor(actor, readOnly);
   if (!target) return;
-  openSession(createActorSession(target, view), target.id, notifyApplied);
+  const windowId = `${actor.pack ? `${actor.pack}-` : ''}${target.id}`;
+  openSession(createActorSession(target, readOnly ? { ...view, readOnly } : view), windowId, notifyApplied);
 }
 
 /**
@@ -80,17 +82,18 @@ export function openItemEditor(item: FoundryItem): void {
     openEditor(item.actor, { initialTab: tab, focusItemId: hdcId ? String(hdcId) : undefined });
     return;
   }
-  if (!item.isOwner) {
+  const readOnly = viewOnly(item);
+  if (!item.isOwner && !readOnly) {
     ui.notifications.warn(game.i18n.format('HERO_WORKSHOP.NotOwner', { name: item.name }));
     return;
   }
-  if (inLockedPack(item)) return;
   // A list or framework opens with its members (e.g. a Multipower shield's slots) in the
   // editor window; anything else goes straight to its own dialog
   void itemFamily(item).then((members) => {
     const windowId = `item-${item.pack ? `${item.pack}-` : ''}${item.id}`;
     try {
       const session = createItemSession(item, members);
+      if (readOnly) session.view = { ...session.view, readOnly };
       if (members.length > 1 || !openItemDialog(session, windowId, tab)) openSession(session, windowId, notifyApplied);
     } catch (e) {
       ui.notifications.warn(e instanceof Error ? e.message : String(e));
@@ -106,7 +109,8 @@ export function openItemEditor(item: FoundryItem): void {
 function openItemDialog(session: ActorSession, windowId: string, section: TabId): boolean {
   const itemId = session.view?.focusItemId;
   if (!itemId || section === 'info' || section === 'characteristics') return false;
-  if (session.detectDrift(HdcDocument.parse(session.hdcXml)).some((c) => c.recommended)) return false;
+  const readOnly = !!session.view?.readOnly;
+  if (!readOnly && session.detectDrift(HdcDocument.parse(session.hdcXml)).some((c) => c.recommended)) return false;
 
   const base = parseHdcFile(session.hdcXml);
   const onSave = (edited: Character) => {
@@ -123,6 +127,7 @@ function openItemDialog(session: ActorSession, windowId: string, section: TabId)
   };
   const common = {
     itemId,
+    readOnly,
     idScope: windowId,
     defaultIcon: session.itemImage?.(itemId),
     character: () => base,

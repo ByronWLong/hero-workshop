@@ -28,13 +28,17 @@ import {
   setModifierAdder,
   setRequiredSkill,
   setSubPowers,
+  partsFromTransfer,
+  transferFromPart,
   type Character,
+  type ItemTransfer,
   type PowerDraft,
   type PowerKind,
   type PowerSection,
 } from '@hero-workshop/shared';
 import { HeroWorkshopApplication, pickImage, template } from './base';
 import { DEFAULT_ICON } from '../sync/icons';
+import { DRAG_TYPE, dragData, transferFromItem, type HeroWorkshopDragData } from '../sync/worldItems';
 
 export interface PowerDialogOptions {
   section: PowerSection;
@@ -52,6 +56,8 @@ export interface PowerDialogOptions {
   inEquipment?: boolean;
   /** A new power's power, already chosen (the editor's "Add" type-ahead) */
   xmlId?: string;
+  /** Shown but not edited (e.g. an item in a locked compendium) */
+  readOnly?: boolean;
 }
 
 const kindAllowsFree = (kind: PowerKind) => kind !== 'list';
@@ -109,11 +115,12 @@ export class PowerDialog extends HeroWorkshopApplication {
     const key = config.itemId ?? `new-${draft.kind}-${Date.now().toString(36)}`;
     super({
       id: `hero-workshop-power-${config.idScope ? `${config.idScope}-` : ''}${config.section}-${key}`,
-      window: { title: `${config.itemId ? 'Edit' : 'Add'} ${noun}` },
+      window: { title: `${config.readOnly ? 'View' : config.itemId ? 'Edit' : 'Add'} ${noun}` },
       // Lists have only a few fields; powers need room for adders and modifiers
       ...(draft.kind === 'list' ? { position: { width: 560, height: 'auto' } } : {}),
     });
     this.#draft = draft;
+    if (config.readOnly) this.makeReadOnly();
   }
 
   async _prepareContext() {
@@ -169,7 +176,9 @@ export class PowerDialog extends HeroWorkshopApplication {
               ...(this.#draft.free ? [{ label: 'Points', value: '0 (free)' }] : []),
             ]
           : [],
-      buttons: [{ type: 'submit', icon: 'fa-solid fa-check', label: this.config.itemId ? 'Save' : 'Add', cssClass: 'bright' }],
+      buttons: this.readOnly
+        ? [{ action: 'close', icon: 'fa-solid fa-xmark', label: 'Close' }]
+        : [{ type: 'submit', icon: 'fa-solid fa-check', label: this.config.itemId ? 'Save' : 'Add', cssClass: 'bright' }],
     };
   }
 
@@ -249,6 +258,7 @@ export class PowerDialog extends HeroWorkshopApplication {
       idScope: this.id,
       isPart: true,
       inEquipment: this.config.section === 'equipment' || this.config.inEquipment,
+      readOnly: this.readOnly,
       character: () => compoundPartsCharacter(this.config.character(), this.#draft),
       onSave: (character) => this.#update(setSubPowers(this.#draft, character.powers)),
     }).render({ force: true });
@@ -268,6 +278,69 @@ export class PowerDialog extends HeroWorkshopApplication {
 
   static #onRemovePart(this: PowerDialog, _event: Event, target: HTMLElement) {
     this.#update(removeSubPower(this.#draft, target.dataset.id!));
+  }
+
+  // Parts drag out as copies (to another compound, a character or the Items sidebar), and
+  // powers dropped on the parts list are added to it
+
+  #dragListening = false;
+
+  _onRender(context: unknown, options: unknown): void {
+    super._onRender(context, options);
+    if (this.#dragListening) return;
+    this.#dragListening = true;
+    const el = this.element;
+    const partsList = () => el.querySelector<HTMLElement>('.hw-parts');
+    el.addEventListener('dragstart', (event) => {
+      const row = (event.target as HTMLElement).closest?.<HTMLElement>('.hw-part[draggable]');
+      const part = row && this.#draft.subPowers.find((p) => p.id === row.dataset.id);
+      const transfer = part && transferFromPart(part);
+      if (!part || !transfer || !event.dataTransfer) return;
+      const data: HeroWorkshopDragData = { type: DRAG_TYPE, name: part.name, transfer, sourceWindow: this.id };
+      event.dataTransfer.setData('text/plain', JSON.stringify(data));
+      event.dataTransfer.effectAllowed = 'copy';
+    });
+    el.addEventListener('dragover', (event) => {
+      if (this.readOnly || !(event.target as HTMLElement).closest?.('.hw-parts')) return;
+      event.preventDefault();
+      partsList()?.classList.add('hw-drop-target');
+    });
+    el.addEventListener('dragleave', (event) => {
+      if (!partsList()?.contains(event.relatedTarget as Node)) partsList()?.classList.remove('hw-drop-target');
+    });
+    el.addEventListener('drop', (event) => {
+      partsList()?.classList.remove('hw-drop-target');
+      if (this.readOnly || !(event.target as HTMLElement).closest?.('.hw-parts')) return;
+      event.preventDefault();
+      event.stopPropagation();
+      void this.#onDropParts(event);
+    });
+  }
+
+  async #onDropParts(event: DragEvent): Promise<void> {
+    const data = dragData(event);
+    let transfer: ItemTransfer | undefined;
+    if (data?.type === DRAG_TYPE) {
+      const drag = data as unknown as HeroWorkshopDragData;
+      if (drag.sourceWindow === this.id) return;
+      transfer = drag.transfer;
+    } else if (data?.type === 'Item' && typeof data.uuid === 'string') {
+      const item = (await fromUuid(data.uuid)) as FoundryItem | null;
+      if (!item) return;
+      transfer = await transferFromItem(item);
+      if (!transfer) {
+        ui.notifications.warn(`${item.name} has no Hero Designer data to add.`);
+        return;
+      }
+    } else {
+      return;
+    }
+    try {
+      const parts = partsFromTransfer(transfer);
+      if (parts.length) this.#update(setSubPowers(this.#draft, [...this.#draft.subPowers, ...parts]));
+    } catch (e) {
+      ui.notifications.warn(e instanceof Error ? e.message : String(e));
+    }
   }
 
   /** Converts the bound Professional Skill to a Power skill; its other bound spells follow */

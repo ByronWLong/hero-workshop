@@ -13,7 +13,7 @@
 
 import {
   HdcDocument,
-blankHdc,
+  blankHdc,
   extractItems,
   insertItems,
   parseXml,
@@ -32,8 +32,10 @@ export interface HeroWorkshopDragData {
   type: typeof DRAG_TYPE;
   name: string;
   transfer: ItemTransfer;
-  /** Window the drag started in (dropping back onto it does nothing) */
+  /** Window the drag started in */
   sourceWindow: string;
+  /** The dragged item's id in that window (dropped elsewhere in the window, it's copied there) */
+  itemId?: string;
 }
 
 export const SECTION_FOR_ITEM_TYPE: Record<string, HdcItemSection> = {

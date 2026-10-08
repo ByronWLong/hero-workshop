@@ -26,6 +26,8 @@ export interface ItemDialogOptions {
   idScope?: string;
   /** A new item's type, already chosen (the editor's "Add" type-ahead) */
   type?: string;
+  /** Shown but not edited (e.g. an item in a locked compendium) */
+  readOnly?: boolean;
 }
 
 /** Selects with more choices than this are type-ahead boxes */
@@ -62,11 +64,13 @@ export class ItemDialog extends HeroWorkshopApplication {
       config.type && !config.itemId
         ? newItemFormValues(config.character(), config.section, config.type)
         : itemFormValues(config.character(), config.section, config.itemId);
+    const title = itemForm(config.section, values, !config.itemId, config.character()).title;
     super({
       id: itemDialogId(config.section, config.itemId, config.idScope),
-      window: { title: itemForm(config.section, values, !config.itemId, config.character()).title },
+      window: { title: config.readOnly ? title.replace(/^Edit\b/, 'View') : title },
     });
     this.#values = values;
+    if (config.readOnly) this.makeReadOnly();
   }
 
   async _prepareContext() {
@@ -108,7 +112,9 @@ export class ItemDialog extends HeroWorkshopApplication {
       // Forms without a name show the icon on its own line
       iconOnly: !identityName,
       costs: form.costLabel ? [{ label: 'Cost', value: `${form.cost} ${form.costLabel}` }] : [],
-      buttons: [{ type: 'submit', icon: 'fa-solid fa-check', label: this.config.itemId ? 'Save' : 'Add', cssClass: 'bright' }],
+      buttons: this.readOnly
+        ? [{ action: 'close', icon: 'fa-solid fa-xmark', label: 'Close' }]
+        : [{ type: 'submit', icon: 'fa-solid fa-check', label: this.config.itemId ? 'Save' : 'Add', cssClass: 'bright' }],
     };
   }
 
