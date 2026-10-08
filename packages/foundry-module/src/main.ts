@@ -31,7 +31,7 @@ import {
 import { getRaceLibrary, registerRaceSettings } from './races/library';
 import { MODULE_ID, createActorSession } from './sync/session';
 import { registerImportRepair, wrapHeroUploads } from './sync/importRepair';
-import { openHeroSheet, registerItemSheetBypass, wrapItemSheets } from './apps/item-sheet-bypass';
+import { openHeroSheet, opensInWorkshop, registerItemSheetBypass, wrapItemSheets } from './apps/item-sheet-bypass';
 import { makeFamilyRowsDraggable, wrapActorSheetDrag } from './apps/actor-sheet-drag';
 
 /** Lists Foundry-side edits not yet in an actor's stored HDC (for macros and debugging) */
@@ -245,12 +245,14 @@ Hooks.on('renderItemDirectory', ((_app: unknown, html: HTMLElement) => {
 Hooks.on('getItemContextOptions', ((directory: EntryDirectory, options: ContextMenuEntry[]) => {
   if (!isHeroSystem()) return;
   const itemFrom = (li: HTMLElement) => entryOf<FoundryItem>(directory, li, game.items);
+  // In the Items sidebar, Foundry's own Edit opens whichever of the two the setting picks,
+  // so only the other one is added there (compendium entries have no Edit)
   options.push({
     name: 'HERO_WORKSHOP.EditItem',
     icon: '<i class="fa-solid fa-user-pen"></i>',
     condition: (li) => {
       const entry = itemFrom(li);
-      return entry.pack ? game.user.isGM : !!entry.world?.isOwner && !!entry.world.system._hdcXml;
+      return entry.pack ? game.user.isGM : !!entry.world?.isOwner && !!entry.world.system._hdcXml && !opensInWorkshop(entry.world);
     },
     callback: async (li) => {
       const item = await itemFrom(li).load();
@@ -263,7 +265,7 @@ Hooks.on('getItemContextOptions', ((directory: EntryDirectory, options: ContextM
     icon: '<i class="fa-solid fa-file-lines"></i>',
     condition: (li) => {
       const entry = itemFrom(li);
-      return entry.pack ? game.user.isGM : !!entry.world?.isOwner && !!entry.world.system._hdcXml;
+      return entry.pack ? game.user.isGM : !!entry.world?.isOwner && !!entry.world.system._hdcXml && opensInWorkshop(entry.world);
     },
     callback: async (li) => {
       const item = await itemFrom(li).load();

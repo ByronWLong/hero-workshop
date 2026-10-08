@@ -32,7 +32,8 @@ export function openHeroSheet(item: FoundryItem): void {
   void (item as unknown as { sheet: { render(force: boolean): unknown } }).sheet.render(true);
 }
 
-function opensInWorkshop(item: FoundryItem & { parent?: unknown }): boolean {
+/** Whether opening the item (e.g. Foundry's Edit) shows Hero Workshop rather than hero6e's sheet */
+export function opensInWorkshop(item: FoundryItem & { parent?: unknown }): boolean {
   if (item.parent || item.actor) return false;
   if (!item.isOwner || typeof item.system._hdcXml !== 'string' || !item.system._hdcXml.trim() || !tabForItem(item)) return false;
   const pack = item.pack ? game.packs.get(item.pack) : undefined;
