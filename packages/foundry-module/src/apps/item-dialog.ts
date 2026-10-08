@@ -51,7 +51,7 @@ export class ItemDialog extends HeroWorkshopApplication {
   };
 
   static PARTS = {
-    form: { template: template('dialogs/item.hbs'), scrollable: ['.hw-scroll'] },
+    form: { template: template('dialogs/item.hbs'), scrollable: [''] },
     footer: { template: template('footer.hbs') },
   };
 

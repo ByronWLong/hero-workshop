@@ -39,6 +39,8 @@ export interface FoundryApplication {
   changeTab(tab: string, group: string, options?: Record<string, unknown>): void;
   bringToFront(): void;
   _onRender?(context: unknown, options: unknown): void;
+  _preSyncPartState?(partId: string, newElement: HTMLElement, priorElement: HTMLElement, state: unknown): void;
+  _syncPartState?(partId: string, newElement: HTMLElement, priorElement: HTMLElement, state: unknown): void;
   _onClose?(options: unknown): void;
   _prepareContext?(options: unknown): Promise<Record<string, unknown>>;
 }
@@ -63,6 +65,28 @@ export class HeroWorkshopApplication extends api.HandlebarsApplicationMixin(api.
   #listeners?: AbortController;
   /** Text typed in each search box (by its data-search name), kept across re-renders */
   #searches = new Map<string, string>();
+  /** Scroll positions Foundry restored on the last render, put back once the steppers are in */
+  #scrolls: [HTMLElement, number][] = [];
+  /** The focused field's data-field, for fields Foundry can't find again (it uses id or name) */
+  #focusField?: string;
+
+  _preSyncPartState(partId: string, newElement: HTMLElement, priorElement: HTMLElement, state: unknown): void {
+    (super._preSyncPartState as ((...args: unknown[]) => void) | undefined)?.call(this, partId, newElement, priorElement, state);
+    const field = priorElement.querySelector<HTMLElement>(':focus')?.dataset.field;
+    if (field) this.#focusField = field;
+  }
+
+  /**
+   * Foundry restores each part's scroll position before `_onRender`, but the steppers added
+   * there make the form taller, so a position near the bottom would be cut short.
+   */
+  _syncPartState(partId: string, newElement: HTMLElement, priorElement: HTMLElement, state: { scrollPositions?: [string, number, number][] }): void {
+    (super._syncPartState as ((...args: unknown[]) => void) | undefined)?.call(this, partId, newElement, priorElement, state);
+    for (const [selector, top] of state.scrollPositions ?? []) {
+      const el = selector === '' ? newElement : newElement.querySelector<HTMLElement>(selector);
+      if (el) this.#scrolls.push([el, top]);
+    }
+  }
 
   /**
    * Re-rendering replaces the window's markup. If that happens between mouse-down and
@@ -134,7 +158,19 @@ export class HeroWorkshopApplication extends api.HandlebarsApplicationMixin(api.
 
   _onRender(context: unknown, options: unknown): void {
     (super._onRender as ((c: unknown, o: unknown) => void) | undefined)?.call(this, context, options);
+    // Wrapping a number field in its steppers moves it, which loses its focus
+    const active = document.activeElement;
+    const focused =
+      active instanceof HTMLElement && this.element.contains(active)
+        ? active
+        : this.#focusField
+          ? this.element.querySelector<HTMLElement>(`[data-field="${CSS.escape(this.#focusField)}"]`)
+          : null;
+    this.#focusField = undefined;
     addSteppers(this.element);
+    if (focused && document.activeElement !== focused) focused.focus({ preventScroll: true });
+    for (const [el, top] of this.#scrolls) el.scrollTop = top;
+    this.#scrolls = [];
     for (const input of this.element.querySelectorAll<HTMLInputElement>('input[data-search]')) {
       const query = this.#searches.get(input.dataset.search!);
       if (query !== undefined) input.value = query;

@@ -153,7 +153,10 @@
     {{else}}
     <p class="hint">A compound is several powers bought together, like a sword's damage and its defence. Add its first power.</p>
     {{/each}}
-    <button type="button" class="hw-add-part" data-action="addPart"><i class="fa-solid fa-plus" inert></i> Add power</button>
+    <div class="hw-inline-buttons hw-add-bar hw-add-part">
+      {{> "modules/hero-workshop/templates/partials/typeahead.hbs" field="addPart" clear=true groups=powerType.groups placeholder="Add a power by name…" ariaLabel="Add a power by name" icon="fa-plus" cssClass="hw-add-typeahead"}}
+      <button type="button" data-action="addPart"><i class="fa-solid fa-plus" inert></i> Add power</button>
+    </div>
   </fieldset>
   {{/if}}
 

@@ -114,7 +114,7 @@ export class HeroWorkshopEditor extends HeroWorkshopApplication {
   };
 
   static PARTS = {
-    body: { template: template('editor/body.hbs'), scrollable: ['.hw-scroll'] },
+    body: { template: template('editor/body.hbs'), scrollable: ['.hw-sidebar', '.hw-tabs-body', '.hw-panel'] },
     footer: { template: template('footer.hbs') },
   };
 

@@ -37,7 +37,7 @@ export class HdcInspector extends HeroWorkshopApplication {
 
   static PARTS = {
     tabs: { template: 'templates/generic/tab-navigation.hbs' },
-    body: { template: template('inspector.hbs'), scrollable: ['.hw-scroll'] },
+    body: { template: template('inspector.hbs'), scrollable: [''] },
   };
 
   static TABS = {
@@ -185,7 +185,7 @@ export class RaceLibraryWindow extends HeroWorkshopApplication {
   };
 
   static PARTS = {
-    body: { template: template('race-library.hbs'), scrollable: ['.hw-scroll'] },
+    body: { template: template('race-library.hbs'), scrollable: [''] },
     footer: { template: template('footer.hbs') },
   };
 

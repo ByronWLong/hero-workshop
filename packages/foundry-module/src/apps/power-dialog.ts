@@ -89,7 +89,7 @@ export class PowerDialog extends HeroWorkshopApplication {
   };
 
   static PARTS = {
-    form: { template: template('dialogs/power.hbs'), scrollable: ['.hw-scroll'] },
+    form: { template: template('dialogs/power.hbs'), scrollable: [''] },
     footer: { template: template('footer.hbs') },
   };
 
@@ -193,6 +193,9 @@ export class PowerDialog extends HeroWorkshopApplication {
         return this.#update({ ...draft, kind: value as PowerDraft['kind'] });
       case 'xmlId':
         return this.#update(selectPower(draft, value));
+      case 'addPart':
+        // A compound's "Add a power by name" box opens the part's form with that power chosen
+        return value ? this.#openPart(undefined, value) : undefined;
       case 'addAdder':
         return value ? this.#update(addAdder(draft, value)) : undefined;
       case 'addModifier':
@@ -238,10 +241,11 @@ export class PowerDialog extends HeroWorkshopApplication {
 
   // A compound's parts are edited with this same form, on a scratch character holding the parts
 
-  #openPart(itemId?: string) {
+  #openPart(itemId?: string, xmlId?: string) {
     void new PowerDialog({
       section: 'powers',
       itemId,
+      xmlId,
       idScope: this.id,
       isPart: true,
       inEquipment: this.config.section === 'equipment' || this.config.inEquipment,
