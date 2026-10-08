@@ -18,6 +18,7 @@ import { isContainerType } from '../frameworks.js';
 import { HdcDocument } from './document.js';
 import { parseHdcDocument } from './parse.js';
 import { updateHdc } from './write.js';
+import { lacksManeuverCategory, lacksSenseGroup } from './foundry.js';
 
 export interface RepairResult {
   xml: string;
@@ -41,6 +42,9 @@ export function repairForFoundry(xml: string): RepairResult {
   const fixed = HdcDocument.parse(out);
   repairAdjustmentInputs(fixed, changes);
   repairUsableAs(fixed, changes);
+  repairManeuverCategories(fixed, changes);
+  repairSenseGroups(fixed, changes);
+  repairAdderIds(fixed, changes);
   out = fixed.toString();
   return { xml: changes.length ? out : xml, changes, unresolved };
 }
@@ -165,7 +169,11 @@ function linkCombatLevels(character: Character, changes: string[], unresolved: s
     const xmlid = skill.xmlid ?? '';
     const option = (skill.option ?? '').toUpperCase();
     if (!LINKED_LEVELS.includes(xmlid) || UNLINKED_OPTIONS.includes(option)) return skill;
-    if ((skill.adders ?? []).some(isLink)) return skill;
+    if ((skill.adders ?? []).some(isLink)) {
+      const relinked = relink(skill, attacks, changes, unresolved);
+      if (relinked !== skill) changed = true;
+      return relinked;
+    }
 
     const text = skill.optionAlias || skill.name;
     let names: string[];
@@ -200,12 +208,83 @@ function linkCombatLevels(character: Character, changes: string[], unresolved: s
   return changed ? { ...character, skills } : character;
 }
 
+/**
+ * A level's existing links, checked: one naming no attack is pointed at the closest one
+ * ("Magic Missile" for "Spell: Magic Missile"), and one naming a compound at its attack parts
+ * (hero6e links those). Links that already name an attack stay as they are.
+ */
+function relink(skill: Skill, attacks: Attack[], changes: string[], unresolved: string[]): Skill {
+  let changed = false;
+  const adders: Adder[] = [];
+  const has = (name: string) => adders.some((a) => isLink(a) && (a.alias ?? a.name).toLowerCase() === name.toLowerCase());
+  for (const adder of skill.adders ?? []) {
+    const name = isLink(adder) ? (adder.alias ?? adder.name ?? '') : '';
+    const exact = name ? attacks.find((a) => a.name.toLowerCase() === name.toLowerCase()) : undefined;
+    if (!name || (exact && !exact.parts) || STANDARD_MANEUVERS.some((m) => m.toLowerCase() === name.toLowerCase())) {
+      adders.push(adder);
+      continue;
+    }
+    const found = exact?.name ?? matchAttack(name, attacks);
+    const targets = found ? (attacks.find((a) => a.name === found)?.parts ?? [found]) : [];
+    if (!targets.length) {
+      unresolved.push(`${skill.name}: no attack named "${name}"`);
+      adders.push(adder);
+      continue;
+    }
+    changed = true;
+    changes.push(`${skill.name}: link "${name}" -> ${targets.join(', ')}`);
+    for (const [i, target] of targets.entries()) {
+      if (has(target)) continue;
+      adders.push(i === 0 ? { ...adder, name: target, alias: target } : linkAdder(target, adders.length));
+    }
+  }
+  return changed ? { ...skill, adders } : skill;
+}
+
 // =============================================================================
 // Adjustment targets and Usable As movement
 // =============================================================================
 
 const ADJUSTMENTS = ['DRAIN', 'AID', 'HEALING', 'ABSORPTION', 'TRANSFER', 'SUPPRESS', 'DISPEL'];
 const CHARACTERISTICS = new Set(['STR', 'DEX', 'CON', 'INT', 'EGO', 'PRE', 'OCV', 'DCV', 'OMCV', 'DMCV', 'SPD', 'PD', 'ED', 'REC', 'END', 'BODY', 'STUN', 'COM']);
+
+/** Adder XMLIDs older Hero Workshop versions wrote that Hero Designer's template names otherwise */
+const RENAMED_ADDERS: Record<string, Record<string, string>> = {
+  LIFESUPPORT: { SELFCONTAINED: 'SELFCONTAINEDBREATHING' },
+};
+
+function repairAdderIds(doc: HdcDocument, changes: string[]): void {
+  for (const el of doc.root.descendants()) {
+    if (el.name !== 'ADDER') continue;
+    const renamed = RENAMED_ADDERS[el.parent?.getAttr('XMLID') ?? '']?.[el.getAttr('XMLID') ?? ''];
+    if (!renamed) continue;
+    el.setAttr('XMLID', renamed);
+    changes.push(`${el.parent!.getAttr('NAME') || el.parent!.getAttr('ALIAS')}: ${el.getAttr('ALIAS')} is ${renamed}`);
+  }
+}
+
+/**
+ * Invisibility and Darkness name the Sense Group they affect in OPTION; hero6e can't describe
+ * one without it (Sight Group is Hero Designer's default)
+ */
+function repairSenseGroups(doc: HdcDocument, changes: string[]): void {
+  for (const el of doc.root.descendants()) {
+    if (!lacksSenseGroup(el)) continue;
+    el.setAttr('OPTION', 'SIGHTGROUP');
+    el.setAttr('OPTIONID', 'SIGHTGROUP');
+    el.setAttr('OPTION_ALIAS', 'Sight Group');
+    changes.push(`${el.getAttr('NAME') || el.getAttr('ALIAS')}: affects the Sight Group`);
+  }
+}
+
+/** Custom maneuvers without a CATEGORY stop hero6e's sheet opening; Hero Designer's default is Hand to Hand */
+function repairManeuverCategories(doc: HdcDocument, changes: string[]): void {
+  for (const el of doc.section('MARTIALARTS')?.descendants() ?? []) {
+    if (!lacksManeuverCategory(el)) continue;
+    el.setAttr('CATEGORY', 'Hand to Hand');
+    changes.push(`${el.getAttr('ALIAS') || el.getAttr('NAME') || 'Maneuver'}: custom maneuver is Hand to Hand`);
+  }
+}
 
 function repairAdjustmentInputs(doc: HdcDocument, changes: string[]): void {
   for (const el of doc.root.descendants()) {

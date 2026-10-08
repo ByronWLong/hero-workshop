@@ -610,6 +610,8 @@ function levelCost(
   levels: number,
   fileLvlCost: number,
 ): { perLevel: number; cost: number } {
+  // A custom power costs its BASECOST; Hero Designer writes LEVELS as that cost rounded up
+  if (def?.xmlId === 'CUSTOMPOWER') return { perLevel: 0, cost: 0 };
   const option = optionId ? def?.options?.find((o) => o.xmlId === optionId) : undefined;
   const perLevel = fileLvlCost >= 0 ? fileLvlCost : (option?.lvlCost ?? def?.lvlCost ?? 1);
   const step = option?.lvlVal || def?.lvlVal || 1;
@@ -1243,6 +1245,7 @@ function parseMartialManeuver(obj: Record<string, unknown>): MartialManeuver {
     dc: dc,
     damage: getAttr(obj, 'DC') || undefined, // Damage class as string
     effect: effectString || undefined,
+    effectText: getAttr(obj, 'EFFECT', '') || undefined,
     modifiers: parseModifiers(obj),
     adders: parseAdders(obj),
     parentId: getAttr(obj, 'PARENTID', '') || undefined,

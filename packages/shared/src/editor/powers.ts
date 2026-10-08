@@ -240,7 +240,8 @@ export function powerDraft(character: Character, section: PowerSection, itemId?:
         : xmlId === 'COMPOUNDPOWER'
           ? 'compound'
           : 'power';
-  const known = xmlId && getPowerDefinition(xmlId) ? xmlId : undefined;
+  // A custom power (Hero Designer's CUSTOMPOWER) is priced by its own cost, not per level
+  const known = xmlId && xmlId !== 'CUSTOMPOWER' && getPowerDefinition(xmlId) ? xmlId : undefined;
   return {
     kind: detectedKind,
     xmlId: p ? (known ?? 'CUSTOM') : 'ENERGYBLAST',
@@ -334,6 +335,8 @@ export function compoundPartsCharacter(character: Character, draft: PowerDraft):
 
 /** Picks a different power: levels/option/adders reset to the new power's defaults */
 export function selectPower(draft: PowerDraft, xmlId: string): PowerDraft {
+  // Hero Designer's Custom Power is the form's own custom power
+  if (xmlId === 'CUSTOMPOWER') xmlId = 'CUSTOM';
   const def = getPowerDefinition(xmlId);
   return {
     ...draft,
@@ -618,7 +621,10 @@ const CHARACTERISTIC_POWERS = ['STR', 'DEX', 'CON', 'INT', 'EGO', 'PRE', 'OCV', 
 /** Power choices grouped for a <select>; each power appears once, in its first category */
 export function powerChoices(selected: string) {
   const placed = new Set<string>();
-  const all = Object.values(ALL_POWERS).filter((p) => p.types.length > 0 || CHARACTERISTIC_POWERS.includes(p.xmlId));
+  // Custom Power is offered on its own ("Custom power"), not as a catalog power
+  const all = Object.values(ALL_POWERS).filter(
+    (p) => p.xmlId !== 'CUSTOMPOWER' && (p.types.length > 0 || CHARACTERISTIC_POWERS.includes(p.xmlId)),
+  );
   const groups: { label: string; options: { value: string; label: string; selected: boolean }[] }[] = [];
   const take = (label: string, pred: (p: PowerDefinition) => boolean) => {
     const options = all

@@ -161,7 +161,28 @@ export function normalizeForFoundry(
     notes.push(`${label}: Stealth is DEX-based`);
   }
 
+  if (lacksManeuverCategory(item)) {
+    item.setAttr('CATEGORY', 'Hand to Hand');
+    notes.push(`${label}: custom maneuver is Hand to Hand`);
+  }
+
   return notes;
+}
+
+/**
+ * A custom martial maneuver without a CATEGORY: hero6e counts it as a maneuver but finds it
+ * neither Hand to Hand nor Ranged, and the character's sheet fails to open
+ */
+export function lacksManeuverCategory(el: XmlElement): boolean {
+  if (el.name !== 'MANEUVER' || el.getAttr('CUSTOM') !== 'Yes') return false;
+  const category = (el.getAttr('CATEGORY') ?? '').toLowerCase();
+  return category !== 'hand to hand' && category !== 'ranged';
+}
+
+/** Invisibility or Darkness without the Sense Group it affects (hero6e's description fails) */
+export function lacksSenseGroup(el: XmlElement): boolean {
+  const xmlId = el.getAttr('XMLID');
+  return (xmlId === 'INVISIBILITY' || xmlId === 'DARKNESS') && el.name === 'POWER' && !el.getAttr('OPTION_ALIAS')?.trim();
 }
 
 /**
@@ -280,6 +301,12 @@ export function validateForFoundry(doc: HdcDocument): FoundryValidationIssue[] {
       }
       if (item.name === 'MODIFIER' && xmlId === 'REQUIRESASKILLROLL') {
         validateRequiresARoll(doc, item, issues);
+      }
+      if (lacksSenseGroup(item)) {
+        warn(`${label} doesn't name the Sense Group it affects (OPTION_ALIAS); hero6e can't describe it.`, item);
+      }
+      if (lacksManeuverCategory(item)) {
+        warn(`${label} is a custom maneuver without CATEGORY="Hand to Hand" or "Ranged"; hero6e's sheet can't open.`, item);
       }
     }
 

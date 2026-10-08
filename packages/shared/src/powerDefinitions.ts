@@ -1137,7 +1137,16 @@ export const SENSORY_POWERS: Record<string, PowerDefinition> = {
     types: ['STANDARD', 'SENSEAFFECTING'],
     usesEnd: true,
     visible: false,
-    // Additional sense groups cost extra
+    // The Sense Group it hides from (Hero Designer's OPTION; hero6e describes the power by it):
+    // a targeting group costs 20, others 10
+    options: [
+      { xmlId: 'SIGHTGROUP', display: 'Sight Group', baseCost: 20 },
+      { xmlId: 'HEARINGGROUP', display: 'Hearing Group', baseCost: 10 },
+      { xmlId: 'SMELLGROUP', display: 'Smell/Taste Group', baseCost: 10 },
+      { xmlId: 'TOUCHGROUP', display: 'Touch Group', baseCost: 10 },
+      { xmlId: 'MENTALGROUP', display: 'Mental Group', baseCost: 10 },
+      { xmlId: 'RADIOGROUP', display: 'Radio Group', baseCost: 10 },
+    ],
   },
 
   DETECT: {
@@ -1398,17 +1407,7 @@ export const SPECIAL_POWERS: Record<string, PowerDefinition> = {
     target: 'SELFONLY',
     types: ['STANDARD'],
     usesEnd: false,
-    // Life Support is purchased as separate adders
-    adders: [
-      { xmlId: 'EXTENDEDBREATHING', display: 'Extended Breathing', baseCost: 1, exclusive: true, includeInBase: true },
-      { xmlId: 'SAFEENVIRONMENT', display: 'Safe Environment', baseCost: 2, exclusive: true },
-      { xmlId: 'SELFCONTAINED', display: 'Self-Contained Breathing', baseCost: 10, exclusive: true },
-      { xmlId: 'IMMUNETOAGING', display: 'Immune to Aging', baseCost: 3, exclusive: true },
-      { xmlId: 'IMMUNETODISEASE', display: 'Immune to Disease', baseCost: 3, exclusive: true },
-      { xmlId: 'SLEEPLESS', display: 'Sleeping: No need to sleep', baseCost: 3, exclusive: true },
-      { xmlId: 'EATINGLESS', display: 'Eating: No need to eat', baseCost: 1, exclusive: true },
-      { xmlId: 'EXCRETIONLESS', display: 'Excretion: No need to excrete', baseCost: 1, exclusive: true },
-    ],
+    // Life Support is bought as adders; they come from Hero Designer's template (below)
   },
 
   REGENERATION: {

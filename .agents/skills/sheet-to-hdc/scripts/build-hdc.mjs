@@ -321,7 +321,7 @@ function addManeuvers(character, ir) {
   for (const [index, item] of asArray(ir.martialArts).entries()) {
     const saved = saveNew(character, 'martialarts', 'martialArts', {
       name: item.name ?? item.display ?? 'Maneuver', ocv: num(item.ocv, 0), dcv: num(item.dcv, 0), phase: item.phase ?? '1/2',
-      dc: num(item.dc, 0), cost: num(item.points, num(item.baseCost, 0)), notes: [item.effect, item.notes].filter(Boolean).join('; '),
+      dc: num(item.dc, 0), cost: num(item.points, num(item.baseCost, 0)), effectText: item.effect ?? '', notes: item.notes ?? '',
     });
     character = saved.character;
     track('martialArts', index, item, saved.id);
@@ -546,6 +546,12 @@ function insertPrefabs(xml, pending, library, idOf, map, report) {
     if (!transfer) continue;
     const inserted = hw.insertItems(xml, { ...transfer, section: SECTION_TAGS[section] }, { parentId: item.parentId ? idOf(item.parentId) : undefined });
     xml = inserted.xml;
+    // The character's copy keeps the sheet's name ("Spectre (Tulawar)"), which its levels link to
+    if (item.name && norm(item.name) !== norm(found.name)) {
+      const doc = hw.HdcDocument.parse(xml);
+      doc.findById(inserted.id)?.setAttr('NAME', item.name);
+      xml = doc.toString();
+    }
     map.push({ section, index, name: item.name ?? found.name, id: inserted.id });
     report.push(`${section} "${item.name ?? found.name}": copied from prefab "${found.name}" (${found.file.split(/[\/]/).pop()})`);
   }

@@ -502,7 +502,7 @@ function sectionFormValues(section: FormSection, item: ListItem | undefined): Fo
       const m = item as MartialManeuver | undefined;
       return {
         name: m?.name ?? '', ocv: m?.ocv ?? 0, dcv: m?.dcv ?? 0, phase: m?.phase ?? '1/2',
-        dc: m?.dc ?? 0, cost: m?.baseCost ?? 4, notes: m?.notes ?? '',
+        dc: m?.dc ?? 0, cost: m?.baseCost ?? 4, effectText: m?.effectText ?? '', notes: m?.notes ?? '',
       };
     }
   }
@@ -594,6 +594,10 @@ function sectionForm(section: FormSection, values: FormValues, isNew: boolean, c
           { name: 'dcv', label: 'DCV', type: 'number', value: num(values.dcv) },
           { name: 'phase', label: 'Phase', type: 'select', value: str(values.phase), options: options(['0', '1/2', '1'].map((p) => ({ value: p, label: p })), str(values.phase)) },
           { name: 'dc', label: 'Damage classes', type: 'number', value: num(values.dc) },
+          {
+            name: 'effectText', label: 'Effect', type: 'text', value: str(values.effectText),
+            hint: 'e.g. Strike, Grab Two Limbs, +10 STR to Disarm. A strike rolls its damage classes.',
+          },
           { name: 'cost', label: 'Cost', type: 'number', value: num(values.cost) },
           notes,
         ],
@@ -688,6 +692,7 @@ export function saveItemForm(character: Character, section: FormSection, itemId:
         dcv: num(values.dcv),
         phase: str(values.phase) || '1/2',
         dc: num(values.dc),
+        effectText: str(values.effectText).trim() || undefined,
         baseCost: cost,
         realCost: cost,
         notes: str(values.notes) || undefined,

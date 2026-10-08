@@ -1137,7 +1137,7 @@ function updatePowerFields(ctx: WriteContext, el: XmlElement, b: Power, a: Power
     }
     ctx.warn(`${a.name}: power type changed from ${b.type} to ${a.type}; review it in Hero Designer.`);
   }
-  if (!same(b.levels, a.levels)) el.setAttr('LEVELS', hdInt(a.levels));
+  if (!same(b.levels, a.levels) && el.getAttr('XMLID') !== 'CUSTOMPOWER') el.setAttr('LEVELS', hdInt(a.levels));
   // A Multipower's reserve
   if (el.name === 'MULTIPOWER' && !same(b.baseCost, a.baseCost)) el.setAttr('BASECOST', hdCost(a.baseCost ?? 0));
   writeSlotType(el, b, a);
@@ -1156,7 +1156,10 @@ function updatePowerFields(ctx: WriteContext, el: XmlElement, b: Power, a: Power
   // Parsed notes fall back to ALIAS; only a note distinct from the alias is a real NOTES edit
   if (!same(b.notes, a.notes) && a.notes !== a.alias) setNotes(el, a.notes);
   if (!same(b.baseCost, a.baseCost) && isCustomPowerElement(el) && !isList && el.getAttr('XMLID') !== 'COMPOUNDPOWER') {
-    el.setAttr('BASECOST', hdCost(a.baseCost - adderCost(a.adders)));
+    const cost = a.baseCost - adderCost(a.adders);
+    el.setAttr('BASECOST', hdCost(cost));
+    // Hero Designer's custom power: LEVELS is its cost rounded up (CustomPower.getLevels)
+    if (el.getAttr('XMLID') === 'CUSTOMPOWER') el.setAttr('LEVELS', hdInt(Math.ceil(cost)));
   }
   writeBarrierFields(el, b, a);
 }
@@ -1219,7 +1222,8 @@ function createPower(ctx: WriteContext, p: Power, section: HdcItemSection): XmlE
     XMLID: xmlId,
     ID: '',
     BASECOST: hdCost(isCustom ? p.baseCost - adderCost(p.adders) : (option?.baseCost ?? def?.baseCost ?? 0)),
-    LEVELS: hdInt(p.levels),
+    // Hero Designer's custom power: LEVELS is its cost rounded up (CustomPower.getLevels)
+    LEVELS: hdInt(isCustom ? Math.ceil(p.baseCost - adderCost(p.adders)) : p.levels),
     ALIAS: alias,
     POSITION: '0',
     ...GENERIC_ATTRS,
@@ -1577,8 +1581,25 @@ const DISAD_SPEC: ItemSpec<Disadvantage> = {
   },
 };
 
+/**
+ * A custom maneuver's effect as Hero Designer's template writes it, with the damage tokens
+ * hero6e rolls: "[NORMALDC] Strike", "[KILLINGDC]", "Grab Two Limbs, [STRDC] for holding on"
+ */
+export function maneuverEffect(text: string | undefined): string {
+  const effect = (text ?? '').trim();
+  if (!effect || effect.includes('[')) return effect;
+  const killing = /^(HKA|killing(\s+(strike|attack))?)\b\s*(\+?\d+\s*DCs?\b)?\s*[;,]?\s*/i.exec(effect);
+  if (killing) {
+    const rest = effect.slice(killing[0].length);
+    return rest ? `[KILLINGDC], ${rest}` : '[KILLINGDC]';
+  }
+  if (/^(\+?v\/\d+\s+)?strike\b/i.test(effect)) return `[NORMALDC] ${effect}`;
+  if (/^grab\b/i.test(effect)) return `${effect}, [STRDC] for holding on`;
+  return effect;
+}
+
 const MANEUVER_SPEC: ItemSpec<MartialManeuver> = {
-  handled: new Set(['name', 'alias', 'ocv', 'dcv', 'phase', 'dc', 'notes', 'levels']),
+  handled: new Set(['name', 'alias', 'ocv', 'dcv', 'phase', 'dc', 'notes', 'levels', 'effectText']),
   derived: new Set(['baseCost', 'realCost', 'activeCost', 'effect', 'damage', 'isGroup', 'isWeaponElement', 'weaponElements']),
   update(ctx, el, b, a) {
     if (!same(b.name, a.name)) {
@@ -1593,18 +1614,33 @@ const MANEUVER_SPEC: ItemSpec<MartialManeuver> = {
     if (!same(b.dc, a.dc)) el.setAttr('DC', hdInt(a.dc));
     if (!same(b.levels, a.levels)) el.setAttr('LEVELS', hdInt(a.levels));
     if (!same(b.notes, a.notes)) setNotes(el, a.notes);
+    if (!same(b.effectText, a.effectText)) {
+      const effect = maneuverEffect(a.effectText);
+      el.setAttr('EFFECT', effect);
+      if (el.hasAttr('WEAPONEFFECT') || el.getAttr('CUSTOM') === 'Yes') el.setAttr('WEAPONEFFECT', effect);
+    }
   },
   create(ctx, m) {
     if (m.isGroup) return listElement(ctx, m);
     const signed = (n: number) => (n >= 0 ? `+${n}` : String(n));
+    const effect = maneuverEffect(m.effectText);
+    // Hero Designer's custom maneuver; hero6e can't draw a maneuver without its CATEGORY
     const el = genericItem('MANEUVER', 'MANEUVER', m, {
       CUSTOM: 'Yes',
-      DISPLAY: m.name,
+      CATEGORY: 'Hand to Hand',
+      DISPLAY: 'Custom Maneuver',
       OCV: signed(m.ocv),
       DCV: signed(m.dcv),
-      PHASE: m.phase ?? '1/2',
       DC: hdInt(m.dc),
-      EFFECT: '',
+      PHASE: m.phase ?? '1/2',
+      EFFECT: effect,
+      ADDSTR: 'Yes',
+      ACTIVECOST: '0',
+      DAMAGETYPE: '0',
+      MAXSTR: '0',
+      STRMULT: '1',
+      USEWEAPON: 'No',
+      WEAPONEFFECT: effect,
     });
     appendChildren(ctx, el, m);
     return el;

@@ -314,7 +314,10 @@ export interface MartialManeuver extends GenericObjectBase {
   phase?: string; // Phase timing: "1/2", "1", "0", etc.
   dc?: number; // Damage Class
   damage?: string;
+  /** Display summary: phase, OCV, DCV and effect */
   effect?: string;
+  /** Hero Designer's effect text (EFFECT), e.g. "[NORMALDC] Strike" or "Grab, +10 STR" */
+  effectText?: string;
   weaponElements?: WeaponElement[];
   isGroup?: boolean; // True if this is a LIST container (martial arts style)
   isWeaponElement?: boolean; // True if this is a WEAPON_ELEMENT entry

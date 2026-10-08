@@ -20,6 +20,7 @@ export {
   updateHdc,
   createHdc,
   blankHdc,
+  maneuverEffect,
   CHARACTER_TEMPLATES,
   type CharacterTemplateId,
   applyCharacterChanges,
