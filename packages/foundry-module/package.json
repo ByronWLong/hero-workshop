@@ -1,6 +1,6 @@
 {
   "name": "@hero-workshop/foundry-module",
-  "version": "0.4.9",
+  "version": "0.4.10",
   "description": "Hero Workshop editor for the hero6e Foundry VTT system",
   "private": true,
   "type": "module",
