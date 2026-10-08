@@ -969,32 +969,36 @@ function parseSkill(obj: Record<string, unknown>): Skill {
   const breadthCost = skillLevelCost(xmlid, option, levels);
   if (breadthCost !== undefined) totalCost = Math.ceil(breadthCost + adderCost);
   
-  // Apply modifiers (limitations reduce cost, advantages would increase active cost)
-  // For skills, we only care about limitations which reduce the real cost
+  // Advantages raise the Active Points (Combat Skill Levels Usable By Others, say), and
+  // limitations lower the Real Cost from there, as for powers
+  const advantages = modifiers
+    .filter(m => (m.value ?? 0) > 0)
+    .reduce((sum, m) => sum + (m.value ?? 0), 0);
   const limitations = modifiers
     .filter(m => (m.value ?? 0) < 0)
     .reduce((sum, m) => sum + Math.abs(m.value ?? 0), 0);
-  
-  let realCost = totalCost;
+
+  let activeCost = advantages > 0 ? heroRoundCost(totalCost * (1 + advantages)) : totalCost;
+  let realCost = activeCost;
   if (limitations > 0) {
     // Real Cost = Active Cost / (1 + Total Limitations)
-    realCost = heroRoundCost(totalCost / (1 + limitations));
+    realCost = heroRoundCost(activeCost / (1 + limitations));
   }
   
   // Everyman skills are always free (0 cost)
   if (everyman) {
-    totalCost = 0;
+    totalCost = activeCost = 0;
     realCost = 0;
   }
   // Familiarity costs 1 point minimum (unless it's native tongue or everyman)
   else if (familiarity && totalCost === 0) {
-    totalCost = 1;
+    totalCost = activeCost = 1;
     realCost = 1;
   }
   
   // Native tongue languages are free (0 cost) - native literacy is also free per campaign rules
   if (nativeTongue) {
-    totalCost = 0; // Native tongue and native literacy are free
+    totalCost = activeCost = 0; // Native tongue and native literacy are free
     realCost = 0;
   }
   
@@ -1010,6 +1014,7 @@ function parseSkill(obj: Record<string, unknown>): Skill {
     position: getAttrNum(obj, 'POSITION', 0),
     levels: levels,
     baseCost: totalCost,
+    activeCost: activeCost,
     realCost: realCost,
     notes: getAttr(obj, 'NOTES') || undefined,
     type: 'GENERAL',
@@ -1598,7 +1603,7 @@ function parseCompoundNonPowerParts(obj: Record<string, unknown>, parentId: stri
         name: priced.name,
         parentId,
         baseCost: priced.baseCost,
-        activeCost: priced.baseCost,
+        activeCost: priced.activeCost ?? priced.baseCost,
         realCost: priced.realCost,
       });
     }
@@ -1716,16 +1721,15 @@ function parseEquipmentItem(obj: Record<string, unknown>): Equipment {
     .filter((m) => (m.value ?? 0) < 0)
     .reduce((sum, m) => sum + Math.abs(m.value ?? 0), 0);
   
-  // If no nested powers, calculate from main power
-  if (totalRealCost === 0) {
+  // An item that is one power is priced as the powers section prices it (a Barrier's size and
+  // defenses, an Endurance Reserve's Recovery, a negative characteristic's lack of refund)
+  if (subPowers.length === 0 && xmlid !== 'COMPOUNDPOWER') {
+    const single = parsePower(obj);
+    totalActiveCost = single.activeCost ?? 0;
+    totalRealCost = single.realCost ?? 0;
+  } else if (totalRealCost === 0) {
     totalActiveCost = heroRoundCost((baseCost + leveled.cost + adderCost) * (1 + advantageTotal));
     totalRealCost = limitationTotal > 0 ? heroRoundCost(totalActiveCost / (1 + limitationTotal)) : totalActiveCost;
-  }
-  // An Endurance Reserve adds its Recovery, priced as the powers section prices it
-  if (xmlid === 'ENDURANCERESERVE') {
-    const reserve = parsePower(obj);
-    totalActiveCost = reserve.activeCost ?? totalActiveCost;
-    totalRealCost = reserve.realCost ?? totalRealCost;
   }
   
   // Build description - include modifier details and child power details
