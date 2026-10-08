@@ -11,10 +11,12 @@
  * - hero6e's rows for lists, frameworks and compounds can't be dragged, and its drop handling
  *   can't copy one from another actor (it looks for the members in the item's folder). Their
  *   rows are made draggable, and Hero Workshop copies them with their members or parts.
+ * - Nor can it copy a list or framework (e.g. a Multipower) from a compendium, where folder
+ *   contents aren't loaded: only the parent arrives. Hero Workshop copies those too.
  */
 
 import { MODULE_ID } from '../sync/session';
-import { copyFamilyToActor } from '../sync/worldItems';
+import { copyFamilyToActor, itemFamily } from '../sync/worldItems';
 
 interface ObservableActor {
   testUserPermission(user: unknown, permission: string): boolean;
@@ -60,13 +62,19 @@ function dragDataFor(event: DragEvent): { type: string; uuid: string } | undefin
   return parsed?.type ? { type: parsed.type, uuid } : undefined;
 }
 
-/** An item from another actor that has members or parts (hero6e can't copy those) */
-async function familyFromOtherActor(uuid: string | undefined, actor: FoundryActor | undefined): Promise<FamilyItem | undefined> {
+/**
+ * An item from another actor that has members or parts, or a compendium list or framework
+ * with members (hero6e can't copy those)
+ */
+async function familyToCopy(uuid: string | undefined, actor: FoundryActor | undefined): Promise<FamilyItem | undefined> {
   if (!uuid || !actor) return undefined;
   const item = (await fromUuid(uuid)) as FamilyItem | null;
-  const source = item?.actor as (FoundryActor & { uuid?: string }) | null | undefined;
-  if (!item || !source || source.uuid === (actor as { uuid?: string }).uuid) return undefined;
-  return item.childItems?.length ? item : undefined;
+  if (!item) return undefined;
+  const source = item.actor as (FoundryActor & { uuid?: string }) | null | undefined;
+  if (source) return source.uuid !== (actor as { uuid?: string }).uuid && item.childItems?.length ? item : undefined;
+  // A compendium compound holds its parts in its own data; hero6e's drop handles it
+  if (item.system.XMLID === 'COMPOUNDPOWER') return undefined;
+  return (await itemFamily(item)).length > 1 ? item : undefined;
 }
 
 /** Copies a list, framework or compound onto the actor, with its members or parts */
@@ -129,12 +137,13 @@ export function wrapActorSheetDrag(): void {
     if (dropProto?._onDropItem && !dropProto[DROP_PATCHED]) {
       const onDropItem = dropProto._onDropItem;
       dropProto._onDropItem = async function (this: Sheet, event: DragEvent, data: { uuid?: string }) {
-        // Only an item on another actor needs a look (hero6e's handler stays synchronous otherwise)
+        // Only an item on another actor or in a compendium needs a look (hero6e's handler stays
+        // synchronous otherwise)
         const uuid = data?.uuid ?? '';
         const at = uuid.lastIndexOf('.Item.');
         const actorUuid = (this.actor as { uuid?: string } | undefined)?.uuid;
         if (at < 0 || !this.actor || uuid.slice(0, at) === actorUuid) return onDropItem.call(this, event, data);
-        const family = await familyFromOtherActor(uuid, this.actor);
+        const family = await familyToCopy(uuid, this.actor);
         if (!family) return onDropItem.call(this, event, data);
         event.preventDefault?.();
         await copyFamily(family, this.actor);
