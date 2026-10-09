@@ -18,7 +18,7 @@ import { isContainerType } from '../frameworks.js';
 import { HdcDocument } from './document.js';
 import { parseHdcDocument } from './parse.js';
 import { updateHdc } from './write.js';
-import { lacksManeuverCategory, lacksSenseGroup } from './foundry.js';
+import { characteristicRollFix, lacksManeuverCategory, lacksSenseGroup } from './foundry.js';
 
 export interface RepairResult {
   xml: string;
@@ -45,6 +45,7 @@ export function repairForFoundry(xml: string): RepairResult {
   repairManeuverCategories(fixed, changes);
   repairSenseGroups(fixed, changes);
   repairAdderIds(fixed, changes);
+  repairCharacteristicRolls(fixed, changes);
   out = fixed.toString();
   return { xml: changes.length ? out : xml, changes, unresolved };
 }
@@ -274,6 +275,17 @@ function repairSenseGroups(doc: HdcDocument, changes: string[]): void {
     el.setAttr('OPTIONID', 'SIGHTGROUP');
     el.setAttr('OPTION_ALIAS', 'Sight Group');
     changes.push(`${el.getAttr('NAME') || el.getAttr('ALIAS')}: affects the Sight Group`);
+  }
+}
+
+/** A characteristic roll names just its characteristic ("EGO"), which hero6e rolls against */
+function repairCharacteristicRolls(doc: HdcDocument, changes: string[]): void {
+  for (const el of doc.root.descendants()) {
+    const key = characteristicRollFix(el);
+    if (!key) continue;
+    el.setAttr('COMMENTS', key);
+    const owner = el.parent;
+    changes.push(`${owner?.getAttr('NAME') || owner?.getAttr('ALIAS') || 'Power'}: Requires A Roll is a ${key} roll`);
   }
 }
 

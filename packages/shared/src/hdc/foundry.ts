@@ -206,6 +206,12 @@ function normalizeRequiresARoll(doc: HdcDocument, modifier: XmlElement, label: s
     }
   }
 
+  const characteristic = characteristicRollFix(modifier);
+  if (characteristic) {
+    modifier.setAttr('COMMENTS', characteristic);
+    notes.push(`${label}: Requires A Roll names its characteristic as "${characteristic}"`);
+  }
+
   const optionId = (modifier.getAttr('OPTIONID') ?? '').toUpperCase();
   const match = SKILL_ROLL_OPTION.exec(optionId);
   const binding = modifier.getAttr('COMMENTS')?.trim();
@@ -347,7 +353,32 @@ export function validateForFoundry(doc: HdcDocument): FoundryValidationIssue[] {
   return issues;
 }
 
+const ROLL_CHARACTERISTICS = /\b(STR|DEX|CON|INT|EGO|PRE)\b/i;
+
+/**
+ * hero6e rolls a Characteristic-roll Requires A Roll against the characteristic its COMMENTS
+ * names, so COMMENTS must be the bare key ("EGO", not "EGO roll"). Returns the key a
+ * characteristic roll should have there, or undefined when it's right or can't be told.
+ */
+export function characteristicRollFix(modifier: XmlElement): string | undefined {
+  if (modifier.getAttr('XMLID') !== 'REQUIRESASKILLROLL') return undefined;
+  if (!/^CHAR(1PER(5|20))?$/i.test(modifier.getAttr('OPTIONID') ?? '')) return undefined;
+  const comments = modifier.getAttr('COMMENTS')?.trim() ?? '';
+  if (/^(STR|DEX|CON|INT|EGO|PRE)$/.test(comments)) return undefined;
+  const key = ROLL_CHARACTERISTICS.exec(comments)?.[1] ?? ROLL_CHARACTERISTICS.exec(modifier.getAttr('OPTION_ALIAS') ?? '')?.[1];
+  return key?.toUpperCase();
+}
+
 function validateRequiresARoll(doc: HdcDocument, modifier: XmlElement, issues: FoundryValidationIssue[]): void {
+  const characteristic = characteristicRollFix(modifier);
+  if (characteristic) {
+    const owner = modifier.parent;
+    issues.push({
+      severity: 'warning',
+      itemId: owner?.getAttr('ID'),
+      message: `${owner ? itemLabel(owner) : 'item'}: Requires A Roll's COMMENTS should be just "${characteristic}"; hero6e looks for a characteristic named "${modifier.getAttr('COMMENTS') ?? ''}".`,
+    });
+  }
   const optionId = (modifier.getAttr('OPTIONID') ?? '').toUpperCase();
   const match = SKILL_ROLL_OPTION.exec(optionId);
   if (!match) return;

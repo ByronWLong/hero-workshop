@@ -43,6 +43,23 @@ describe('custom martial maneuvers', () => {
   });
 });
 
+describe('characteristic rolls', () => {
+  it('name just the characteristic hero6e rolls against', () => {
+    const xml = blankHdc().replace(
+      '<POWERS />',
+      `<POWERS>
+    <POWER XMLID="DETECT" ID="930" BASECOST="3.0" LEVELS="0" ALIAS="Detect" POSITION="0" NAME="Sense Network">
+      <MODIFIER XMLID="REQUIRESASKILLROLL" ID="931" BASECOST="-0.5" LEVELS="0" ALIAS="Requires A Roll" POSITION="-1" OPTION="CHAR" OPTIONID="CHAR" OPTION_ALIAS="EGO Roll" COMMENTS="EGO roll" />
+    </POWER>
+  </POWERS>`,
+    );
+    expect(validateForFoundry(HdcDocument.parse(xml)).some((i) => /should be just "EGO"/.test(i.message))).toBe(true);
+    const repaired = repairForFoundry(xml).xml;
+    expect(HdcDocument.parse(repaired).findById('931')!.getAttr('COMMENTS')).toBe('EGO');
+    expect(validateForFoundry(HdcDocument.parse(repaired)).filter((i) => /Requires A Roll/.test(i.message))).toEqual([]);
+  });
+});
+
 describe('sense groups and Life Support', () => {
   it("repairs Invisibility without its Sense Group and Hero Workshop's old Self-Contained Breathing adder", () => {
     const xml = blankHdc().replace(

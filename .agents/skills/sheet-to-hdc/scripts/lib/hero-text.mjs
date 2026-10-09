@@ -227,7 +227,8 @@ function requiresARoll(def, name, detail, value, defaults) {
 
   if (characteristic && !skill) {
     const option = def.options?.find((o) => o.xmlId === `CHAR${variant}`);
-    return modifier(def, value, { option, optionAlias: `${characteristic[1].toUpperCase()} Roll`, comments: rest });
+    // hero6e rolls against the characteristic COMMENTS names, so it holds just the key
+    return modifier(def, value, { option, optionAlias: `${characteristic[1].toUpperCase()} Roll`, comments: characteristic[1].toUpperCase() });
   }
   if (percept) {
     const option = def.options?.find((o) => o.xmlId === `PER${variant}`);
