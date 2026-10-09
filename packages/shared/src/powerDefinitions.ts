@@ -29,6 +29,8 @@ export interface PowerAdder {
   required?: boolean;
   includeInBase?: boolean;
   excludes?: string[];
+  /** The template's choices for this adder (Life Support's Sleeping: week, year, never) */
+  options?: PowerOption[];
 }
 
 export interface PowerOption {
@@ -1379,6 +1381,8 @@ export const ADJUSTMENT_POWERS: Record<string, PowerDefinition> = {
     target: 'DCV',
     defense: 'POWER',
     types: ['ADJUSTMENT'],
+    // SIMPLIFIED is Simplified Healing (BODY and STUN together), the input hero6e looks for
+    inputExamples: ['BODY', 'STUN', 'SIMPLIFIED'],
     standardEffectAllowed: true,
     usesEnd: true,
     visible: true,
@@ -2070,6 +2074,7 @@ function powerFromCatalog(e: CatalogEntry): PowerDefinition {
       required: a.required,
       includeInBase: a.includeInBase,
       excludes: a.excludes,
+      options: a.options?.map((o) => ({ xmlId: o.xmlId, display: o.display, baseCost: o.baseCost, lvlCost: o.lvlCost, lvlVal: o.lvlVal })),
     })),
     options: e.scopeCosts
       ? senseScopeOptions(e.scopeCosts, e.lvlVal !== undefined || e.minVal !== undefined ? (e.lvlVal ?? 1) : undefined)

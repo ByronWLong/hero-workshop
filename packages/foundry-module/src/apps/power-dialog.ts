@@ -62,6 +62,9 @@ export interface PowerDialogOptions {
 
 const kindAllowsFree = (kind: PowerKind) => kind !== 'list';
 
+// Input choices whose stored value doesn't say what they are
+const INPUT_LABELS: Record<string, string> = { SIMPLIFIED: 'Simplified (BODY and STUN)' };
+
 const TITLES: Record<PowerKind, string> = {
   power: 'power',
   list: 'power list',
@@ -148,7 +151,7 @@ export class PowerDialog extends HeroWorkshopApplication {
         placeholder: view.framework?.name ?? (view.isCustom ? 'Custom power' : view.definition?.display) ?? '',
       },
       inputChoice: examples && {
-        examples: examples.map((value) => ({ value, selected: value === input && !this.#customInput })),
+        examples: examples.map((value) => ({ value, label: INPUT_LABELS[value] ?? value, selected: value === input && !this.#customInput })),
         custom: this.#customInput || (!!input && !examples.includes(input)),
       },
       // Skills can be changed from here only in the editor's own forms (not a compound part's)

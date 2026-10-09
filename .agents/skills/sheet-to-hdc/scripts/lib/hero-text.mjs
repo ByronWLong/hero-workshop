@@ -474,11 +474,17 @@ function matchPowerAdder(def, piece) {
   const number = /([+-]?\d+)/.exec(piece)?.[1];
   for (const a of def.adders ?? []) {
     const label = norm(a.display.replace(/\[LVL\]/g, ''));
-    if (label.length < 3 || !(p.includes(label) || (label.includes(p) && p.length >= 5))) continue;
+    // Short labels ("PD") only match a whole "+N PD"
+    const short = label.length < 3;
+    if (short ? !new RegExp(`^[+-]?\\d+ ${label}$`).test(p) : !(p.includes(label) || (label.includes(p) && p.length >= 5))) continue;
     if (a.lvlCost) {
       const levels = Math.abs(Number(number ?? 1)) / (a.lvlVal || 1);
       return { ...modAdder(a.xmlId, a.baseCost ?? 0, a.display.replace(/\[LVL\]/g, number ?? ''), { includeInBase: true }), levels, lvlCost: a.lvlCost, lvlVal: a.lvlVal };
     }
+    // An adder with choices ("Sleeping: character does not sleep") takes the one the text names
+    const at = piece.toLowerCase().indexOf(label);
+    const choice = a.options?.length ? pickOption(a, (at < 0 ? piece : piece.slice(at + label.length)).replace(/^[\s:(]+|[\s)]+$/g, '')) : undefined;
+    if (choice) return { ...modAdder(a.xmlId, choice.baseCost ?? a.baseCost ?? 0, a.display, { includeInBase: true, optionAlias: choice.display }), optionId: choice.xmlId };
     return modAdder(a.xmlId, a.baseCost ?? 0, a.display, { includeInBase: true });
   }
   if (SENSE_POWERS.has(def.xmlId)) {
@@ -537,6 +543,25 @@ export function readPower(pieces) {
     if (adders.length && adders.every(Boolean)) {
       out.adders.push(...adders);
       out.levelsInAdders = true;
+      rest = '';
+    }
+  }
+  // A list of the power's own adders: "Life Support (Self-Contained Breathing, Safe in Intense Cold)"
+  if (rest && inner !== undefined && def?.adders?.length) {
+    const parts = splitTop(inner, [',', ';']).map((p) => p.trim()).filter(Boolean);
+    const adders = parts.length > 1 ? parts.map((p) => leveledAdder(p) ?? matchPowerAdder(def, p)) : [];
+    if (adders.length && adders.every(Boolean)) {
+      out.adders.push(...adders);
+      rest = '';
+    }
+  }
+  // Damage Reduction's option names its percentage and kind ("Physical, 50% Resistant")
+  if (found.xmlId === 'DAMAGEREDUCTION' && !out.option) {
+    const pct = /(25|50|75)\s*%/.exec(`${found.lead} ${rest}`)?.[1];
+    const kind = /mental/i.test(rest) ? 'MENTAL' : /resistant/i.test(rest) ? 'RESISTANT' : 'NORMAL';
+    if (pct) {
+      out.option = `LVL${pct}${kind}`;
+      out.input = /mental/i.test(rest) ? undefined : /energy/i.test(rest) ? 'Energy' : /physical/i.test(rest) ? 'Physical' : undefined;
       rest = '';
     }
   }
@@ -601,6 +626,11 @@ export function readPower(pieces) {
     }).filter(Boolean);
   }
   if (out.sense) leftover = leftover.map((piece) => piece.replace(SENSE, '').replace(/^[\s(),:;-]+|[\s(),:;-]+$/g, '').trim()).filter(Boolean);
+  // "Simplified Healing 1½d6 (BODY or STUN)": hero6e heals BODY and STUN together when the input is SIMPLIFIED
+  if (found.xmlId === 'HEALING' && /^simplified\b/i.test(head)) {
+    out.input = 'SIMPLIFIED';
+    leftover = leftover.filter((piece) => !SIMPLIFIED_TARGETS.test(piece));
+  }
   const FILLER = /^(?:per|of|to|the|a|an|and|with|for|in|on|at|vs\.?|radius|rad|area)$/i;
   for (const piece of leftover.filter((p) => p.split(/[\s(),;:]+/).some((w) => w && !FILLER.test(w)))) {
     const adder = def && (leveledAdder(piece) ?? matchPowerAdder(def, piece));
@@ -613,6 +643,7 @@ export function readPower(pieces) {
 }
 
 const MOVEMENT_INPUT = /^(?:x\d+\s+)?noncombat/i;
+const SIMPLIFIED_TARGETS = /^\(?\s*(?:body|stun)\s*(?:or|and|&|\/|,)\s*(?:body|stun)\s*\)?$/i;
 /** Powers whose first unrecognized words say what they work on ("Detect Magic", "Drain STR") */
 const INPUT_FIRST = new Set(['DETECT', 'AID', 'DRAIN', 'HEALING', 'DISPEL', 'ABSORPTION', 'TRANSFORM', 'SUMMON', 'CHANGEENVIRONMENT', 'MINDCONTROL', 'TELEPATHY']);
 

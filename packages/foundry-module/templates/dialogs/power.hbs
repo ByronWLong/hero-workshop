@@ -49,7 +49,7 @@
     <div class="hw-input-choice">
       <select data-field="inputChoice">
         {{#unless draft.input}}<option value="" selected>Choose…</option>{{/unless}}
-        {{#each inputChoice.examples}}<option value="{{value}}" {{#if selected}}selected{{/if}}>{{value}}</option>{{/each}}
+        {{#each inputChoice.examples}}<option value="{{value}}" {{#if selected}}selected{{/if}}>{{label}}</option>{{/each}}
         {{#if definition.otherInput}}<option value="__custom" {{#if inputChoice.custom}}selected{{/if}}>Custom…</option>{{/if}}
       </select>
       {{#if inputChoice.custom}}<input type="text" data-field="input" value="{{draft.input}}" placeholder="{{definition.inputLabel}}">{{/if}}

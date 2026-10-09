@@ -16,6 +16,7 @@ const CREATURE = blankHdc()
     <POWER XMLID="HANDTOHANDATTACK" ID="9711" BASECOST="0.0" LEVELS="2" ALIAS="Hand-To-Hand Attack" POSITION="1" NAME="Tail Bash" INPUT="PD" QUANTITY="1" />
     <POWER XMLID="RKA" ID="9712" BASECOST="0.0" LEVELS="2" ALIAS="Killing Attack - Ranged" POSITION="2" NAME="Fire Breath" INPUT="ED" QUANTITY="1" />
     <POWER XMLID="DRAIN" ID="9713" BASECOST="0.0" LEVELS="2" ALIAS="Drain" POSITION="3" NAME="Life Sap" INPUT="BODY and STUN" QUANTITY="1" />
+    <POWER XMLID="HEALING" ID="9716" BASECOST="0.0" LEVELS="1" ALIAS="Healing" POSITION="5" NAME="Touch" INPUT="BODY or STUN" QUANTITY="1" />
     <POWER XMLID="FLIGHT" ID="9714" BASECOST="0.0" LEVELS="10" ALIAS="Flight" POSITION="4" NAME="Water Walking" QUANTITY="1">
       <MODIFIER XMLID="USABLEAS" ID="9715" BASECOST="0.25" LEVELS="0" ALIAS="Usable Underwater" POSITION="-1" NAME="" />
     </POWER>
@@ -43,6 +44,8 @@ describe('repairForFoundry', () => {
   it('lists adjustment targets comma-separated and names Usable As movement', () => {
     const doc = HdcDocument.parse(repairForFoundry(CREATURE).xml);
     expect(doc.findById('9713')!.getAttr('INPUT')).toBe('BODY, STUN');
+    // "BODY or STUN" is Simplified Healing
+    expect(doc.findById('9716')!.getAttr('INPUT')).toBe('SIMPLIFIED');
     const usable = doc.findById('9715')!;
     expect(usable.getAttr('COMMENTS')).toBe('swimming');
     expect(usable.getAttr('ALIAS')).toBe('Usable Underwater');

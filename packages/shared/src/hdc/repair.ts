@@ -305,7 +305,9 @@ function repairAdjustmentInputs(doc: HdcDocument, changes: string[]): void {
     const input = el.getAttr('INPUT')?.trim();
     if (!input) continue;
     const label = el.getAttr('NAME') || el.getAttr('ALIAS') || xmlid;
-    if (xmlid === 'HEALING' && /^simplified\b/i.test(input) && input !== 'SIMPLIFIED') {
+    // "BODY or STUN" is Simplified Healing written out; hero6e only knows it as SIMPLIFIED
+    const simplified = /^simplified\b/i.test(input) || /^(body|stun)\s*(?:or|\/)\s*(?!\1)(body|stun)$/i.test(input);
+    if (xmlid === 'HEALING' && simplified && input !== 'SIMPLIFIED') {
       el.setAttr('INPUT', 'SIMPLIFIED');
       changes.push(`${label}: Healing input "${input}" -> "SIMPLIFIED"`);
       continue;
