@@ -16,7 +16,10 @@ import {
   extractItems,
   insertItems,
   insertParts,
+  isContainerTransfer,
+  moveItem,
   parseHdcFile,
+  placementParent,
   powerTypeChoices,
   removeItem,
   setCharacteristicValue,
@@ -484,6 +487,8 @@ export class HeroWorkshopEditor extends HeroWorkshopApplication {
 
   #focusHandled = false;
   #dragListening = false;
+  /** The row being dragged, when it's one of this editor's */
+  #dragging?: { itemId: string; section: string; container: boolean };
 
   _onRender(context: unknown, options: unknown): void {
     super._onRender(context, options);
@@ -517,10 +522,15 @@ export class HeroWorkshopEditor extends HeroWorkshopApplication {
       const data = this.#dragDataFor(row.dataset.section as SectionId, row.dataset.itemId!);
       if (!data) return;
       event.dataTransfer.setData('text/plain', JSON.stringify(data));
-      event.dataTransfer.effectAllowed = 'copy';
+      event.dataTransfer.effectAllowed = 'copyMove';
       row.classList.add('hw-dragging');
+      this.#dragging = { itemId: row.dataset.itemId!, section: row.dataset.section!, container: row.dataset.acceptsChildren !== undefined };
     });
-    el.addEventListener('dragend', () => el.querySelectorAll('.hw-dragging').forEach((r) => r.classList.remove('hw-dragging')));
+    el.addEventListener('dragend', () => {
+      this.#dragging = undefined;
+      this.#highlightDropTarget();
+      el.querySelectorAll('.hw-dragging').forEach((r) => r.classList.remove('hw-dragging'));
+    });
     el.addEventListener('dragover', (event) => {
       if (!this.#acceptsDrops) return;
       event.preventDefault();
@@ -537,16 +547,36 @@ export class HeroWorkshopEditor extends HeroWorkshopApplication {
     });
   }
 
-  /** The row a drop lands in: a list or framework takes members, a compound (or a piece of equipment) parts */
-  #dropRow(event: DragEvent): HTMLElement | undefined {
-    const target = event.target as HTMLElement;
-    return target.closest?.<HTMLElement>('.hw-item-row[data-accepts-children], .hw-item-row[data-accepts-parts]') ?? undefined;
+  /**
+   * Where a drop lands: on a row's top or bottom edge, beside it (reordering); in the middle of a
+   * list or framework (members) or a compound or piece of equipment (parts), inside it. Lists and
+   * frameworks can't go inside anything.
+   */
+  #dropTarget(event: DragEvent): { row: HTMLElement; mode: 'before' | 'after' | 'into' } | undefined {
+    const row = (event.target as HTMLElement).closest?.<HTMLElement>('.hw-item-row');
+    if (!row) return undefined;
+    const dragging = this.#dragging;
+    if (dragging && dragging.itemId === row.dataset.itemId && dragging.section === row.dataset.section) return undefined;
+    const container = dragging?.container ?? false;
+    const canInto = !container && (row.dataset.acceptsChildren !== undefined || row.dataset.acceptsParts !== undefined);
+    // Rows only reorder within their own section
+    if (dragging && dragging.section !== row.dataset.section) return canInto ? { row, mode: 'into' } : undefined;
+    const { top, height } = row.getBoundingClientRect();
+    const y = height ? (event.clientY - top) / height : 0.5;
+    if (canInto && y > 0.25 && y < 0.75) return { row, mode: 'into' };
+    if (y < 0.5) return { row, mode: 'before' };
+    // Just under an open list's or compound's heading is the top of what's in it
+    const first = row.nextElementSibling?.querySelector<HTMLElement>(':scope > .hw-item > .hw-item-row');
+    return first && canInto ? { row: first, mode: 'before' } : { row, mode: 'after' };
   }
 
   #highlightDropTarget(event?: DragEvent): void {
-    const target = event && this.#dropRow(event);
-    this.element.querySelectorAll('.hw-drop-target').forEach((r) => r !== target && r.classList.remove('hw-drop-target'));
-    target?.classList.add('hw-drop-target');
+    const target = event && this.#dropTarget(event);
+    const cls = target && (target.mode === 'into' ? 'hw-drop-target' : `hw-drop-${target.mode}`);
+    for (const name of ['hw-drop-target', 'hw-drop-before', 'hw-drop-after']) {
+      this.element.querySelectorAll(`.${name}`).forEach((r) => (r !== target?.row || name !== cls) && r.classList.remove(name));
+    }
+    if (target && cls) target.row.classList.add(cls);
     this.element.classList.toggle('hw-drop-active', !!event);
   }
 
@@ -587,7 +617,8 @@ export class HeroWorkshopEditor extends HeroWorkshopApplication {
   async #onDrop(event: DragEvent): Promise<void> {
     const data = dragData(event);
     if (!data) return;
-    const row = this.#dropRow(event);
+    const target = this.#dropTarget(event);
+    const row = target?.mode === 'into' ? target.row : undefined;
     let transfer: ItemTransfer | undefined;
     let name = 'item';
     let idMap: Record<string, string> = {};
@@ -598,8 +629,9 @@ export class HeroWorkshopEditor extends HeroWorkshopApplication {
       const drag = data as unknown as HeroWorkshopDragData;
       name = drag.name;
       if (drag.sourceWindow === this.id) {
-        // Within the editor, an item is copied into the list, framework or compound it's dropped on
-        if (!drag.itemId || !row || row.dataset.itemId === drag.itemId) return;
+        // Within the editor, an item moves beside the row it's dropped next to, or is copied into
+        // the list, framework or compound it's dropped on
+        if (!drag.itemId || !target) return;
         idMap = this.#foldEdits();
         source = idMap[drag.itemId] ?? drag.itemId;
         transfer = extractItems(this.#baseXml, source);
@@ -621,6 +653,13 @@ export class HeroWorkshopEditor extends HeroWorkshopApplication {
     if (!transfer) return;
 
     try {
+      const beside = target && target.mode !== 'into' && target.row.dataset.section === SECTION_FOR_HDC[transfer.section];
+      if (target && beside) {
+        if (!source) idMap = this.#foldEdits();
+        const id = target.row.dataset.itemId!;
+        this.#place(transfer, name, { id: idMap[id] ?? id, after: target.mode === 'after' }, source);
+        return;
+      }
       if (row && row.dataset.acceptsChildren === undefined) {
         // A compound, one of its parts, or a piece of equipment (which becomes a compound)
         if (!source) idMap = this.#foldEdits();
@@ -673,6 +712,43 @@ export class HeroWorkshopEditor extends HeroWorkshopApplication {
     const { xml } = insertParts(this.#baseXml, transfer, targetId);
     this.#setBase(xml);
     this.#imported.push(`Added ${name} to ${compound.getAttr('NAME') || compound.getAttr('ALIAS') || 'the compound'}`);
+    void this.render();
+  }
+
+  /**
+   * Puts an item beside another: an item of this editor's beside one in the same list, framework
+   * or compound moves there; anything else is added there as a copy. A list or framework dropped
+   * among a list's items goes beside that list.
+   */
+  #place(transfer: ItemTransfer, name: string, at: { id: string; after: boolean }, source?: string): void {
+    if (source) {
+      const moved = moveItem(this.#baseXml, source, at);
+      // Dropped where it already is
+      if (moved === this.#baseXml) return void this.render();
+      if (moved) {
+        this.#setBase(moved);
+        this.#imported.push(`Moved ${name}`);
+        return void this.render();
+      }
+    }
+    const where = placementParent(this.#baseXml, at.id);
+    if (!where) return void this.render();
+    const parentAt = where.parentId && isContainerTransfer(transfer) ? { id: where.parentId, after: at.after } : at;
+    const parentId = parentAt === at ? (where.compound ?? where.parentId) : undefined;
+    // Not beside (and so inside) itself
+    if (source && parentId) {
+      const doc = HdcDocument.parse(this.#baseXml);
+      for (let id: string | undefined = parentId; id; id = doc.findById(id)?.getAttr('PARENTID')) {
+        if (id === source) return void this.render();
+      }
+    }
+    const { xml } = where.compound
+      ? insertParts(this.#baseXml, transfer, where.compound, { at })
+      : insertItems(this.#baseXml, transfer, { at: parentAt });
+    const parent = parentId ? HdcDocument.parse(this.#baseXml).findById(parentId) : undefined;
+    this.#setBase(xml);
+    this.#imported.push(parent ? `Added ${name} to ${parent.getAttr('NAME') || parent.getAttr('ALIAS') || 'the list'}` : `Added ${name}`);
+    this.changeTab(SECTION_FOR_HDC[transfer.section], 'primary');
     void this.render();
   }
 

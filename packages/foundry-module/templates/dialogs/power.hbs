@@ -78,6 +78,16 @@
   {{/unless}}{{/if}}
   {{/if}}
 
+  {{#if targets}}
+  <div class="form-group stacked">
+    <label>{{targets.label}}</label>
+    <div class="form-fields">
+      {{> "modules/hero-workshop/templates/partials/targets.hbs" field=targets.name groups=targets.groups}}
+    </div>
+    {{#if targets.hint}}<p class="hint">{{targets.hint}}</p>{{/if}}
+  </div>
+  {{/if}}
+
   {{#if isBarrier}}
   <fieldset>
     <legend>Barrier</legend>

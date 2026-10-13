@@ -167,6 +167,116 @@ function withAttackLinks(adders: Adder[] | undefined, chosen: string[]): Adder[]
   return result.length ? result : undefined;
 }
 
+// =============================================================================
+// Skill Levels: the skills they apply to
+// =============================================================================
+
+/**
+ * Skill Levels options that apply to chosen skills. hero6e finds them by name: a skill roll
+ * gets the levels when the Skill Levels' OPTION_ALIAS contains the skill's name or XMLID.
+ */
+const SKILL_LINKED_OPTIONS = ['CHARACTERISTIC', 'RELATED', 'SINGLE', 'CHAR', 'THREE', 'TIGHT'];
+
+/** Whether these Skill Levels (with this option) apply to chosen skills */
+export function showsSkills(xmlid: string, option: string): boolean {
+  return xmlid === 'SKILL_LEVELS' && SKILL_LINKED_OPTIONS.includes(option || 'CHARACTERISTIC');
+}
+
+/** Skill Levels and the like don't take levels themselves */
+const NOT_LEVELLED = new Set(['SKILL_LEVELS', 'COMBAT_LEVELS', 'MENTAL_COMBAT_LEVELS', 'PENALTY_SKILL_LEVELS']);
+
+/** The character's skills Skill Levels can apply to, by the name hero6e matches */
+export function skillLevelChoices(character: Character): { value: string; label: string; group: string }[] {
+  const out: { value: string; label: string; group: string }[] = [];
+  for (const s of character.skills) {
+    if (s.isGroup || NOT_LEVELLED.has(s.xmlid ?? '')) continue;
+    const name = s.bindingName ?? s.name;
+    if (name && !out.some((o) => o.value.toLowerCase() === name.toLowerCase())) out.push({ value: name, label: name, group: 'Skills' });
+  }
+  return out;
+}
+
+const escapeRegex = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+const namesIn = (text: string, name: string) => new RegExp(`(^|[^\\w])${escapeRegex(name)}($|[^\\w])`, 'i').test(text);
+
+/** The skills an OPTION_ALIAS ("with Stealth, Climbing") names: the character's, then any others */
+export function skillsInAlias(xmlid: string, alias: string | undefined, choices: { value: string }[]): string[] {
+  const text = (alias ?? '').trim();
+  // The option's own wording names no skill
+  if (!text || skillLevelOptions(xmlid)?.some((o) => o.display.toLowerCase() === text.toLowerCase())) return [];
+  const known = choices.filter((c) => namesIn(text, c.value)).map((c) => c.value);
+  const others = text
+    .replace(/^with\s+/i, '')
+    .split(/\s*,\s*|\s+and\s+/i)
+    .map((s) => s.trim())
+    .filter((s) => s && !known.some((k) => namesIn(s, k) || namesIn(k, s)));
+  return [...known, ...others];
+}
+
+/** The OPTION_ALIAS naming these skills, or the option's own wording when there are none */
+export function skillLevelAlias(xmlid: string, option: string, skills: string[]): string | undefined {
+  return skills.length ? `with ${skills.join(', ')}` : skillLevelOption(xmlid, option)?.display;
+}
+
+/**
+ * The checklist of what a skill level applies to: attacks (Combat Skill Levels and the like,
+ * linked through adders) or skills (Skill Levels, named in OPTION_ALIAS). None for options
+ * that cover everything.
+ */
+export function levelTargetsField(
+  character: Character | undefined,
+  item: { xmlid: string; option: string; adders?: Adder[]; optionAlias?: string },
+  chosenNow?: string[],
+): FormField | undefined {
+  const { xmlid, option } = item;
+  if (showsAttacks(xmlid, option)) {
+    const chosen = chosenNow ?? (item.adders ?? []).filter(isLinkAdder).map((a) => a.alias ?? a.name);
+    const choices = character ? cslAttackChoices(character) : [];
+    return {
+      name: 'attacks',
+      label: 'Attacks it applies to',
+      type: 'attacks',
+      value: chosen,
+      hint: 'hero6e uses the levels only with these. A list or framework covers everything in it.',
+      options: checklist(choices, chosen),
+    };
+  }
+  if (showsSkills(xmlid, option)) {
+    const choices = character ? skillLevelChoices(character) : [];
+    const chosen = chosenNow ?? skillsInAlias(xmlid, item.optionAlias, choices);
+    return {
+      name: 'skills',
+      label: 'Skills it applies to',
+      type: 'attacks',
+      value: chosen,
+      hint: 'hero6e adds the levels to rolls with these skills (it looks for their names in the option text).',
+      options: checklist(choices, chosen),
+    };
+  }
+  return undefined;
+}
+
+/** Choices ticked when chosen, plus chosen names that match none of them (listed under Other) */
+function checklist(choices: { value: string; label: string; group: string; detail?: string }[], chosen: string[]): FieldOption[] {
+  const known = new Set(choices.map((c) => c.value.toLowerCase()));
+  return [
+    ...choices.map((c) => ({ ...c, selected: chosen.some((n) => n.toLowerCase() === c.value.toLowerCase()) })),
+    // Linked names that match none of the character's own items (standard maneuvers like Strike, renamed attacks)
+    ...chosen.filter((n) => !known.has(n.toLowerCase())).map((n) => ({ value: n, label: n, group: 'Other', selected: true })),
+  ];
+}
+
+/** The adders and OPTION_ALIAS that make a skill level apply to the chosen attacks or skills */
+export function withLevelTargets(
+  item: { xmlid: string; option: string; adders?: Adder[]; optionAlias?: string },
+  field: string,
+  chosen: string[],
+): { adders?: Adder[]; optionAlias?: string } {
+  if (field === 'attacks' && showsAttacks(item.xmlid, item.option)) return { adders: withAttackLinks(item.adders, chosen), optionAlias: item.optionAlias };
+  if (field === 'skills' && showsSkills(item.xmlid, item.option)) return { adders: item.adders, optionAlias: skillLevelAlias(item.xmlid, item.option, chosen) };
+  return { adders: item.adders, optionAlias: item.optionAlias };
+}
+
 function skillValues(skill: Skill | undefined): FormValues {
   const xmlid = skill?.xmlid ?? 'CUSTOMSKILL';
   if (LABELLED_SKILL_XMLIDS.includes(xmlid)) {
@@ -181,9 +291,10 @@ function skillValues(skill: Skill | undefined): FormValues {
 
 function otherSkillValues(skill: Skill | undefined, xmlid: string): FormValues {
   const values = otherSkillFields(skill, xmlid);
-  return ATTACK_LINKED_SKILLS.includes(xmlid)
-    ? { ...values, attacks: (skill?.adders ?? []).filter(isLinkAdder).map((a) => a.alias ?? a.name) }
-    : values;
+  if (ATTACK_LINKED_SKILLS.includes(xmlid)) return { ...values, attacks: (skill?.adders ?? []).filter(isLinkAdder).map((a) => a.alias ?? a.name) };
+  // Skill Levels' skills are read from the option text when the form is shown (it needs the character's skills)
+  if (xmlid === 'SKILL_LEVELS') return { ...values, optionAlias: skill?.optionAlias ?? '' };
+  return values;
 }
 
 function otherSkillFields(skill: Skill | undefined, xmlid: string): FormValues {
@@ -275,23 +386,12 @@ function skillForm(v: FormValues, isNew: boolean, character?: Character): ItemFo
       fields.push({ name: 'characteristic', label: 'Based on', type: 'select', value: str(v.characteristic), options: options(choices, str(v.characteristic) || choices[0]!.value) });
     }
   }
-  if (showsAttacks(xmlid, str(v.option))) {
-    const chosen = list(v.attacks);
-    const choices = character ? cslAttackChoices(character) : [];
-    const known = new Set(choices.map((c) => c.value.toLowerCase()));
-    fields.push({
-      name: 'attacks',
-      label: 'Attacks it applies to',
-      type: 'attacks',
-      value: chosen,
-      hint: 'hero6e uses the levels only with these. A list or framework covers everything in it.',
-      options: [
-        ...choices.map((c) => ({ ...c, selected: chosen.some((n) => n.toLowerCase() === c.value.toLowerCase()) })),
-        // Linked names that match none of the character's own items (standard maneuvers like Strike, renamed attacks)
-        ...chosen.filter((n) => !known.has(n.toLowerCase())).map((n) => ({ value: n, label: n, group: 'Other', selected: true })),
-      ],
-    });
-  }
+  const targets = levelTargetsField(
+    character,
+    { xmlid, option: str(v.option), optionAlias: str(v.optionAlias) },
+    Array.isArray(v.attacks) ? list(v.attacks) : Array.isArray(v.skills) ? list(v.skills) : undefined,
+  );
+  if (targets) fields.push(targets);
   if (xmlid === 'CUSTOMSKILL') {
     fields.push({ name: 'cost', label: 'Cost', type: 'number', value: num(v.cost) });
   }
@@ -359,6 +459,8 @@ function saveSkill(existing: Skill | undefined, v: FormValues, position: number)
 
   let adders = existing?.adders;
   if (showsAttacks(xmlid, str(v.option)) && Array.isArray(v.attacks)) adders = withAttackLinks(adders, v.attacks);
+  // Skill Levels name their skills in OPTION_ALIAS
+  const skillsAlias = showsSkills(xmlid, str(v.option)) && Array.isArray(v.skills) ? skillLevelAlias(xmlid, str(v.option), v.skills) : undefined;
   if (xmlid === 'LANGUAGES') {
     const others = (adders ?? []).filter((a) => a.xmlId !== 'LITERACY');
     const literacy = (existing?.adders ?? []).find((a) => a.xmlId === 'LITERACY') ?? {
@@ -380,7 +482,7 @@ function saveSkill(existing: Skill | undefined, v: FormValues, position: number)
     everyman: bool(v.everyman) || undefined,
     option,
     // Keep the file's own wording (e.g. "with Demonic Claw") unless the option itself changed
-    optionAlias: option && option !== existing?.option ? optionLabel?.replace(/ \(.*\)$/, '') : existing?.optionAlias,
+    optionAlias: skillsAlias ?? (option && option !== existing?.option ? optionLabel?.replace(/ \(.*\)$/, '') : existing?.optionAlias),
     nativeTongue: bool(v.nativeTongue) || undefined,
     notes: str(v.notes) || undefined,
     baseCost: cost,

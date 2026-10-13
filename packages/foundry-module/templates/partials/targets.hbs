@@ -1,0 +1,18 @@
+<div class="hw-attacks">
+  {{#each groups as |group|}}
+  <h4 class="hw-attack-group">{{group.name}}</h4>
+  {{#each group.options}}
+  <label class="checkbox"><input type="checkbox" data-target="{{value}}" {{checked selected}}> {{label}}{{#if detail}} <span class="hint">({{detail}})</span>{{/if}}</label>
+  {{/each}}
+  {{else}}
+  <p class="hint">{{#if (eq field "skills")}}This character has no skills yet.{{else}}This character has no attacks yet.{{/if}}</p>
+  {{/each}}
+  <div class="hw-attack-other">
+    {{#if (eq field "skills")}}
+    <input type="text" placeholder="Other skill or roll, e.g. DEX Roll" aria-label="Other skill or roll">
+    {{else}}
+    <input type="text" placeholder="Other attack or maneuver, e.g. Strike" aria-label="Other attack or maneuver">
+    {{/if}}
+    <button type="button" data-action="addTarget"><i class="fa-solid fa-plus" inert></i> Add</button>
+  </div>
+</div>

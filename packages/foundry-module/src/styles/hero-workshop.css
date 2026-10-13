@@ -422,6 +422,15 @@
   background: var(--hw-hover);
 }
 
+/* Dropped here, the item goes just above or below the row */
+.hero-workshop .hw-item-row.hw-drop-before {
+  box-shadow: inset 0 2px 0 var(--color-border-highlight);
+}
+
+.hero-workshop .hw-item-row.hw-drop-after {
+  box-shadow: inset 0 -2px 0 var(--color-border-highlight);
+}
+
 /* A compound's parts list, with something being dragged over it */
 .hero-workshop .hw-parts.hw-drop-target {
   outline: 2px dashed var(--color-border-highlight);

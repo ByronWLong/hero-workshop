@@ -158,6 +158,8 @@ export interface PowerDraft {
   notes: string;
   levels: number;
   option: string;
+  /** The option's wording (Skill Levels name their skills in it) */
+  optionAlias: string;
   customCost: number;
   affectsPrimary: boolean;
   affectsTotal: boolean;
@@ -251,6 +253,7 @@ export function powerDraft(character: Character, section: PowerSection, itemId?:
     notes: p?.notes && p.notes !== p.alias ? p.notes : '',
     levels: p?.levels ?? 1,
     option: p?.option ?? '',
+    optionAlias: p?.optionAlias ?? '',
     customCost: p && !known ? (p.baseCost ?? 0) - calculateAdderCost(p.adders ?? []) : 0,
     affectsPrimary: p?.affectsPrimary ?? true,
     affectsTotal: p?.affectsTotal ?? true,
@@ -343,6 +346,7 @@ export function selectPower(draft: PowerDraft, xmlId: string): PowerDraft {
     xmlId,
     levels: def ? Math.max(def.minVal ?? 1, def.levelStart ?? 1, 1) : draft.levels,
     option: def?.options?.[0]?.xmlId ?? '',
+    optionAlias: '',
     adders: [],
   };
 }
@@ -862,9 +866,10 @@ function buildPower(existing: PowerLike | undefined, draft: PowerDraft, costs: P
     option: draft.option || undefined,
     // An unchanged option keeps its label (Hero Designer users often write their own)
     optionAlias:
-      existing?.option === draft.option && existing?.optionAlias
+      draft.optionAlias ||
+      (existing?.option === draft.option && existing?.optionAlias
         ? existing.optionAlias
-        : (def?.options?.find((o) => o.xmlId === draft.option)?.display ?? existing?.optionAlias),
+        : (def?.options?.find((o) => o.xmlId === draft.option)?.display ?? existing?.optionAlias)),
     affectsPrimary: draft.affectsPrimary,
     affectsTotal: draft.affectsTotal,
     adders: draft.adders.length ? draft.adders : undefined,

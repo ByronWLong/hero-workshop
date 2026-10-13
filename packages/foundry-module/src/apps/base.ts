@@ -19,6 +19,7 @@ export const PARTIALS = [
   'editor/summary.hbs',
   'partials/typeahead.hbs',
   'partials/identity.hbs',
+  'partials/targets.hbs',
   ].map(template),
 ];
 

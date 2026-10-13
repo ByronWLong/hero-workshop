@@ -55,9 +55,18 @@ export function extractItems(xml: string, id: string): ItemTransfer | undefined 
   return { section, fragments: members.map((m) => m.toString()) };
 }
 
+/** Where a dropped item goes beside another item: just before it, or just after it (and its members) */
+export interface Placement {
+  /** HDC ID of the item it goes beside */
+  id: string;
+  after: boolean;
+}
+
 export interface InsertOptions {
   /** HDC ID of a list/framework in the target to put the top item in */
   parentId?: string;
+  /** Beside this top-level item, in its list or framework if it's in one (instead of at the end) */
+  at?: Placement;
   /** New IDs start above this (e.g. Date.now(), to stay unique among world items) */
   minId?: number;
 }
@@ -105,10 +114,84 @@ export function insertItems(
   if (top && options.parentId && !top.hasAttr('PARENTID')) top.setAttr('PARENTID', options.parentId);
 
   const section = doc.ensureSection(transfer.section);
-  for (const el of elements) section.appendElement(el);
+  const beside = options.at && doc.findById(options.at.id);
+  if (top && beside && beside.parent === section) {
+    // Beside an item: in the same list or framework
+    const parentId = beside.getAttr('PARENTID');
+    if (parentId) top.setAttr('PARENTID', parentId);
+    else top.removeAttr('PARENTID');
+  }
+  const parent = top?.getAttr('PARENTID') ? doc.findById(top.getAttr('PARENTID')!) : undefined;
+  if (top && parent && isContainerElement(top) && (isContainerElement(parent) || isCompoundElement(parent))) {
+    const name = top.getAttr('NAME') || top.getAttr('ALIAS') || 'A list or framework';
+    throw new Error(`${name} is a list or framework, which can't go inside a list, framework or compound.`);
+  }
+  if (top && parent && top.getAttr('XMLID') === 'COMPOUNDPOWER' && isCompoundElement(parent)) {
+    throw new Error(`${top.getAttr('NAME') || top.getAttr('ALIAS') || 'A compound power'} is a compound power; drop it on the compound to add its parts.`);
+  }
+  const anchor = beside && beside.parent === section ? anchorBeside(section, beside, options.at!.after) : undefined;
+  for (const el of elements) section.appendElement(el, anchor);
+  if (beside && beside.parent === section) renumber(section);
   doc.invalidateIndex();
   doc.ensureIds();
   return { xml: doc.toString(), id: top?.getAttr('ID'), ids: elements.map((el) => el.getAttr('ID')!).filter(Boolean) };
+}
+
+/** The element to insert before to land beside `target` (undefined: at the end) */
+function anchorBeside(container: XmlElement, target: XmlElement, after: boolean): XmlElement | undefined {
+  if (!after) return target;
+  // After an item comes after its members (a list's items) too
+  const group = target.parent === container && !container.hasAttr('XMLID') ? family(container, target) : [target];
+  const siblings = container.elements();
+  const last = Math.max(...group.map((el) => siblings.indexOf(el)));
+  return siblings[last + 1];
+}
+
+/** POSITION follows document order, as Hero Designer numbers it (from the first item's number) */
+function renumber(container: XmlElement): void {
+  const items = container.elements().filter(isItemChild);
+  const positions = items.map((el) => Number(el.getAttr('POSITION'))).filter(Number.isFinite);
+  const start = positions.length ? Math.max(0, Math.min(...positions)) : 0;
+  items.forEach((el, i) => {
+    if (el.getAttr('POSITION') !== String(start + i)) el.setAttr('POSITION', String(start + i));
+  });
+}
+
+/**
+ * Moves an item (with a list's or framework's members) to just before or after another item
+ * in the same list, framework or compound. Returns undefined when they aren't side by side
+ * in one (the move would change what it's in).
+ */
+export function moveItem(xml: string, id: string, at: Placement): string | undefined {
+  const doc = HdcDocument.parse(xml);
+  const el = doc.findById(id);
+  const target = doc.findById(at.id);
+  const container = el?.parent;
+  if (!el || !target || !container || el === target || target.parent !== container) return undefined;
+  if ((el.getAttr('PARENTID') ?? '') !== (target.getAttr('PARENTID') ?? '')) return undefined;
+  const moving = container.hasAttr('XMLID') ? [el] : family(container, el);
+  if (moving.includes(target)) return undefined;
+  for (const m of moving) container.removeElement(m);
+  const anchor = anchorBeside(container, target, at.after);
+  for (const m of moving) container.appendElement(m, anchor);
+  renumber(container);
+  doc.invalidateIndex();
+  return doc.toString();
+}
+
+/** The parent an item sits in for drops beside it: its compound (nested parts), or its list or framework */
+export function placementParent(xml: string, id: string): { compound?: string; parentId?: string } | undefined {
+  const doc = HdcDocument.parse(xml);
+  const el = doc.findById(id);
+  if (!el) return undefined;
+  if (el.parent?.hasAttr('XMLID')) return { compound: el.parent.getAttr('ID') };
+  return { parentId: el.getAttr('PARENTID') || undefined };
+}
+
+/** Whether a copied item is a list or framework (which can't go inside another) */
+export function isContainerTransfer(transfer: ItemTransfer): boolean {
+  const first = transfer.fragments[0];
+  return !!first && isContainerElement(parseXml(first.trim()).root);
 }
 
 // -----------------------------------------------------------------------------
@@ -179,7 +262,7 @@ export function insertParts(
   xml: string,
   transfer: ItemTransfer,
   targetId: string,
-  options: { minId?: number } = {},
+  options: { minId?: number; at?: Placement } = {},
 ): { xml: string; id: string; ids: string[] } {
   const target = partsTarget(xml, targetId);
   if (!target) throw new Error('Only a power, a piece of equipment or a compound power can take parts.');
@@ -192,13 +275,17 @@ export function insertParts(
 
   let position = 0;
   for (const el of compound.elements().filter(isItemChild)) position = Math.max(position, Number(el.getAttr('POSITION')) + 1 || 0);
+  // Beside one of its parts, or after the others
+  const beside = options.at && doc.findById(options.at.id);
+  const anchor = beside && beside.parent === compound ? anchorBeside(compound, beside, options.at!.after) : undefined;
   for (const part of parts) {
     for (const node of [part, ...part.descendants()]) if (node.hasAttr('ID')) node.setAttr('ID', doc.nextId());
     part.removeAttr('PARENTID');
     for (const attr of EQUIPMENT_ONLY) part.removeAttr(attr);
     part.setAttr('POSITION', String(position++));
-    compound.appendElement(part);
+    compound.appendElement(part, anchor);
   }
+  if (beside && beside.parent === compound) renumber(compound);
   doc.invalidateIndex();
   doc.ensureIds();
   return { xml: doc.toString(), id: compound.getAttr('ID')!, ids: parts.map((p) => p.getAttr('ID')!) };

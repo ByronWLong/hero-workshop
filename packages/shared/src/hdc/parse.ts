@@ -387,6 +387,10 @@ function parseSkillsList(container: unknown): Skill[] {
   return allSkillEntries;
 }
 
+/** Items in Hero Designer's order (POSITION); stable, so ties keep the order they were read in */
+const byPosition = <T extends { position?: number }>(items: T[]): T[] =>
+  items.map((item, i) => ({ item, i })).sort((a, b) => (a.item.position ?? 0) - (b.item.position ?? 0) || a.i - b.i).map((x) => x.item);
+
 /**
  * Parse PERKS section - handles PERK and LIST elements
  * LIST elements can contain adders that apply discounts to child perks
@@ -450,7 +454,7 @@ function parsePerksList(container: unknown): Perk[] {
     }
   }
   
-  return perks;
+  return byPosition(perks);
 }
 
 /**
@@ -497,7 +501,7 @@ function parseTalentsList(container: unknown): Talent[] {
     }
   }
   
-  return talents;
+  return byPosition(talents);
 }
 
 /**
@@ -557,7 +561,7 @@ function parseMartialArtsList(container: unknown): MartialManeuver[] {
     }
   }
   
-  return maneuvers;
+  return byPosition(maneuvers);
 }
 
 /**
@@ -873,7 +877,7 @@ function parsePowersList(container: unknown): Power[] {
   };
   powers.forEach(total);
   
-  return powers;
+  return byPosition(powers);
 }
 
 /**
@@ -895,7 +899,7 @@ function parseDisadvantagesList(container: unknown): Disadvantage[] {
     }
   }
   
-  return disadvantages;
+  return byPosition(disadvantages);
 }
 
 function parseSkill(obj: Record<string, unknown>): Skill {

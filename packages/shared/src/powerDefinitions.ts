@@ -6,6 +6,7 @@
  */
 
 import { POWER_CATALOG_6E, type CatalogEntry } from './generated/catalog6e.js';
+import { SKILL_CATALOG_6E } from './generated/skillCatalog6e.js';
 
 // ============================================================================
 // Type Definitions
@@ -1891,6 +1892,10 @@ export const CHARACTERISTIC_POWERS: Record<string, PowerDefinition> = {
 // These can be applied with advantages/limitations via equipment, powers, etc.
 // ============================================================================
 
+/** A skill's breadth options as Hero Designer's 6E template prices them */
+const templateOptions = (xmlId: string): PowerOption[] =>
+  (SKILL_CATALOG_6E.find((s) => s.xmlId === xmlId)?.options ?? []).map((o) => ({ xmlId: o.xmlId, display: o.display, lvlCost: o.lvlCost, lvlVal: o.lvlVal }));
+
 export const SKILL_LEVEL_POWERS: Record<string, PowerDefinition> = {
   // Combat Skill Levels
   COMBAT_LEVELS: {
@@ -1908,13 +1913,7 @@ export const SKILL_LEVEL_POWERS: Record<string, PowerDefinition> = {
     target: 'SELFONLY',
     types: ['STANDARD'],
     usesEnd: false,
-    options: [
-      { xmlId: 'SINGLE', display: 'with single attack', lvlCost: 2 },
-      { xmlId: 'TIGHT', display: 'with tight group of attacks', lvlCost: 3 },
-      { xmlId: 'HTH', display: 'with all HTH Combat', lvlCost: 5 },
-      { xmlId: 'RANGED', display: 'with all Ranged Combat', lvlCost: 5 },
-      { xmlId: 'ALL', display: 'with all Combat', lvlCost: 8 },
-    ],
+    options: templateOptions('COMBAT_LEVELS'),
   },
   
   // Mental Combat Skill Levels  
@@ -1933,11 +1932,7 @@ export const SKILL_LEVEL_POWERS: Record<string, PowerDefinition> = {
     target: 'SELFONLY',
     types: ['STANDARD'],
     usesEnd: false,
-    options: [
-      { xmlId: 'SINGLE', display: 'with single mental power', lvlCost: 3 },
-      { xmlId: 'TIGHT', display: 'with tight group', lvlCost: 5 },
-      { xmlId: 'ALL', display: 'with all Mental Combat', lvlCost: 8 },
-    ],
+    options: templateOptions('MENTAL_COMBAT_LEVELS'),
   },
 
   // Skill Levels
@@ -1956,14 +1951,7 @@ export const SKILL_LEVEL_POWERS: Record<string, PowerDefinition> = {
     target: 'SELFONLY',
     types: ['STANDARD'],
     usesEnd: false,
-    options: [
-      { xmlId: 'SINGLE', display: 'with single skill', lvlCost: 2 },
-      { xmlId: 'CHAR', display: 'with 3 related skills (same characteristic)', lvlCost: 2 },
-      { xmlId: 'THREE', display: 'with 3 related skills', lvlCost: 3 },
-      { xmlId: 'TIGHT', display: 'with a tight group of skills', lvlCost: 3 },
-      { xmlId: 'GROUP', display: 'with a broad group of skills', lvlCost: 4 },
-      { xmlId: 'OVERALL', display: 'with all Skills', lvlCost: 6 },
-    ],
+    options: templateOptions('SKILL_LEVELS'),
   },
 
   // Penalty Skill Levels
@@ -1982,13 +1970,7 @@ export const SKILL_LEVEL_POWERS: Record<string, PowerDefinition> = {
     target: 'SELFONLY',
     types: ['STANDARD'],
     usesEnd: false,
-    options: [
-      { xmlId: 'SINGLE', display: 'vs. one specific penalty with single attack', lvlCost: 1 },
-      { xmlId: 'SINGLEALL', display: 'vs. one specific penalty with all attacks', lvlCost: 2 },
-      { xmlId: 'THREE', display: 'vs. three penalties with single attack', lvlCost: 2 },
-      { xmlId: 'THREEALL', display: 'vs. three penalties with all attacks', lvlCost: 3 },
-      { xmlId: 'ALL', display: 'vs. all penalties with all attacks', lvlCost: 5 },
-    ],
+    options: templateOptions('PENALTY_SKILL_LEVELS'),
   },
 };
 

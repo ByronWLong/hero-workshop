@@ -9,7 +9,9 @@ import {
   addModifier,
   compoundPartsCharacter,
   itemFormValues,
+  levelTargetsField,
   saveItemForm,
+  withLevelTargets,
   powerDraft,
   powerFormView,
   powerTypeChoices,
@@ -58,6 +60,8 @@ export interface PowerDialogOptions {
   xmlId?: string;
   /** Shown but not edited (e.g. an item in a locked compendium) */
   readOnly?: boolean;
+  /** The whole character, when `character` is a compound's scratch character (attacks and skills to link to) */
+  owner?: () => Character;
 }
 
 const kindAllowsFree = (kind: PowerKind) => kind !== 'list';
@@ -91,6 +95,7 @@ export class PowerDialog extends HeroWorkshopApplication {
       matchRollCategory: PowerDialog.#onMatchRollCategory,
       convertToPowerSkill: PowerDialog.#onConvertToPowerSkill,
       convertToSpell: PowerDialog.#onConvertToSpell,
+      addTarget: PowerDialog.#onAddTarget,
       convertAllSpells: PowerDialog.#onConvertAllSpells,
       clearIcon: PowerDialog.#onClearIcon,
       clearName: PowerDialog.#onClearName,
@@ -138,9 +143,13 @@ export class PowerDialog extends HeroWorkshopApplication {
       { value: 'list', label: 'List', hint: this.config.section === 'equipment' ? 'a heading that groups gear' : 'a heading that groups powers' },
     ];
     const examples = view.definition?.inputExamples;
+    const targets = view.isPower ? this.#targetsField() : undefined;
     const input = this.#draft.input ?? '';
+    // Attack links are adders, but they're shown in the checklist
+    const linked = targets?.name === 'attacks' ? new Set((targets.value as string[]).map((n) => n.toLowerCase())) : undefined;
     return {
       ...view,
+      adders: linked ? view.adders.filter((a) => !(a.cost === 0 && linked.has(String(a.name).toLowerCase()))) : view.adders,
       powerType: {
         text: view.isCustom ? 'Custom power' : (view.definition?.display ?? ''),
         groups: powerTypeChoices(),
@@ -154,6 +163,8 @@ export class PowerDialog extends HeroWorkshopApplication {
         examples: examples.map((value) => ({ value, label: INPUT_LABELS[value] ?? value, selected: value === input && !this.#customInput })),
         custom: this.#customInput || (!!input && !examples.includes(input)),
       },
+      // Skill levels: the attacks or skills they apply to, under their headings
+      targets: targets && { ...targets, groups: groupOptions(targets.options ?? []) },
       // Skills can be changed from here only in the editor's own forms (not a compound part's)
       canConvertSkills: !this.config.idScope,
       // Keeps each dialog's search lists apart
@@ -205,6 +216,14 @@ export class PowerDialog extends HeroWorkshopApplication {
         return this.#update({ ...draft, kind: value as PowerDraft['kind'] });
       case 'xmlId':
         return this.#update(selectPower(draft, value));
+      case 'option': {
+        // A new option has its own wording, except that Skill Levels keep naming their skills
+        const skills = this.#targetsField();
+        const changed = { ...draft, option: value, optionAlias: '' };
+        if (skills?.name !== 'skills') return this.#update(changed);
+        const item = { xmlid: changed.xmlId, option: value, adders: changed.adders, optionAlias: '' };
+        return this.#update({ ...changed, optionAlias: withLevelTargets(item, 'skills', skills.value as string[]).optionAlias ?? '' });
+      }
       case 'addPart':
         // A compound's "Add a power by name" box opens the part's form with that power chosen
         return value ? this.#openPart(undefined, value) : undefined;
@@ -231,6 +250,29 @@ export class PowerDialog extends HeroWorkshopApplication {
         if (target.type === 'number') return this.#update({ ...draft, [field]: Number.isFinite(n) ? n : 0 });
         this.#update({ ...draft, [field]: value });
     }
+  }
+
+  #targetsField() {
+    const d = this.#draft;
+    const owner = (this.config.owner ?? this.config.character)();
+    return levelTargetsField(owner, { xmlid: d.xmlId, option: d.option, adders: d.adders, optionAlias: d.optionAlias });
+  }
+
+  /** Ticking an attack or skill applies the levels to it */
+  #toggleTarget(name: string, on: boolean) {
+    const field = this.#targetsField();
+    if (!field) return;
+    const chosen = (field.value as string[]).filter((n) => n.toLowerCase() !== name.toLowerCase());
+    const d = this.#draft;
+    const item = { xmlid: d.xmlId, option: d.option, adders: d.adders, optionAlias: d.optionAlias };
+    const { adders, optionAlias } = withLevelTargets(item, field.name, on ? [...chosen, name] : chosen);
+    this.#update({ ...d, adders: adders ?? [], optionAlias: optionAlias ?? '' });
+  }
+
+  static #onAddTarget(this: PowerDialog) {
+    const input = this.element.querySelector<HTMLInputElement>('.hw-attack-other input');
+    const name = input?.value.trim();
+    if (name) this.#toggleTarget(name, true);
   }
 
   static #onRemoveAdder(this: PowerDialog, _event: Event, target: HTMLElement) {
@@ -262,6 +304,7 @@ export class PowerDialog extends HeroWorkshopApplication {
       isPart: true,
       inEquipment: this.config.section === 'equipment' || this.config.inEquipment,
       readOnly: this.readOnly,
+      owner: this.config.owner ?? this.config.character,
       character: () => compoundPartsCharacter(this.config.character(), this.#draft),
       onSave: (character) => this.#update(setSubPowers(this.#draft, character.powers)),
     }).render({ force: true });
@@ -290,6 +333,9 @@ export class PowerDialog extends HeroWorkshopApplication {
 
   _onRender(context: unknown, options: unknown): void {
     super._onRender(context, options);
+    this.element.querySelectorAll<HTMLInputElement>('input[data-target]').forEach((box) => {
+      box.addEventListener('change', () => this.#toggleTarget(box.dataset.target!, box.checked));
+    });
     if (this.#dragListening) return;
     this.#dragListening = true;
     const el = this.element;
@@ -392,4 +438,16 @@ export class PowerDialog extends HeroWorkshopApplication {
     const { section, itemId, character, onSave } = this.config;
     onSave(savePowerDraft(character(), section, itemId, this.#draft));
   }
+}
+
+/** Checklist options under their headings */
+function groupOptions<T extends { group?: string }>(options: T[]): { name: string; options: T[] }[] {
+  const groups: { name: string; options: T[] }[] = [];
+  for (const option of options) {
+    const name = option.group ?? '';
+    let group = groups.find((g) => g.name === name);
+    if (!group) groups.push((group = { name, options: [] }));
+    group.options.push(option);
+  }
+  return groups;
 }

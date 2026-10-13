@@ -20,20 +20,7 @@
         {{#each field.options}}<option value="{{value}}" {{#if selected}}selected{{/if}}>{{label}}</option>{{/each}}
       </select>
       {{else if (eq field.type "attacks")}}
-      <div class="hw-attacks">
-        {{#each field.groups as |group|}}
-        <h4 class="hw-attack-group">{{group.name}}</h4>
-        {{#each group.options}}
-        <label class="checkbox"><input type="checkbox" data-attack="{{value}}" {{checked selected}}> {{label}}{{#if detail}} <span class="hint">({{detail}})</span>{{/if}}</label>
-        {{/each}}
-        {{else}}
-        <p class="hint">This character has no attacks yet.</p>
-        {{/each}}
-        <div class="hw-attack-other">
-          <input type="text" placeholder="Other attack or maneuver, e.g. Strike" aria-label="Other attack or maneuver">
-          <button type="button" data-action="addAttack"><i class="fa-solid fa-plus" inert></i> Add</button>
-        </div>
-      </div>
+      {{> "modules/hero-workshop/templates/partials/targets.hbs" field=field.name groups=field.groups}}
       {{else if (eq field.type "checkbox")}}
       <input id="hw-field-{{field.name}}" type="checkbox" name="{{field.name}}" data-field="{{field.name}}" {{checked field.value}}>
       {{else if (eq field.type "textarea")}}

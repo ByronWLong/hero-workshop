@@ -45,7 +45,7 @@ export class ItemDialog extends HeroWorkshopApplication {
     window: { icon: 'fa-solid fa-pen-to-square', resizable: true },
     form: { handler: ItemDialog.#onSubmit, closeOnSubmit: true },
     actions: {
-      addAttack: ItemDialog.#onAddAttack,
+      addTarget: ItemDialog.#onAddTarget,
       pickIcon: ItemDialog.#onPickIcon,
       clearIcon: ItemDialog.#onClearIcon,
       clearName: ItemDialog.#onClearName,
@@ -127,27 +127,27 @@ export class ItemDialog extends HeroWorkshopApplication {
     void this.render();
   }
 
-  #attacks(): string[] {
-    return Array.isArray(this.#values.attacks) ? this.#values.attacks : [];
-  }
-
-  /** Ticking an attack links the skill's levels to it */
-  #toggleAttack(name: string, on: boolean) {
-    const others = this.#attacks().filter((n) => n.toLowerCase() !== name.toLowerCase());
-    this.#values = { ...this.#values, attacks: on ? [...others, name] : others };
+  /** Ticking an attack or skill applies the skill's levels to it */
+  #toggleTarget(name: string, on: boolean) {
+    const field = itemForm(this.config.section, this.#values, !this.config.itemId, this.config.character()).fields.find(
+      (f) => f.type === 'attacks',
+    );
+    if (!field) return;
+    const others = (field.value as string[]).filter((n) => n.toLowerCase() !== name.toLowerCase());
+    this.#values = { ...this.#values, [field.name]: on ? [...others, name] : others };
     void this.render();
   }
 
-  static #onAddAttack(this: ItemDialog) {
+  static #onAddTarget(this: ItemDialog) {
     const input = this.element.querySelector<HTMLInputElement>('.hw-attack-other input');
     const name = input?.value.trim();
-    if (name) this.#toggleAttack(name, true);
+    if (name) this.#toggleTarget(name, true);
   }
 
   _onRender(context: unknown, options: unknown): void {
     super._onRender(context, options);
-    this.element.querySelectorAll<HTMLInputElement>('input[data-attack]').forEach((box) => {
-      box.addEventListener('change', () => this.#toggleAttack(box.dataset.attack!, box.checked));
+    this.element.querySelectorAll<HTMLInputElement>('input[data-target]').forEach((box) => {
+      box.addEventListener('change', () => this.#toggleTarget(box.dataset.target!, box.checked));
     });
   }
 
