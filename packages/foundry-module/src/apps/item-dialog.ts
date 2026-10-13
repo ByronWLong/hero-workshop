@@ -46,6 +46,7 @@ export class ItemDialog extends HeroWorkshopApplication {
     form: { handler: ItemDialog.#onSubmit, closeOnSubmit: true },
     actions: {
       addTarget: ItemDialog.#onAddTarget,
+      pickTargets: ItemDialog.#onPickTargets,
       pickIcon: ItemDialog.#onPickIcon,
       clearIcon: ItemDialog.#onClearIcon,
       clearName: ItemDialog.#onClearName,
@@ -127,11 +128,24 @@ export class ItemDialog extends HeroWorkshopApplication {
     void this.render();
   }
 
+  #targetsField() {
+    return itemForm(this.config.section, this.#values, !this.config.itemId, this.config.character()).fields.find((f) => f.type === 'attacks');
+  }
+
+  /** "Tick all Agility skills" and the like */
+  static #onPickTargets(this: ItemDialog, _event: Event, target: HTMLElement) {
+    const field = this.#targetsField();
+    const pick = field?.picks?.[Number(target.dataset.index)];
+    if (!field || !pick) return;
+    const chosen = field.value as string[];
+    const added = pick.values.filter((n) => !chosen.some((c) => c.toLowerCase() === n.toLowerCase()));
+    this.#values = { ...this.#values, [field.name]: [...chosen, ...added] };
+    void this.render();
+  }
+
   /** Ticking an attack or skill applies the skill's levels to it */
   #toggleTarget(name: string, on: boolean) {
-    const field = itemForm(this.config.section, this.#values, !this.config.itemId, this.config.character()).fields.find(
-      (f) => f.type === 'attacks',
-    );
+    const field = this.#targetsField();
     if (!field) return;
     const others = (field.value as string[]).filter((n) => n.toLowerCase() !== name.toLowerCase());
     this.#values = { ...this.#values, [field.name]: on ? [...others, name] : others };

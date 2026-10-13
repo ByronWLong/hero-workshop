@@ -1,4 +1,9 @@
 <div class="hw-attacks">
+  {{#if picks.length}}
+  <div class="hw-target-picks">
+    {{#each picks}}<a data-action="pickTargets" data-index="{{@index}}">{{label}}</a>{{/each}}
+  </div>
+  {{/if}}
   {{#each groups as |group|}}
   <h4 class="hw-attack-group">{{group.name}}</h4>
   {{#each group.options}}

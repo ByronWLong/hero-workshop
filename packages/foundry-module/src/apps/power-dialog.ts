@@ -96,6 +96,7 @@ export class PowerDialog extends HeroWorkshopApplication {
       convertToPowerSkill: PowerDialog.#onConvertToPowerSkill,
       convertToSpell: PowerDialog.#onConvertToSpell,
       addTarget: PowerDialog.#onAddTarget,
+      pickTargets: PowerDialog.#onPickTargets,
       convertAllSpells: PowerDialog.#onConvertAllSpells,
       clearIcon: PowerDialog.#onClearIcon,
       clearName: PowerDialog.#onClearName,
@@ -258,15 +259,29 @@ export class PowerDialog extends HeroWorkshopApplication {
     return levelTargetsField(owner, { xmlid: d.xmlId, option: d.option, adders: d.adders, optionAlias: d.optionAlias });
   }
 
+  /** The draft with the levels applied to these attacks or skills */
+  #withTargets(d: PowerDraft, field: string, chosen: string[]): PowerDraft {
+    const item = { xmlid: d.xmlId, option: d.option, adders: d.adders, optionAlias: d.optionAlias };
+    const { adders, optionAlias } = withLevelTargets(item, field, chosen);
+    return { ...d, adders: adders ?? [], optionAlias: optionAlias ?? '' };
+  }
+
   /** Ticking an attack or skill applies the levels to it */
   #toggleTarget(name: string, on: boolean) {
     const field = this.#targetsField();
     if (!field) return;
     const chosen = (field.value as string[]).filter((n) => n.toLowerCase() !== name.toLowerCase());
-    const d = this.#draft;
-    const item = { xmlid: d.xmlId, option: d.option, adders: d.adders, optionAlias: d.optionAlias };
-    const { adders, optionAlias } = withLevelTargets(item, field.name, on ? [...chosen, name] : chosen);
-    this.#update({ ...d, adders: adders ?? [], optionAlias: optionAlias ?? '' });
+    this.#update(this.#withTargets(this.#draft, field.name, on ? [...chosen, name] : chosen));
+  }
+
+  /** "Tick all Agility skills" and the like */
+  static #onPickTargets(this: PowerDialog, _event: Event, target: HTMLElement) {
+    const field = this.#targetsField();
+    const pick = field?.picks?.[Number(target.dataset.index)];
+    if (!field || !pick) return;
+    const chosen = field.value as string[];
+    const added = pick.values.filter((n) => !chosen.some((c) => c.toLowerCase() === n.toLowerCase()));
+    this.#update(this.#withTargets(this.#draft, field.name, [...chosen, ...added]));
   }
 
   static #onAddTarget(this: PowerDialog) {
@@ -436,7 +451,10 @@ export class PowerDialog extends HeroWorkshopApplication {
 
   static #onSubmit(this: PowerDialog) {
     const { section, itemId, character, onSave } = this.config;
-    onSave(savePowerDraft(character(), section, itemId, this.#draft));
+    // A broad Skill Levels option's skills are saved even if the checklist wasn't touched
+    const targets = this.#draft.kind === 'power' ? this.#targetsField() : undefined;
+    const draft = targets?.defaulted ? this.#withTargets(this.#draft, targets.name, targets.value as string[]) : this.#draft;
+    onSave(savePowerDraft(character(), section, itemId, draft));
   }
 }
 

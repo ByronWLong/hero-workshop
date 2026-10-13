@@ -20,7 +20,7 @@
         {{#each field.options}}<option value="{{value}}" {{#if selected}}selected{{/if}}>{{label}}</option>{{/each}}
       </select>
       {{else if (eq field.type "attacks")}}
-      {{> "modules/hero-workshop/templates/partials/targets.hbs" field=field.name groups=field.groups}}
+      {{> "modules/hero-workshop/templates/partials/targets.hbs" field=field.name groups=field.groups picks=field.picks}}
       {{else if (eq field.type "checkbox")}}
       <input id="hw-field-{{field.name}}" type="checkbox" name="{{field.name}}" data-field="{{field.name}}" {{checked field.value}}>
       {{else if (eq field.type "textarea")}}

@@ -112,6 +112,23 @@ describe('Skill Levels', () => {
     expect(skillsInAlias('SKILL_LEVELS', 'with Stealth, Climbing and DEX Roll', field.options!)).toEqual(['Stealth', 'Climbing', 'DEX Roll']);
   });
 
+  it('name the skills a broad option covers, so hero6e applies them', () => {
+    const character = parseHdcFile(skills);
+    const values = { ...itemFormValues(character, 'skills', '7003'), option: 'AGILITY' };
+    const field = itemForm('skills', values, false, character).fields.find((f) => f.name === 'skills')!;
+    expect(field.value).toEqual(['Stealth', 'Climbing']);
+    expect(field.defaulted).toBe(true);
+    expect(field.picks).toEqual([{ label: 'Tick all Agility skills', values: ['Stealth', 'Climbing'] }]);
+    // Saved even when the checklist wasn't touched
+    const { xml } = updateHdc(skills, saveItemForm(character, 'skills', '7003', values));
+    const alias = HdcDocument.parse(xml).findById('7003')!.getAttr('OPTION_ALIAS')!;
+    expect(alias).toBe('with all Agility Skills (Stealth, Climbing)');
+    expect(skillsInAlias('SKILL_LEVELS', alias, field.options!)).toEqual(['Stealth', 'Climbing']);
+    // A broad group offers its groups to tick, and starts with none
+    const group = itemForm('skills', { ...values, option: 'GROUP' }, false, character).fields.find((f) => f.name === 'skills')!;
+    expect(group.value).toEqual([]);
+  });
+
   it('link Combat Skill Levels bought as a power to attacks through adders', () => {
     const character = parseHdcFile(source);
     const item = { xmlid: 'COMBAT_LEVELS', option: 'SINGLE', adders: [] };

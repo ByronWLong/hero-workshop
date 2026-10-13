@@ -82,7 +82,7 @@
   <div class="form-group stacked">
     <label>{{targets.label}}</label>
     <div class="form-fields">
-      {{> "modules/hero-workshop/templates/partials/targets.hbs" field=targets.name groups=targets.groups}}
+      {{> "modules/hero-workshop/templates/partials/targets.hbs" field=targets.name groups=targets.groups picks=targets.picks}}
     </div>
     {{#if targets.hint}}<p class="hint">{{targets.hint}}</p>{{/if}}
   </div>

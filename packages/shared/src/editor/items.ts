@@ -49,6 +49,10 @@ export interface FormField {
   value: string | number | boolean | string[];
   options?: FieldOption[];
   hint?: string;
+  /** Checklists: shortcuts that tick a group of choices ("Tick all Agility skills") */
+  picks?: { label: string; values: string[] }[];
+  /** The checklist's value is a starting choice the item doesn't have yet (saved with it) */
+  defaulted?: boolean;
 }
 
 export interface ItemForm {
@@ -173,25 +177,65 @@ function withAttackLinks(adders: Adder[] | undefined, chosen: string[]): Adder[]
 
 /**
  * Skill Levels options that apply to chosen skills. hero6e finds them by name: a skill roll
- * gets the levels when the Skill Levels' OPTION_ALIAS contains the skill's name or XMLID.
+ * gets the levels when the Skill Levels' OPTION_ALIAS contains the skill's name or XMLID, so
+ * even the broad options ("with all Agility Skills") name their skills to take effect.
  */
 const SKILL_LINKED_OPTIONS = ['CHARACTERISTIC', 'RELATED', 'SINGLE', 'CHAR', 'THREE', 'TIGHT'];
 
+type SkillGroup = 'Agility' | 'Intellect' | 'Interaction' | 'Background' | 'Non-Combat' | 'All';
+
+/** Broad options and the skill groups they cover; a preset option starts with its first group ticked */
+const BROAD_OPTIONS: Record<string, { picks: SkillGroup[]; preset: boolean }> = {
+  GROUP: { picks: ['Intellect', 'Interaction', 'Background'], preset: false },
+  AGILITY: { picks: ['Agility'], preset: true },
+  NONCOMBAT: { picks: ['Non-Combat'], preset: true },
+  OVERALL: { picks: ['All'], preset: true },
+  ALL: { picks: ['All'], preset: true },
+};
+
+/** Combat Skills (6E): Skill Levels with all Non-Combat Skills don't cover them */
+const COMBAT_SKILLS = new Set([
+  'AUTOFIRE_SKILLS', 'DEFENSE_MANEUVER', 'RAPID_ATTACK_HTH', 'RAPID_ATTACK_RANGED',
+  'TWO_WEAPON_FIGHTING_HTH', 'TWO_WEAPON_FIGHTING_RANGED', 'WEAPON_FAMILIARITY',
+]);
+const BACKGROUND_SKILLS = new Set([
+  'KNOWLEDGE_SKILL', 'PROFESSIONAL_SKILL', 'SCIENCE_SKILL', 'AREA_KNOWLEDGE', 'CITY_KNOWLEDGE', 'LANGUAGES', 'TRANSPORT_FAMILIARITY',
+]);
+
+const IN_GROUP: Record<SkillGroup, (s: { xmlid: string; characteristic?: string }) => boolean> = {
+  Agility: (s) => s.characteristic === 'DEX' && !COMBAT_SKILLS.has(s.xmlid),
+  Intellect: (s) => s.characteristic === 'INT' && !BACKGROUND_SKILLS.has(s.xmlid),
+  Interaction: (s) => s.characteristic === 'PRE',
+  Background: (s) => BACKGROUND_SKILLS.has(s.xmlid),
+  'Non-Combat': (s) => !COMBAT_SKILLS.has(s.xmlid),
+  All: () => true,
+};
+
 /** Whether these Skill Levels (with this option) apply to chosen skills */
 export function showsSkills(xmlid: string, option: string): boolean {
-  return xmlid === 'SKILL_LEVELS' && SKILL_LINKED_OPTIONS.includes(option || 'CHARACTERISTIC');
+  return xmlid === 'SKILL_LEVELS' && (SKILL_LINKED_OPTIONS.includes(option || 'CHARACTERISTIC') || option in BROAD_OPTIONS);
 }
 
 /** Skill Levels and the like don't take levels themselves */
 const NOT_LEVELLED = new Set(['SKILL_LEVELS', 'COMBAT_LEVELS', 'MENTAL_COMBAT_LEVELS', 'PENALTY_SKILL_LEVELS']);
 
+export interface SkillLevelChoice {
+  value: string;
+  label: string;
+  group: string;
+  xmlid: string;
+  characteristic?: string;
+}
+
 /** The character's skills Skill Levels can apply to, by the name hero6e matches */
-export function skillLevelChoices(character: Character): { value: string; label: string; group: string }[] {
-  const out: { value: string; label: string; group: string }[] = [];
+export function skillLevelChoices(character: Character): SkillLevelChoice[] {
+  const out: SkillLevelChoice[] = [];
   for (const s of character.skills) {
     if (s.isGroup || NOT_LEVELLED.has(s.xmlid ?? '')) continue;
     const name = s.bindingName ?? s.name;
-    if (name && !out.some((o) => o.value.toLowerCase() === name.toLowerCase())) out.push({ value: name, label: name, group: 'Skills' });
+    if (name && !out.some((o) => o.value.toLowerCase() === name.toLowerCase())) {
+      out.push({ value: name, label: name, group: 'Skills', xmlid: s.xmlid ?? '', characteristic: s.characteristic });
+    }
   }
   return out;
 }
@@ -199,11 +243,16 @@ export function skillLevelChoices(character: Character): { value: string; label:
 const escapeRegex = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 const namesIn = (text: string, name: string) => new RegExp(`(^|[^\\w])${escapeRegex(name)}($|[^\\w])`, 'i').test(text);
 
-/** The skills an OPTION_ALIAS ("with Stealth, Climbing") names: the character's, then any others */
+/**
+ * The skills an OPTION_ALIAS names ("with Stealth, Climbing", "with all Agility Skills
+ * (Stealth, Climbing)"): the character's, then any others
+ */
 export function skillsInAlias(xmlid: string, alias: string | undefined, choices: { value: string }[]): string[] {
-  const text = (alias ?? '').trim();
-  // The option's own wording names no skill
-  if (!text || skillLevelOptions(xmlid)?.some((o) => o.display.toLowerCase() === text.toLowerCase())) return [];
+  let text = (alias ?? '').trim();
+  // The option's own wording names no skill; a broad option names its skills after it, in brackets
+  const wording = skillLevelOptions(xmlid)?.find((o) => text.toLowerCase().startsWith(o.display.toLowerCase()));
+  if (wording) text = text.slice(wording.display.length).trim().replace(/^\((.*)\)$/, '$1');
+  if (!text) return [];
   const known = choices.filter((c) => namesIn(text, c.value)).map((c) => c.value);
   const others = text
     .replace(/^with\s+/i, '')
@@ -213,9 +262,15 @@ export function skillsInAlias(xmlid: string, alias: string | undefined, choices:
   return [...known, ...others];
 }
 
-/** The OPTION_ALIAS naming these skills, or the option's own wording when there are none */
+/**
+ * The OPTION_ALIAS naming these skills: "with Stealth, Climbing", or for a broad option its
+ * wording and then the skills ("with all Agility Skills (Stealth, Climbing)"). The option's
+ * own wording when there are none.
+ */
 export function skillLevelAlias(xmlid: string, option: string, skills: string[]): string | undefined {
-  return skills.length ? `with ${skills.join(', ')}` : skillLevelOption(xmlid, option)?.display;
+  const wording = skillLevelOption(xmlid, option)?.display;
+  if (!skills.length) return wording;
+  return option in BROAD_OPTIONS && wording ? `${wording} (${skills.join(', ')})` : `with ${skills.join(', ')}`;
 }
 
 /**
@@ -243,14 +298,26 @@ export function levelTargetsField(
   }
   if (showsSkills(xmlid, option)) {
     const choices = character ? skillLevelChoices(character) : [];
-    const chosen = chosenNow ?? skillsInAlias(xmlid, item.optionAlias, choices);
+    const broad = BROAD_OPTIONS[option];
+    const picks = (broad?.picks ?? []).map((group) => ({
+      label: group === 'All' ? 'Tick every skill' : `Tick all ${group} skills`,
+      values: choices.filter(IN_GROUP[group]).map((c) => c.value),
+    }));
+    let chosen = chosenNow ?? skillsInAlias(xmlid, item.optionAlias, choices);
+    // A broad option that names no skills yet starts with the skills it covers
+    const defaulted = !chosenNow && !chosen.length && !!broad?.preset && !!picks[0]?.values.length;
+    if (defaulted) chosen = picks[0]!.values;
     return {
       name: 'skills',
       label: 'Skills it applies to',
       type: 'attacks',
       value: chosen,
-      hint: 'hero6e adds the levels to rolls with these skills (it looks for their names in the option text).',
+      hint: broad
+        ? 'hero6e adds the levels only to rolls with skills the option text names, so the skills it covers are listed after it. Tick any you add later.'
+        : 'hero6e adds the levels to rolls with these skills (it looks for their names in the option text).',
       options: checklist(choices, chosen),
+      picks: picks.filter((p) => p.values.length),
+      defaulted,
     };
   }
   return undefined;
@@ -260,7 +327,7 @@ export function levelTargetsField(
 function checklist(choices: { value: string; label: string; group: string; detail?: string }[], chosen: string[]): FieldOption[] {
   const known = new Set(choices.map((c) => c.value.toLowerCase()));
   return [
-    ...choices.map((c) => ({ ...c, selected: chosen.some((n) => n.toLowerCase() === c.value.toLowerCase()) })),
+    ...choices.map(({ value, label, group, detail }) => ({ value, label, group, detail, selected: chosen.some((n) => n.toLowerCase() === value.toLowerCase()) })),
     // Linked names that match none of the character's own items (standard maneuvers like Strike, renamed attacks)
     ...chosen.filter((n) => !known.has(n.toLowerCase())).map((n) => ({ value: n, label: n, group: 'Other', selected: true })),
   ];
@@ -437,7 +504,7 @@ function saveLabelledSkill(existing: Skill | undefined, v: FormValues, position:
   } as Skill;
 }
 
-function saveSkill(existing: Skill | undefined, v: FormValues, position: number): Skill {
+function saveSkill(existing: Skill | undefined, v: FormValues, position: number, character?: Character): Skill {
   const xmlid = str(v.xmlid);
   if (LABELLED_SKILL_XMLIDS.includes(xmlid)) return saveLabelledSkill(existing, v, position);
   const entry = SKILLS_BY_ID.get(xmlid);
@@ -459,8 +526,11 @@ function saveSkill(existing: Skill | undefined, v: FormValues, position: number)
 
   let adders = existing?.adders;
   if (showsAttacks(xmlid, str(v.option)) && Array.isArray(v.attacks)) adders = withAttackLinks(adders, v.attacks);
-  // Skill Levels name their skills in OPTION_ALIAS
-  const skillsAlias = showsSkills(xmlid, str(v.option)) && Array.isArray(v.skills) ? skillLevelAlias(xmlid, str(v.option), v.skills) : undefined;
+  // Skill Levels name their skills in OPTION_ALIAS (a broad option's skills, even if the form wasn't touched)
+  const targets = showsSkills(xmlid, str(v.option))
+    ? levelTargetsField(character, { xmlid, option: str(v.option), optionAlias: str(v.optionAlias) }, Array.isArray(v.skills) ? list(v.skills) : undefined)
+    : undefined;
+  const skillsAlias = targets && (Array.isArray(v.skills) || targets.defaulted) ? skillLevelAlias(xmlid, str(v.option), targets.value as string[]) : undefined;
   if (xmlid === 'LANGUAGES') {
     const others = (adders ?? []).filter((a) => a.xmlId !== 'LITERACY');
     const literacy = (existing?.adders ?? []).find((a) => a.xmlId === 'LITERACY') ?? {
@@ -730,7 +800,7 @@ export function saveItemForm(character: Character, section: FormSection, itemId:
   switch (section) {
     case 'skills': {
       const before = existing as Skill | undefined;
-      const skill = saveSkill(before, values, position);
+      const skill = saveSkill(before, values, position, character);
       const saved = { ...character, skills: put(character.skills, skill) };
       return before ? retargetSkillRolls(saved, before, skill) : saved;
     }
