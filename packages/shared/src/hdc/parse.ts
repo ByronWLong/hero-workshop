@@ -32,8 +32,19 @@ import { SKILL_CATALOG_6E } from '../generated/skillCatalog6e.js';
 import { skillLevelCost } from '../skillLevels.js';
 
 const SKILL_CATALOG_BY_ID = new Map(SKILL_CATALOG_6E.map((s) => [s.xmlId, s]));
-import { getPowerDefinition } from '../powerDefinitions.js';
-import { NND, aoeValue, clampModifierValue, getModifierByXmlId, isNnd } from '../modifierDefinitions.js';
+import { flashDefenseLevels, getPowerDefinition, powerLevelsCost, steppedCost } from '../powerDefinitions.js';
+import {
+  NND,
+  aoeValue,
+  clampModifierValue,
+  getModifierByXmlId,
+  isNnd,
+  subModifierFor,
+  powerEndCost,
+  subModifierSuffix,
+  valueOnPower,
+  withSubModifiers,
+} from '../modifierDefinitions.js';
 import {
   CHARACTERISTIC_RULES_6E,
   characteristicCost,
@@ -619,7 +630,7 @@ function levelCost(
   const option = optionId ? def?.options?.find((o) => o.xmlId === optionId) : undefined;
   const perLevel = fileLvlCost >= 0 ? fileLvlCost : (option?.lvlCost ?? def?.lvlCost ?? 1);
   const step = option?.lvlVal || def?.lvlVal || 1;
-  return { perLevel, cost: (levels / step) * perLevel };
+  return { perLevel, cost: powerLevelsCost(def?.xmlId, 0, levels, step, perLevel) };
 }
 
 /** A Multipower or Variable Power Pool element: a container with its own reserve/pool cost */
@@ -799,6 +810,11 @@ function parsePowersList(container: unknown): Power[] {
           power.realCost = totalLimitations > 0
             ? heroRoundCost(power.activeCost / (1 + totalLimitations))
             : power.activeCost;
+
+          // The list's modifiers count for END too (Charges on the list, Reduced Endurance...)
+          const listedEnd = getAttrNum(powerObj, 'END_COST', -1) === -1 && getAttrNum(powerObj, 'ENDCOST', -1) === -1;
+          const def = getPowerDefinition(getAttr(powerObj, 'XMLID', ''));
+          if (listedEnd && def) power.endCost = powerEndCost(trueBase, def.usesEnd !== false, [...powerMods, ...listMods]);
         }
         
         // Apply list discount adders (like Cantrip's -1 per child power)
@@ -1280,10 +1296,12 @@ function parsePower(obj: Record<string, unknown>): Power {
   let lvlCost = getAttrNum(obj, 'LVLCOST', -1); // Use -1 as sentinel for "not specified"
   
   const powerDef = getPowerDefinition(xmlid);
-  const leveled = levelCost(powerDef, optionId, levels, lvlCost);
+  // Resistant Protection's Flash Defense is priced with its other defenses
+  const flash = flashDefenseLevels(xmlid, adders);
+  const leveled = levelCost(powerDef, optionId, levels + flash, lvlCost);
   lvlCost = leveled.perLevel;
 
-  const adderCost = calculateAdderCost(adders);
+  const adderCost = calculateAdderCost(flash ? adders.filter((a) => a.xmlId !== 'FLASHDEFENSE') : adders);
   
   // True base cost = BASECOST + (levels * lvlCost) + adderCosts (before advantages)
   let trueBaseCost = hdcBaseCost + leveled.cost + adderCost;
@@ -1340,7 +1358,7 @@ function parsePower(obj: Record<string, unknown>): Power {
     // Defense cost: 3 CP per 2 points of resistant defense (round up)
     // So each point of defense costs 1.5 CP
     const totalDefense = pdLevels + edLevels + mdLevels + powdLevels;
-    const defenseCost = Math.ceil(totalDefense * 1.5);
+    const defenseCost = steppedCost(0, totalDefense, 2, 3); // a part pair costs a whole one
     
     // Dimension cost: 1 CP per meter above base (using raw levels)
     const dimensionCost = lengthLevelsRaw + heightLevelsRaw + (widthLevelsRaw * 2);
@@ -1391,9 +1409,9 @@ function parsePower(obj: Record<string, unknown>): Power {
   
   if (xmlEndCost !== -1) endCost = xmlEndCost;
   else if (xmlEndCost2 !== -1) endCost = xmlEndCost2;
-  else if (powerDef && powerDef.usesEnd !== false) {
-    // Standard END cost is 1 per 10 Active Points
-    endCost = Math.ceil(activeCost / 10);
+  else if (powerDef) {
+    // 1 END per 10 Active Points, as Hero Designer adjusts it for the power's modifiers
+    endCost = powerEndCost(trueBaseCost, powerDef.usesEnd !== false, modifiers);
   }
   
   // Store PARENTID for list modifier application
@@ -1730,8 +1748,10 @@ function parseEquipmentItem(obj: Record<string, unknown>): Equipment {
   
   // An item that is one power is priced as the powers section prices it (a Barrier's size and
   // defenses, an Endurance Reserve's Recovery, a negative characteristic's lack of refund)
+  let singleEnd: number | undefined;
   if (subPowers.length === 0 && xmlid !== 'COMPOUNDPOWER') {
     const single = parsePower(obj);
+    singleEnd = single.endCost;
     totalActiveCost = single.activeCost ?? 0;
     totalRealCost = single.realCost ?? 0;
   } else if (totalRealCost === 0) {
@@ -1750,8 +1770,8 @@ function parseEquipmentItem(obj: Record<string, unknown>): Equipment {
     }
   }
   
-  // Calculate END cost
-  const endCost = Math.ceil(totalActiveCost / 10);
+  // END: the one power's, or the parts' together
+  const endCost = subPowers.length ? subPowers.reduce((sum, p) => sum + (p.endCost ?? 0), 0) : (singleEnd ?? 0);
   
   // Convert weight from lbs (HDC file) to kg (UI)
   const weightLbs = getAttrNum(obj, 'WEIGHT');
@@ -1785,7 +1805,18 @@ function parseEquipmentItem(obj: Record<string, unknown>): Equipment {
   };
 }
 
-function parseModifiers(obj: Record<string, unknown>): Modifier[] {
+/** Linked's target (LINKED_ID), and whether Hero Designer priced it as linked to a lesser power */
+function linkOf(mod: Record<string, unknown>, xmlid: string): Pick<Modifier, 'linkedId' | 'linkedToLesser'> {
+  if (xmlid !== 'LINKED') return {};
+  const id = getAttr(mod, 'LINKED_ID', '');
+  return {
+    linkedId: id && id !== '-1' ? id : undefined,
+    linkedToLesser: getAttrNum(mod, 'BASECOST', -0.5) > -0.5 || undefined,
+  };
+}
+
+/** A power's (or list's) modifiers; given a parent modifier's XMLID, that modifier's own */
+function parseModifiers(obj: Record<string, unknown>, parentXmlId?: string): Modifier[] {
   const modifiers: Modifier[] = [];
   const modContainer = obj['MODIFIERS'] ?? obj['MODIFIER'];
   
@@ -1806,11 +1837,11 @@ function parseModifiers(obj: Record<string, unknown>): Modifier[] {
       // Parse adders (like "All Or Nothing" for AVAD)
       const adders = parseAdders(mod);
       
-      // Calculate adder cost contribution to the modifier value
-      const adderCost = adders.reduce((sum, a) => sum + (a.baseCost || 0), 0);
+      // Calculate adder cost contribution to the modifier value (leveled ones: Mobile, x2 shots)
+      const adderCost = adders.reduce((sum, a) => sum + (a.baseCost || 0) + (a.levels ?? 0) * (a.lvlCost ?? 0), 0);
       
       // Look up modifier definition to calculate leveled modifier values
-      const modDef = getModifierByXmlId(xmlid);
+      const modDef = parentXmlId ? subModifierFor(parentXmlId, xmlid) : getModifierByXmlId(xmlid);
       
       // For leveled modifiers (like Armor Piercing), calculate value from levels
       if (modDef && modDef.hasLevels && levels > 0) {
@@ -1823,6 +1854,10 @@ function parseModifiers(obj: Record<string, unknown>): Modifier[] {
       
       // Add adder costs to the modifier value
       modValue += adderCost;
+
+      // The modifier's own modifiers (Gestures "throughout" doubles it), as Hero Designer applies them
+      const subModifiers = parentXmlId ? [] : parseModifiers(mod, xmlid);
+      modValue = withSubModifiers({ xmlId: xmlid, adders, modifiers: subModifiers }, modValue);
 
       // Hero Designer holds a modifier within its template MINCOST/MAXCOST (Requires A Roll is
       // at most -1/4, so a 14- roll is -1/4, not +1/4)
@@ -1837,6 +1872,7 @@ function parseModifiers(obj: Record<string, unknown>): Modifier[] {
         displayName = `${alias} (${optionAlias})`;
       }
       if (isNnd({ xmlId: xmlid, optionId, adders })) displayName = NND.display;
+      displayName += subModifierSuffix(xmlid, subModifiers);
       
       // Check for explicit ISLIMITATION attribute (handles cases like Expanded Effect
       // where BASECOST is negative but it's actually an advantage due to level costs)
@@ -1869,10 +1905,21 @@ function parseModifiers(obj: Record<string, unknown>): Modifier[] {
         input: input || undefined,
         optionId: optionId || undefined,
         optionAlias: optionAlias || undefined,
+        modifiers: subModifiers.length ? subModifiers : undefined,
+        ...linkOf(mod, xmlid),
       });
     }
   }
   
+  // Values Hero Designer works out from the rest of the power (Autofire's surcharge, Charges' cap...)
+  if (!parentXmlId) {
+    const power = { xmlId: getAttr(obj, 'XMLID', ''), modifiers: [...modifiers] };
+    for (const [i, m] of modifiers.entries()) {
+      const value = valueOnPower(m, power);
+      if (value !== m.value) modifiers[i] = { ...m, value, isAdvantage: value > 0, isLimitation: value < 0 };
+    }
+  }
+
   return modifiers;
 }
 
@@ -1906,7 +1953,8 @@ function parseAdders(obj: Record<string, unknown>, preserveHierarchy: boolean = 
         // For adders with lvlVal > 1 (like TELESCOPIC), the stored LEVELS is actually
         // the raw value. The effective levels for cost/display = LEVELS / LVLVAL
         // e.g., TELESCOPIC with LEVELS=6, LVLVAL=2 => effective 3 levels (+3 range, 3 pts)
-        const effectiveLevels = lvlVal > 1 ? Math.floor(rawLevels / lvlVal) : rawLevels;
+        // (Hero Designer keeps the fraction: 5 points of Flash Defense at 3 per 2 is 2 1/2 steps)
+        const effectiveLevels = lvlVal > 1 ? rawLevels / lvlVal : rawLevels;
         
         const adder: Adder = {
           id: getAttr(add, 'ID') || generateId(),

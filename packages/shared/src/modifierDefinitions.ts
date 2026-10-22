@@ -7,7 +7,8 @@
  * - Values are fractions (e.g., 0.25 = +1/4, -0.5 = -1/2)
  */
 
-import { MODIFIER_CATALOG_6E, POWER_CATALOG_6E, type CatalogEntry } from './generated/catalog6e.js';
+import { MODIFIER_CATALOG_6E, POWER_CATALOG_6E, type CatalogAdder, type CatalogEntry, type CatalogOption } from './generated/catalog6e.js';
+import { heroRoundCost } from './utils.js';
 
 /** Hero Designer's template has a few unclosed brackets ("Costs Endurance (to maintain") */
 const balanced = (s: string) => s + ')'.repeat(Math.max(0, (s.match(/\(/g) ?? []).length - (s.match(/\)/g) ?? []).length));
@@ -18,23 +19,37 @@ const balanced = (s: string) => s + ')'.repeat(Math.max(0, (s.match(/\(/g) ?? []
 
 export interface ModifierOption {
   xmlId: string;
+  /** Hero Designer's name for the option, which it stores as OPTION_ALIAS ("OAF", "4") */
   display: string;
+  /** A fuller name for choosing it ("Obvious Accessible Focus (OAF)"), when it has one */
+  label?: string;
   baseCost: number;
+  lvlCost?: number;
   lvlVal?: number;
-  lvlMultiplier?: number;
+  levelStart?: number;
+  /** Adders only this option offers (Area Of Effect's Accurate is for a Radius only) */
+  adders?: ModifierAdder[];
 }
 
 export interface ModifierAdder {
   xmlId: string;
   display: string;
+  /** The display with its level placeholder, for leveled adders ("x[LVL] Shots") */
+  levelDisplay?: string;
   abbreviation?: string;
   baseCost: number;
   required?: boolean;
   exclusive?: boolean;
   lvlCost?: number;
   lvlVal?: number;
+  /** The level multiplies rather than adds ("x[LVL] Shots": 2 to the levels) */
+  lvlPower?: number;
   minVal?: number;
+  levelStart?: number;
   options?: ModifierOption[];
+  excludes?: string[];
+  /** Adders that must be taken with this one */
+  requires?: string[];
 }
 
 export interface ModifierDefinition {
@@ -57,665 +72,51 @@ export interface ModifierDefinition {
   hasLevels: boolean;
   options?: ModifierOption[];
   adders?: ModifierAdder[];
+  /** Modifiers of this modifier (Gestures' "throughout" doubles its value) */
+  subModifiers?: ModifierDefinition[];
+  /** Power types it applies to (template TYPE), and what it can't be combined with */
+  types?: string[];
+  excludes?: string[];
+  requires?: string[];
   /** What the modifier's free-text detail (Hero Designer's INPUT) is, e.g. AVAD's "Defense" */
   inputLabel?: string;
   description?: string;
 }
 
 // ============================================================================
-// ADVANTAGES (Positive BASECOST values)
+// DEFINITIONS
 // ============================================================================
 
-export const ADVANTAGES: Record<string, ModifierDefinition> = {
-  // --- Area of Effect ---
-  AOE: {
-    xmlId: 'AOE',
-    display: 'Area Of Effect',
-    abbreviation: 'AOE',
-    baseCost: 0,
-    lvlCost: 0.25,
-    lvlVal: 1,
-    lvlPower: 2,
-    minCost: 0.25,
-    minVal: 1,
-    maxVal: 999999999,
-    levelStart: 1,
-    exclusive: false,
-    isAdvantage: true,
-    isLimitation: false,
-    hasOptions: true,
-    hasLevels: true,
-    options: [
-      { xmlId: 'RADIUS', display: 'Radius', baseCost: 0, lvlMultiplier: 2 },
-      { xmlId: 'CONE', display: 'Cone', baseCost: 0, lvlMultiplier: 4 },
-      { xmlId: 'LINE', display: 'Line', baseCost: 0, lvlMultiplier: 8 },
-      { xmlId: 'SURFACE', display: 'Surface', baseCost: 0, lvlMultiplier: 1 },
-    ],
-    adders: [
-      { xmlId: 'ACCURATE', display: 'Accurate', baseCost: 0.25, exclusive: true },
-      { xmlId: 'THINCONE', display: 'Thin Cone', baseCost: -0.25, exclusive: true },
-    ],
-    description: 'Allows a Power to affect an area instead of a single target.',
+/**
+ * What the editor shows differently from Hero Designer's template. Everything else, costs,
+ * options and adders included, comes from the template (Main6E.hdt) so new template data is
+ * never hidden behind an older hand-written copy.
+ */
+const CURATED: Record<string, { display?: string; isLimitation?: boolean; optionLabels?: Record<string, string>; optionOrder?: string[] }> = {
+  // The template's name carries the level ("x[LVL] Characteristics or Powers simultaneously");
+  // its BASECOST is -1/2 but it's an advantage (levels start at 2)
+  EXPANDEDEFFECT: { display: 'Expanded Effect', isLimitation: false },
+  CHARGES: {
+    optionLabels: {
+      ONE: '1 Charge', TWO: '2 Charges', THREE: '3 Charges', FOUR: '4 Charges', SIX: '6 Charges', EIGHT: '8 Charges',
+      TWELVE: '12 Charges', SIXTEEN: '16 Charges', THIRTYTWO: '32 Charges', SIXTYFOUR: '64 Charges',
+      ONETWENTYFIVE: '125 Charges', TWOFIFTY: '250 Charges', FIVEHUNDRED: '500 Charges', ONETHOUSAND: '1000 Charges',
+      TWOTHOUSAND: '2000 Charges', FOURTHOUSAND: '4000 Charges', EIGHTTHOUSAND: '8000 Charges', SIXTEENTHOUSAND: '16000 Charges',
+    },
   },
-
-  // --- Armor Piercing ---
-  ARMORPIERCING: {
-    xmlId: 'ARMORPIERCING',
-    display: 'Armor Piercing',
-    abbreviation: 'AP',
-    baseCost: 0,
-    lvlCost: 0.25,
-    lvlVal: 1,
-    minVal: 1,
-    minCost: 0.25,
-    maxCost: 10,
-    levelStart: 1,
-    exclusive: true,
-    isAdvantage: true,
-    isLimitation: false,
-    hasOptions: false,
-    hasLevels: true,
-    description: 'Attack acts against one half of the defense it normally acts against. Additional levels negate Hardened.',
+  FOCUS: {
+    optionLabels: {
+      IIF: 'Inobvious Inaccessible Focus (IIF)',
+      IAF: 'Inobvious Accessible Focus (IAF)',
+      OIF: 'Obvious Inaccessible Focus (OIF)',
+      OAF: 'Obvious Accessible Focus (OAF)',
+    },
   },
-
-  // --- Autofire ---
-  AUTOFIRE: {
-    xmlId: 'AUTOFIRE',
-    display: 'Autofire',
-    baseCost: 0,
-    exclusive: true,
-    isAdvantage: true,
-    isLimitation: false,
-    hasOptions: true,
-    hasLevels: false,
-    options: [
-      { xmlId: 'TWO', display: '2 Shots', baseCost: 0.25 },
-      { xmlId: 'THREE', display: '3 Shots', baseCost: 0.25 },
-      { xmlId: 'FIVE', display: '5 Shots', baseCost: 0.5 },
-    ],
-    adders: [
-      { xmlId: 'DOUBLE', display: 'x[LVL] Shots', baseCost: 0, lvlCost: 0.5, lvlVal: 1, minVal: 1 },
-      { xmlId: 'ODDPOWER', display: 'Non-Standard Attack Power', baseCost: 1 },
-    ],
-    description: 'Character can use a Power to hit a target more than once in a single Phase.',
-  },
-
-  // --- AVAD (Attack Versus Alternate Defense) ---
-  AVAD: {
-    xmlId: 'AVAD',
-    display: 'Attack Versus Alternate Defense',
-    abbreviation: 'AVAD',
-    baseCost: 0,
-    exclusive: true,
-    isAdvantage: true,
-    isLimitation: false,
-    hasOptions: true,
-    hasLevels: false,
-    options: [
-      { xmlId: 'VERYVERY', display: 'Very Common -> Very Common', baseCost: 0 },
-      { xmlId: 'VERYCOMMON', display: 'Very Common -> Common', baseCost: 0.5 },
-      { xmlId: 'VERYUNCOMMON', display: 'Very Common -> Uncommon', baseCost: 1 },
-      { xmlId: 'VERYRARE', display: 'Very Common -> Rare', baseCost: 1.5 },
-      { xmlId: 'COMMONVERY', display: 'Common -> Very Common', baseCost: -0.5 },
-      { xmlId: 'COMMONCOMMON', display: 'Common -> Common', baseCost: 0 },
-      { xmlId: 'COMMONUNCOMMON', display: 'Common -> Uncommon', baseCost: 0.5 },
-      { xmlId: 'COMMONRARE', display: 'Common -> Rare', baseCost: 1 },
-      { xmlId: 'UNCOMMONVERY', display: 'Uncommon -> Very Common', baseCost: -1 },
-      { xmlId: 'UNCOMMONCOMMON', display: 'Uncommon -> Common', baseCost: -0.5 },
-      { xmlId: 'UNCOMMONUNCOMMON', display: 'Uncommon -> Uncommon', baseCost: 0 },
-      { xmlId: 'UNCOMMONRARE', display: 'Uncommon -> Rare', baseCost: 0.5 },
-      { xmlId: 'RAREVERY', display: 'Rare -> Very Common', baseCost: -1.5 },
-      { xmlId: 'RARECOMMON', display: 'Rare -> Common', baseCost: -1 },
-      { xmlId: 'RAREUNCOMMON', display: 'Rare -> Uncommon', baseCost: -0.5 },
-      { xmlId: 'RARERARE', display: 'Rare -> Rare', baseCost: 0 },
-    ],
-    adders: [
-      { xmlId: 'NND', display: 'All Or Nothing', baseCost: -0.5, exclusive: true },
-    ],
-    description: 'A Power with AVAD is affected by a defense other than the one that\'s standard for it.',
-  },
-
-  // --- Cumulative ---
-  CUMULATIVE: {
-    xmlId: 'CUMULATIVE',
-    display: 'Cumulative',
-    baseCost: 0.5,
-    lvlCost: 0.25,
-    lvlVal: 1,
-    lvlPower: 2,
-    isAdvantage: true,
-    isLimitation: false,
-    hasOptions: false,
-    hasLevels: true,
-    description: 'Allows successive effect rolls to be added together.',
-  },
-
-  // --- Damage Over Time ---
-  DAMAGEOVERTIME: {
-    xmlId: 'DAMAGEOVERTIME',
-    display: 'Damage Over Time',
-    baseCost: 1,
-    exclusive: true,
-    isAdvantage: true,
-    isLimitation: false,
-    hasOptions: false,
-    hasLevels: false,
-    adders: [
-      {
-        xmlId: 'INCREMENTS',
-        display: 'Number of Damage Increments',
-        baseCost: 0,
-        required: true,
-        options: [
-          { xmlId: '2', display: '2', baseCost: 0.25 },
-          { xmlId: '3', display: '3', baseCost: 0.5 },
-          { xmlId: '4', display: '4', baseCost: 0.75 },
-          { xmlId: '6', display: '5-6', baseCost: 1 },
-          { xmlId: '8', display: '7-8', baseCost: 1.25 },
-          { xmlId: '12', display: '9-12', baseCost: 1.5 },
-          { xmlId: '16', display: '13-16', baseCost: 1.75 },
-          { xmlId: '32', display: '17-32', baseCost: 2 },
-          { xmlId: '64', display: '33-64', baseCost: 2.25 },
-          { xmlId: '128', display: '65-128', baseCost: 2.5 },
-          { xmlId: '256', display: '129-256', baseCost: 2.75 },
-        ],
-      },
-    ],
-    description: 'The attack does damage over time.',
-  },
-
-  // --- Does Knockback ---
-  DOESKB: {
-    xmlId: 'DOESKB',
-    display: 'Does Knockback',
-    baseCost: 0.25,
-    exclusive: true,
-    isAdvantage: true,
-    isLimitation: false,
-    hasOptions: false,
-    hasLevels: false,
-    description: 'Enables an Attack Power which normally doesn\'t do Knockback to do Knockback.',
-  },
-
-  // --- Double Knockback ---
-  DOUBLEKB: {
-    xmlId: 'DOUBLEKB',
-    display: 'Double Knockback',
-    baseCost: 0.5,
-    exclusive: false,
-    isAdvantage: true,
-    isLimitation: false,
-    hasOptions: false,
-    hasLevels: false,
-    description: 'Power has a greater chance of doing Knockback and does more when it does.',
-  },
-
-  // --- Indirect ---
-  INDIRECT: {
-    xmlId: 'INDIRECT',
-    display: 'Indirect',
-    baseCost: 0,
-    exclusive: true,
-    isAdvantage: true,
-    isLimitation: false,
-    hasOptions: true,
-    hasLevels: false,
-    options: [
-      { xmlId: 'SAMEDIRECT', display: 'Source Point same, path direct', baseCost: 0.25 },
-      { xmlId: 'CHARACTERINDIRECT', display: 'Source is Character, path indirect but same', baseCost: 0.25 },
-      { xmlId: 'SAMEINDIRECT', display: 'Source Point same, path indirect but same', baseCost: 0.5 },
-      { xmlId: 'CHARACTERANY', display: 'Source is Character, path can change', baseCost: 0.5 },
-      { xmlId: 'SAMEANY', display: 'Source Point same, path can change', baseCost: 0.75 },
-      { xmlId: 'ANYDIRECT', display: 'Source can vary, path direct', baseCost: 0.5 },
-      { xmlId: 'ANYINDIRECT', display: 'Source can vary, path indirect but same', baseCost: 0.75 },
-      { xmlId: 'ANYANY', display: 'Source can vary, path can change', baseCost: 1 },
-    ],
-    description: 'Power can originate from somewhere other than the character.',
-  },
-
-  // --- Invisible Power Effects ---
-  INVISIBLE: {
-    xmlId: 'INVISIBLE',
-    display: 'Invisible Power Effects',
-    abbreviation: 'IPE',
-    baseCost: 0,
-    exclusive: true,
-    isAdvantage: true,
-    isLimitation: false,
-    hasOptions: true,
-    hasLevels: false,
-    options: [
-      { xmlId: 'OBVIOUSINOBVIOUSONE', display: 'Obvious, Inobvious to [one Sense Group]', baseCost: 0.25 },
-      { xmlId: 'OBVIOUSINOBVIOUSTWO', display: 'Obvious, Inobvious to [two Sense Groups]', baseCost: 0.5 },
-      { xmlId: 'OBVIOUSINVISIBLEONE', display: 'Obvious, Invisible to [one Sense Group]', baseCost: 0.5 },
-      { xmlId: 'OBVIOUSINVISIBLETWO', display: 'Obvious, Invisible to [two Sense Groups]', baseCost: 1 },
-      { xmlId: 'OBVIOUSINVISIBLE', display: 'Obvious, Fully Invisible', baseCost: 1 },
-      { xmlId: 'INOBVIOUSINVISIBLEONE', display: 'Inobvious, Invisible to [one Sense Group]', baseCost: 0.25 },
-      { xmlId: 'INOBVIOUSINVISIBLETWO', display: 'Inobvious, Invisible to [two Sense Groups]', baseCost: 0.5 },
-      { xmlId: 'INOBVIOUSINVISIBLE', display: 'Inobvious, Fully Invisible', baseCost: 0.5 },
-    ],
-    adders: [
-      {
-        xmlId: 'EFFECTSTARGET',
-        display: 'Effects of Power on target',
-        baseCost: 0,
-        required: true,
-        options: [
-          { xmlId: 'DEFAULT', display: '[default/no change]', baseCost: 0 },
-          { xmlId: 'INOBVIOUS', display: 'Inobvious', baseCost: 0.25 },
-          { xmlId: 'INVISIBLE', display: 'Invisible', baseCost: 0.5 },
-        ],
-      },
-      {
-        xmlId: 'EFFECTSOTHER',
-        display: 'Effects of Power on other characters',
-        baseCost: 0,
-        required: true,
-        options: [
-          { xmlId: 'DEFAULT', display: '[default/no change]', baseCost: 0 },
-          { xmlId: 'INOBVIOUS', display: 'Inobvious', baseCost: 0.25 },
-          { xmlId: 'INVISIBLE', display: 'Invisible', baseCost: 0.5 },
-        ],
-      },
-    ],
-    description: 'The special effects of a Power are not perceivable when in use.',
-  },
-
-  // --- Line Of Sight ---
-  LOS: {
-    xmlId: 'LOS',
-    display: 'Line Of Sight',
-    abbreviation: 'LOS',
-    baseCost: 0.5,
-    exclusive: true,
-    isAdvantage: true,
-    isLimitation: false,
-    hasOptions: false,
-    hasLevels: false,
-    description: 'Power works on a Line of Sight basis like Mental Powers.',
-  },
-
-  // --- Megascale ---
-  MEGASCALE: {
-    xmlId: 'MEGASCALE',
-    display: 'MegaScale',
-    baseCost: 1,
-    lvlCost: 0.25,
-    lvlVal: 1,
-    lvlPower: 10,
-    minVal: 0,
-    levelStart: 0,
-    exclusive: false,
-    isAdvantage: true,
-    isLimitation: false,
-    hasOptions: false,
-    hasLevels: true,
-    adders: [
-      { xmlId: 'NOSCALE', display: 'Cannot alter scale', baseCost: -0.25, exclusive: true },
-    ],
-    description: 'A Power works over a much greater area than an ordinary Power.',
-  },
-
-  // --- No Range Modifier ---
-  NORANGEMODIFIER: {
-    xmlId: 'NORANGEMODIFIER',
-    display: 'No Range Modifier',
-    abbreviation: 'NRM',
-    baseCost: 0.5,
-    exclusive: true,
-    isAdvantage: true,
-    isLimitation: false,
-    hasOptions: false,
-    hasLevels: false,
-    description: 'Character ignores Range Modifier when making Attack Rolls.',
-  },
-
-  // --- Penetrating ---
-  PENETRATING: {
-    xmlId: 'PENETRATING',
-    display: 'Penetrating',
-    baseCost: 0,
-    lvlCost: 0.5,
-    lvlVal: 1,
-    minVal: 1,
-    levelStart: 1,
-    exclusive: true,
-    isAdvantage: true,
-    isLimitation: false,
-    hasOptions: false,
-    hasLevels: true,
-    description: 'Power automatically does some damage no matter how strong the target\'s defenses.',
-  },
-
-  // --- Ranged ---
-  RANGED: {
-    xmlId: 'RANGED',
-    display: 'Ranged',
-    baseCost: 0.5,
-    exclusive: true,
-    isAdvantage: true,
-    isLimitation: false,
-    hasOptions: true,
-    hasLevels: false,
-    options: [
-      { xmlId: 'RANGED', display: 'Ranged', baseCost: 0.5 },
-      { xmlId: 'LIMITEDRANGE', display: 'Limited Range', baseCost: 0.25 },
-      { xmlId: 'RANGEBASEDONSTR', display: 'Range Based On STR', baseCost: 0.25 },
-    ],
-    description: 'Powers which ordinarily have No Range can be used at Range.',
-  },
-
-  // --- Reduced Endurance ---
-  REDUCEDEND: {
-    xmlId: 'REDUCEDEND',
-    display: 'Reduced Endurance',
-    baseCost: 0,
-    exclusive: true,
-    isAdvantage: true,
-    isLimitation: false,
-    hasOptions: true,
-    hasLevels: false,
-    options: [
-      { xmlId: 'HALFEND', display: 'Half END (1/2 END)', baseCost: 0.25 },
-      { xmlId: 'ZERO', display: '0 END', baseCost: 0.5 },
-    ],
-    description: 'Allows a character to reduce the END Cost of a Power.',
-  },
-
-  // --- Sticky ---
-  STICKY: {
-    xmlId: 'STICKY',
-    display: 'Sticky',
-    baseCost: 0,
-    exclusive: true,
-    isAdvantage: true,
-    isLimitation: false,
-    hasOptions: true,
-    hasLevels: false,
-    options: [
-      { xmlId: 'STANDARD', display: 'Standard', baseCost: 0.5 },
-      { xmlId: 'ONEFORALL', display: 'Freeing one victim frees all victims', baseCost: 0.25 },
-    ],
-    description: 'Any character who touches someone affected by the Power will also be affected.',
-  },
-
-  // --- Transdimensional ---
-  TRANSDIMENSIONAL: {
-    xmlId: 'TRANSDIMENSIONAL',
-    display: 'Transdimensional',
-    baseCost: 0,
-    exclusive: true,
-    isAdvantage: true,
-    isLimitation: false,
-    hasOptions: true,
-    hasLevels: false,
-    options: [
-      { xmlId: 'SINGLE', display: 'Single Dimension', baseCost: 0.5 },
-      { xmlId: 'GROUP', display: 'Related Group of Dimensions', baseCost: 0.75 },
-      { xmlId: 'ANY', display: 'Any Dimension', baseCost: 1 },
-    ],
-    description: 'Power can affect targets in other dimensions.',
-  },
-
-  // --- Trigger ---
-  TRIGGER: {
-    xmlId: 'TRIGGER',
-    display: 'Trigger',
-    baseCost: 0,
-    minCost: 0.25,
-    exclusive: true,
-    isAdvantage: true,
-    isLimitation: false,
-    hasOptions: true,
-    hasLevels: false,
-    options: [
-      { xmlId: 'SET', display: 'Set Trigger', baseCost: 0.25 },
-      { xmlId: 'VARIABLE', display: 'Variable Trigger', baseCost: 0.5 },
-    ],
-    adders: [
-      {
-        xmlId: 'ACTIVATION',
-        display: 'Activation Modifiers',
-        baseCost: 0,
-        required: true,
-        options: [
-          { xmlId: 'ZEROPHASE', display: 'Requires a Zero Phase Action', baseCost: 0 },
-          { xmlId: 'NOTIME', display: 'Takes no time', baseCost: 0.25 },
-        ],
-      },
-      {
-        xmlId: 'RESET',
-        display: 'Reset Parameters',
-        baseCost: 0,
-        required: true,
-        options: [
-          { xmlId: 'TURN', display: 'Requires a Turn or more to reset', baseCost: -0.5 },
-          { xmlId: 'PHASE', display: 'Requires a Full Phase to reset', baseCost: -0.25 },
-          { xmlId: 'HALFPHASE', display: 'Requires a Half Phase Action to reset', baseCost: 0 },
-          { xmlId: 'ZEROPHASE', display: 'Requires a Zero Phase Action to reset', baseCost: 0.25 },
-          { xmlId: 'AUTOMATIC', display: 'Resets automatically, immediately after it activates', baseCost: 0.5 },
-        ],
-      },
-      { xmlId: 'MULTIPLE', display: 'Character can set Trigger multiple times', baseCost: 0 },
-      { xmlId: 'EXPIRE', display: 'Trigger can expire (it has a time limit)', baseCost: -0.25 },
-      { xmlId: 'NOCONTROL', display: 'Character does not control activation of personal Trigger', baseCost: -0.25 },
-      { xmlId: 'TWOCONDITIONS', display: 'Two activation conditions apply simultaneously', baseCost: 0.25 },
-      { xmlId: 'THREECONDITIONS', display: 'Three or more activation conditions apply simultaneously', baseCost: 0.5 },
-    ],
-    description: 'Power can be set to activate under certain conditions.',
-  },
-
-  // --- Uncontrolled ---
-  UNCONTROLLED: {
-    xmlId: 'UNCONTROLLED',
-    display: 'Uncontrolled',
-    baseCost: 0.5,
-    exclusive: true,
-    isAdvantage: true,
-    isLimitation: false,
-    hasOptions: false,
-    hasLevels: false,
-    description: 'A Constant Power can maintain itself without conscious thought from its user.',
-  },
-
-  // --- Usable On Others (UOO) ---
-  UOO: {
-    xmlId: 'UOO',
-    display: 'Usable On Others',
-    abbreviation: 'UOO',
-    baseCost: 0,
-    maxCost: 10,
-    exclusive: true,
-    isAdvantage: true,
-    isLimitation: false,
-    hasOptions: true,
-    hasLevels: false,
-    options: [
-      { xmlId: 'UBO', display: 'Usable By Other (UBO)', baseCost: 0.25 },
-      { xmlId: 'UOO', display: 'Usable On Others', baseCost: 0.25 },
-    ],
-    adders: [
-      { xmlId: 'GRANTORTAKEBACK', display: 'Grantor can take back power at any time', baseCost: 0.25, exclusive: true },
-      { xmlId: 'TOTALCONTROL', display: 'Grantor controls the power totally', baseCost: 0.5, exclusive: true },
-      { xmlId: 'GRANTORPAYSEND', display: 'Grantor pays the END whenever the power is used', baseCost: -0.25 },
-      { xmlId: 'NOSELFUSE', display: 'Grantor can only grant the power to others', baseCost: -0.5 },
-    ],
-    description: 'Character can grant a Power to someone else.',
-  },
-
-  // --- Affects Desolidified ---
-  AFFECTSDESOLID: {
-    xmlId: 'AFFECTSDESOLID',
-    display: 'Affects Desolidified',
-    abbreviation: 'Affects Desol',
-    baseCost: 0,
-    minCost: 0.25,
-    maxCost: 0.5,
-    exclusive: true,
-    isAdvantage: true,
-    isLimitation: false,
-    hasOptions: true,
-    hasLevels: false,
-    options: [
-      { xmlId: 'ANY', display: 'Any form of Desolidification', baseCost: 0.5 },
-      { xmlId: 'ONE', display: 'One Special Effect of Desolidification', baseCost: 0.25 },
-    ],
-    description: 'Power can affect a character who is Desolidified.',
-  },
-
-  // --- Hardened ---
-  HARDENED: {
-    xmlId: 'HARDENED',
-    display: 'Hardened',
-    baseCost: 0,
-    lvlCost: 0.25,
-    lvlVal: 1,
-    minVal: 1,
-    minCost: 0.25,
-    maxCost: 10,
-    levelStart: 1,
-    exclusive: true,
-    isAdvantage: true,
-    isLimitation: false,
-    hasOptions: false,
-    hasLevels: true,
-    description: 'Enables a defense to counteract Armor Piercing.',
-  },
-
-  // --- Impenetrable ---
-  IMPENETRABLE: {
-    xmlId: 'IMPENETRABLE',
-    display: 'Impenetrable',
-    baseCost: 0,
-    lvlCost: 0.25,
-    lvlVal: 1,
-    minVal: 1,
-    minCost: 0.25,
-    maxCost: 10,
-    levelStart: 1,
-    exclusive: true,
-    isAdvantage: true,
-    isLimitation: false,
-    hasOptions: false,
-    hasLevels: true,
-    description: 'Defense is particularly resistant to Penetrating Attacks.',
-  },
-
-  // --- Constant (for Attacks) ---
-  CONTINUOUS: {
-    xmlId: 'CONTINUOUS',
-    display: 'Constant',
-    baseCost: 0.5,
-    exclusive: true,
-    isAdvantage: true,
-    isLimitation: false,
-    hasOptions: false,
-    hasLevels: false,
-    description: 'Attack Power can be used on a continuing basis without a new Attack Roll.',
-  },
-
-  // --- Persistent ---
-  PERSISTENT: {
-    xmlId: 'PERSISTENT',
-    display: 'Persistent',
-    baseCost: 0.25,
-    exclusive: true,
-    isAdvantage: true,
-    isLimitation: false,
-    hasOptions: false,
-    hasLevels: false,
-    description: 'Power remains "turned on" even if character is unconscious.',
-  },
-
-  // --- Costs Endurance Only To Activate ---
-  COSTSENDONLYTOACTIVATE: {
-    xmlId: 'COSTSENDONLYTOACTIVATE',
-    display: 'Costs Endurance Only To Activate',
-    baseCost: 0.25,
-    exclusive: true,
-    isAdvantage: true,
-    isLimitation: false,
-    hasOptions: false,
-    hasLevels: false,
-    description: 'A Constant Power only costs END to turn on; no END to maintain.',
-  },
-
-  // --- Half Range Modifier ---
-  HALFRANGEMODIFIER: {
-    xmlId: 'HALFRANGEMODIFIER',
-    display: 'Half Range Modifier',
-    baseCost: 0.25,
-    exclusive: true,
-    isAdvantage: true,
-    isLimitation: false,
-    hasOptions: false,
-    hasLevels: false,
-    description: 'Character uses half the normal Range Modifier when making Attack Rolls.',
-  },
-
-  // --- Personal Immunity ---
-  PERSONALIMMUNITY: {
-    xmlId: 'PERSONALIMMUNITY',
-    display: 'Personal Immunity',
-    baseCost: 0.25,
-    exclusive: true,
-    isAdvantage: true,
-    isLimitation: false,
-    hasOptions: false,
-    hasLevels: false,
-    description: 'Prevents the character from being affected by his own Power.',
-  },
-
-  // --- Increased Maximum Range ---
-  INCREASEDMAXRANGE: {
-    xmlId: 'INCREASEDMAXRANGE',
-    display: 'Increased Maximum Range',
-    baseCost: 0,
-    lvlCost: 0.25,
-    lvlVal: 1,
-    lvlPower: 2,
-    exclusive: true,
-    isAdvantage: true,
-    isLimitation: false,
-    hasOptions: false,
-    hasLevels: true,
-    description: 'Power has increased maximum range.',
-  },
-
-  // --- Expanded Effect (for Adjustment Powers) ---
-  EXPANDEDEFFECT: {
-    xmlId: 'EXPANDEDEFFECT',
-    display: 'Expanded Effect',
-    baseCost: -0.5,  // Base is -1/2 but with levels starting at 2, minimum is +1/2
-    lvlCost: 0.5,
-    lvlVal: 1,
-    minVal: 2,
-    levelStart: 2,
-    exclusive: false,
-    isAdvantage: true,  // Despite negative baseCost, this is an advantage
-    isLimitation: false,
-    hasOptions: false,
-    hasLevels: true,
-    description: 'Allows an Adjustment Power to have its full effect against two or more Characteristics or Powers simultaneously.',
-  },
-
-  // --- Variable Effect (for Adjustment Powers) ---
-  VARIABLEEFFECT: {
-    xmlId: 'VARIABLEEFFECT',
-    display: 'Variable Effect',
-    baseCost: 0.5,
-    exclusive: true,
-    isAdvantage: true,
-    isLimitation: false,
-    hasOptions: false,
-    hasLevels: false,
-    description: 'Allows an Adjustment Power to affect any one Characteristic or Power the character chooses at the time of use.',
-  },
+  // Rolls from worst to best, then the skill-based ones
+  REQUIRESASKILLROLL: { optionOrder: ['8', '9', '10', '11', '12', '13', '14'] },
 };
 
-// ============================================================================
-// LIMITATIONS (Negative BASECOST values)
-// ============================================================================
+export const ADVANTAGES: Record<string, ModifierDefinition> = {};
 
 export const LIMITATIONS: Record<string, ModifierDefinition> = {
   // --- Spell (Fantasy Hero) ---
@@ -731,422 +132,30 @@ export const LIMITATIONS: Record<string, ModifierDefinition> = {
     hasLevels: false,
     description: "(Fantasy Hero) A spell can't use the same combat modifiers and maneuvers as regular attacks.",
   },
-
-  // --- Always On ---
-  ALWAYSON: {
-    xmlId: 'ALWAYSON',
-    display: 'Always On',
-    baseCost: -0.5,
-    minCost: -0.5,
-    maxCost: -0.25,
-    exclusive: true,
-    isAdvantage: false,
-    isLimitation: true,
-    hasOptions: false,
-    hasLevels: false,
-    description: 'Power that the character can never turn off.',
-  },
-
-  // --- Charges ---
-  CHARGES: {
-    xmlId: 'CHARGES',
-    display: 'Charges',
-    baseCost: 0,
-    exclusive: true,
-    isAdvantage: false,
-    isLimitation: true,
-    hasOptions: true,
-    hasLevels: false,
-    options: [
-      { xmlId: 'ONE', display: '1 Charge', baseCost: -2, lvlVal: 1 },
-      { xmlId: 'TWO', display: '2 Charges', baseCost: -1.5, lvlVal: 2 },
-      { xmlId: 'THREE', display: '3 Charges', baseCost: -1.25, lvlVal: 3 },
-      { xmlId: 'FOUR', display: '4 Charges', baseCost: -1, lvlVal: 4 },
-      { xmlId: 'SIX', display: '6 Charges', baseCost: -0.75, lvlVal: 6 },
-      { xmlId: 'EIGHT', display: '8 Charges', baseCost: -0.5, lvlVal: 8 },
-      { xmlId: 'TWELVE', display: '12 Charges', baseCost: -0.25, lvlVal: 12 },
-      { xmlId: 'SIXTEEN', display: '16 Charges', baseCost: 0, lvlVal: 16 },
-      { xmlId: 'THIRTYTWO', display: '32 Charges', baseCost: 0.25, lvlVal: 32 },
-      { xmlId: 'SIXTYFOUR', display: '64 Charges', baseCost: 0.5, lvlVal: 64 },
-      { xmlId: 'ONETWENTYFIVE', display: '125 Charges', baseCost: 0.75, lvlVal: 125 },
-      { xmlId: 'TWOFIFTY', display: '250 Charges', baseCost: 1, lvlVal: 250 },
-    ],
-    description: 'A character can only use a Power a limited number of times per day.',
-  },
-
-  // --- Concentration ---
-  CONCENTRATION: {
-    xmlId: 'CONCENTRATION',
-    display: 'Concentration',
-    baseCost: 0,
-    exclusive: true,
-    isAdvantage: false,
-    isLimitation: true,
-    hasOptions: true,
-    hasLevels: false,
-    options: [
-      { xmlId: 'HALF', display: '1/2 DCV', baseCost: -0.25 },
-      { xmlId: 'ZERO', display: '0 DCV', baseCost: -0.5 },
-    ],
-    adders: [
-      { xmlId: 'OBLIVIOUS', display: 'Character is totally unaware of nearby events', baseCost: -0.25, exclusive: true },
-    ],
-    description: 'Character must concentrate partially or totally while activating or using a Power.',
-  },
-
-  // --- Extra Time ---
-  EXTRATIME: {
-    xmlId: 'EXTRATIME',
-    display: 'Extra Time',
-    baseCost: 0,
-    exclusive: true,
-    isAdvantage: false,
-    isLimitation: true,
-    hasOptions: true,
-    hasLevels: false,
-    options: [
-      { xmlId: 'PHASE', display: 'Delayed Phase', baseCost: -0.25 },
-      { xmlId: 'SEGMENT', display: 'Extra Segment', baseCost: -0.5 },
-      { xmlId: 'FULL', display: 'Full Phase', baseCost: -0.5 },
-      { xmlId: 'EXTRA', display: 'Extra Phase', baseCost: -0.75 },
-      { xmlId: 'TURN', display: '1 Turn (Post-Segment 12)', baseCost: -1.25 },
-      { xmlId: '1MINUTE', display: '1 Minute', baseCost: -1.5 },
-      { xmlId: '5MINUTES', display: '5 Minutes', baseCost: -2 },
-      { xmlId: '20MINUTES', display: '20 Minutes', baseCost: -2.5 },
-      { xmlId: '1HOUR', display: '1 Hour', baseCost: -3 },
-      { xmlId: '6HOURS', display: '6 Hours', baseCost: -3.5 },
-      { xmlId: '1DAY', display: '1 Day', baseCost: -4 },
-    ],
-    adders: [
-      { xmlId: 'NOOTHERACTIONS', display: 'Character May Take No Other Actions', baseCost: -0.25, exclusive: true },
-      { xmlId: 'DELAYEDPHASE', display: 'Delayed Phase', baseCost: -0.25 },
-    ],
-    description: 'Power requires extra time to activate.',
-  },
-
-  // --- Focus ---
-  FOCUS: {
-    xmlId: 'FOCUS',
-    display: 'Focus',
-    baseCost: 0,
-    exclusive: true,
-    isAdvantage: false,
-    isLimitation: true,
-    hasOptions: true,
-    hasLevels: false,
-    options: [
-      { xmlId: 'IIF', display: 'Inobvious Inaccessible Focus (IIF)', baseCost: -0.25 },
-      { xmlId: 'IAF', display: 'Inobvious Accessible Focus (IAF)', baseCost: -0.5 },
-      { xmlId: 'OIF', display: 'Obvious Inaccessible Focus (OIF)', baseCost: -0.5 },
-      { xmlId: 'OAF', display: 'Obvious Accessible Focus (OAF)', baseCost: -1 },
-    ],
-    adders: [
-      {
-        xmlId: 'MOBILITY',
-        display: 'Mobility',
-        baseCost: 0,
-        exclusive: true,
-        options: [
-          { xmlId: 'ARRANGEMENT', display: 'Arrangement', baseCost: -0.25 },
-          { xmlId: 'BULKY', display: 'Bulky', baseCost: -0.5 },
-          { xmlId: 'IMMOBILE', display: 'Immobile', baseCost: -1 },
-        ],
-      },
-      {
-        xmlId: 'BREAKABILITY',
-        display: 'Breakability',
-        baseCost: 0,
-        exclusive: true,
-        options: [
-          { xmlId: 'FRAGILE', display: 'Fragile', baseCost: -0.25 },
-          { xmlId: 'DURABLE', display: 'Durable', baseCost: 0 },
-          { xmlId: 'UNBREAKABLE', display: 'Unbreakable', baseCost: 0 },
-        ],
-      },
-      {
-        xmlId: 'EXPENDABILITY',
-        display: 'Expendability',
-        baseCost: 0,
-        exclusive: true,
-        options: [
-          { xmlId: 'EASY', display: 'Easy to obtain new Focus', baseCost: 0 },
-          { xmlId: 'DIFFICULT', display: 'Difficult to obtain new Focus', baseCost: -0.25 },
-          { xmlId: 'VERYDIFFICULT', display: 'Very Difficult to obtain new Focus', baseCost: -0.5 },
-          { xmlId: 'EXTREMELYDIFFICULT', display: 'Extremely Difficult to obtain new Focus', baseCost: -1 },
-        ],
-      },
-      { xmlId: 'MULTIPLEFOCI', display: 'Requires Multiple Foci or functions at reduced effectiveness', baseCost: 0.25, exclusive: true },
-    ],
-    description: 'Power works through some sort of object or device.',
-  },
-
-  // --- Gestures ---
-  GESTURES: {
-    xmlId: 'GESTURES',
-    display: 'Gestures',
-    baseCost: -0.25,
-    maxCost: -0.25,
-    exclusive: true,
-    isAdvantage: false,
-    isLimitation: true,
-    hasOptions: false,
-    hasLevels: false,
-    adders: [
-      { xmlId: 'THROUGHOUT', display: 'Requires Gestures throughout', baseCost: 1, exclusive: true },
-      { xmlId: 'BOTHHAND', display: 'Requires both hands', baseCost: -0.25, exclusive: true },
-      { xmlId: 'COMPLEX', display: 'Complex', baseCost: -0.25, exclusive: true },
-    ],
-    description: 'Character must make obvious gestures to activate or use the Power.',
-  },
-
-  // --- Incantations ---
-  INCANTATIONS: {
-    xmlId: 'INCANTATIONS',
-    display: 'Incantations',
-    baseCost: -0.25,
-    maxCost: -0.25,
-    exclusive: true,
-    isAdvantage: false,
-    isLimitation: true,
-    hasOptions: false,
-    hasLevels: false,
-    adders: [
-      { xmlId: 'CONSTANT', display: 'Requires Incantations throughout', baseCost: 1, exclusive: true },
-      { xmlId: 'COMPLEX', display: 'Complex', baseCost: -0.25, exclusive: true },
-    ],
-    description: 'Character must speak loud phrases to activate the Power.',
-  },
-
-  // --- Linked ---
-  LINKED: {
-    xmlId: 'LINKED',
-    display: 'Linked',
-    baseCost: -0.5,
-    maxCost: 0,
-    exclusive: false,
-    isAdvantage: false,
-    isLimitation: true,
-    hasOptions: false,
-    hasLevels: false,
-    adders: [
-      { xmlId: 'ONLYWHENGREATERATFULL', display: 'Lesser Power can only be used when character uses greater Power at full value', baseCost: -0.25 },
-      { xmlId: 'NONPROPORTIONAL', display: 'Lesser Power need not be used proportionally', baseCost: 0.25 },
-      { xmlId: 'POWERRARELYOFF', display: 'Greater Power is Constant or in use most or all of the time', baseCost: 0.25 },
-      { xmlId: 'ANYPHASE', display: 'Lesser Instant Power can be used in any Phase in which greater Constant Power is in use', baseCost: 0.25 },
-    ],
-    description: 'Power may only be used with another Power.',
-  },
-
-  // --- Limited Range ---
-  LIMITEDRANGE: {
-    xmlId: 'LIMITEDRANGE',
-    display: 'Limited Range',
-    baseCost: -0.25,
-    exclusive: true,
-    isAdvantage: false,
-    isLimitation: true,
-    hasOptions: false,
-    hasLevels: false,
-    description: 'Ranged Power has less than the normal range.',
-  },
-
-  // --- No Range ---
-  NORANGE: {
-    xmlId: 'NORANGE',
-    display: 'No Range',
-    baseCost: -0.5,
-    exclusive: true,
-    isAdvantage: false,
-    isLimitation: true,
-    hasOptions: false,
-    hasLevels: false,
-    description: 'Ranged Power which does not work at Range.',
-  },
-
-  // --- Requires A Roll ---
-  REQUIRESASKILLROLL: {
-    xmlId: 'REQUIRESASKILLROLL',
-    display: 'Requires A Roll',
-    baseCost: 0,
-    minCost: -2.75,
-    maxCost: -0.25,
-    exclusive: true,
-    isAdvantage: false,
-    isLimitation: true,
-    hasOptions: true,
-    hasLevels: false,
-    options: [
-      { xmlId: '8', display: '8- roll', baseCost: -1.25 },
-      { xmlId: '9', display: '9- roll', baseCost: -1 },
-      { xmlId: '10', display: '10- roll', baseCost: -0.75 },
-      { xmlId: '11', display: '11- roll', baseCost: -0.5 },
-      { xmlId: '12', display: '12- roll', baseCost: -0.25 },
-      { xmlId: '13', display: '13- roll', baseCost: 0 },
-      { xmlId: '14', display: '14- roll', baseCost: 0.25 },
-      { xmlId: 'SKILL', display: 'Skill roll', baseCost: -0.5 },
-      { xmlId: 'SKILL1PER5', display: 'Skill roll, -1 per 5 Active Points', baseCost: -1 },
-      { xmlId: 'SKILL1PER20', display: 'Skill roll, -1 per 20 Active Points', baseCost: -0.25 },
-      { xmlId: 'CHAR', display: 'Characteristic roll', baseCost: -0.5 },
-      { xmlId: 'CHAR1PER5', display: 'Characteristic roll, -1 per 5 Active Points', baseCost: -1 },
-      { xmlId: 'CHAR1PER20', display: 'Characteristic roll, -1 per 20 Active Points', baseCost: -0.25 },
-      { xmlId: 'PER', display: 'PER roll', baseCost: -0.5 },
-      { xmlId: 'ATTACK', display: 'Attack roll', baseCost: -0.5 },
-    ],
-    description: 'Power requires a successful roll to activate.',
-  },
-
-  // --- Restrainable ---
-  RESTRAINABLE: {
-    xmlId: 'RESTRAINABLE',
-    display: 'Restrainable',
-    baseCost: -0.5,
-    minCost: -0.5,
-    maxCost: -0.25,
-    exclusive: true,
-    isAdvantage: false,
-    isLimitation: true,
-    hasOptions: false,
-    hasLevels: false,
-    adders: [
-      { xmlId: 'NOTVSGRABORENTANGLE', display: 'Only by means other than Grabs and Entangles', baseCost: 0.25, exclusive: true },
-    ],
-    description: 'Power is generated by or based upon an area of the body which can be restrained.',
-  },
-
-  // --- Side Effects ---
-  SIDEEFFECTS: {
-    xmlId: 'SIDEEFFECTS',
-    display: 'Side Effects',
-    baseCost: 0,
-    maxCost: 0,
-    exclusive: false,
-    isAdvantage: false,
-    isLimitation: true,
-    hasOptions: true,
-    hasLevels: false,
-    options: [
-      { xmlId: 'MINOR', display: 'Minor Side Effect', baseCost: -0.25 },
-      { xmlId: 'MAJOR', display: 'Major Side Effect', baseCost: -0.5 },
-      { xmlId: 'EXTREME', display: 'Extreme Side Effect', baseCost: -1 },
-    ],
-    adders: [
-      { xmlId: 'ALWAYSAFTERACT', display: 'Side Effect always occurs whenever the character does some specific act', baseCost: 0.25, exclusive: true },
-      { xmlId: 'PREDEFINEDDAMAGE', display: 'Side Effect does a predefined amount of damage', baseCost: 0.25, exclusive: true },
-      { xmlId: 'AFFECTSBOTH', display: 'Side Effect affects both character and recipient', baseCost: -0.25, exclusive: true },
-      { xmlId: 'ONLYNEARCHARACTER', display: 'Side Effect only affects the environment near the character', baseCost: 0.25, exclusive: true },
-      { xmlId: 'ONLYAFFECTSRECIPIENT', display: 'Side Effect only affects the recipient', baseCost: 0.25, exclusive: true },
-    ],
-    description: 'Power has negative effects on the character when used.',
-  },
-
-  // --- Costs Endurance ---
-  COSTSEND: {
-    xmlId: 'COSTSEND',
-    display: 'Costs Endurance',
-    abbreviation: 'Costs END',
-    baseCost: -0.5,
-    exclusive: true,
-    isAdvantage: false,
-    isLimitation: true,
-    hasOptions: true,
-    hasLevels: false,
-    options: [
-      { xmlId: 'ACTIVATE', display: 'Only Costs END to Activate', baseCost: -0.25 },
-      { xmlId: 'EVERYPHASE', display: 'Costs END Every Phase', baseCost: -0.5 },
-      { xmlId: 'HALFEND', display: 'Costs Half Endurance', baseCost: -0.25 },
-    ],
-    description: 'Makes a Power which naturally costs no END cost END.',
-  },
-
-  // --- Instant ---
-  INSTANT: {
-    xmlId: 'INSTANT',
-    display: 'Instant',
-    baseCost: -0.5,
-    exclusive: true,
-    isAdvantage: false,
-    isLimitation: true,
-    hasOptions: false,
-    hasLevels: false,
-    description: 'Converts a Constant Power into an Instant Power.',
-  },
-
-  // --- Nonpersistent ---
-  NONPERSISTENT: {
-    xmlId: 'NONPERSISTENT',
-    display: 'Nonpersistent',
-    baseCost: -0.25,
-    exclusive: true,
-    isAdvantage: false,
-    isLimitation: true,
-    hasOptions: false,
-    hasLevels: false,
-    description: 'Converts a Persistent Power to a Constant Power.',
-  },
-
-  // --- No Conscious Control ---
-  NOCONSCIOUSCONTROL: {
-    xmlId: 'NOCONSCIOUSCONTROL',
-    display: 'No Conscious Control',
-    abbreviation: 'NCC',
-    baseCost: -2,
-    minCost: -2,
-    maxCost: -1,
-    exclusive: true,
-    isAdvantage: false,
-    isLimitation: true,
-    hasOptions: false,
-    hasLevels: false,
-    adders: [
-      { xmlId: 'EFFECTSONLY', display: 'Only Effects cannot be controlled', baseCost: 1, exclusive: true },
-    ],
-    description: 'Power is not under the character\'s control. Only turns on when GM chooses.',
-  },
-
-  // --- Lockout ---
-  LOCKOUT: {
-    xmlId: 'LOCKOUT',
-    display: 'Lockout',
-    baseCost: -0.5,
-    exclusive: true,
-    isAdvantage: false,
-    isLimitation: true,
-    hasOptions: false,
-    hasLevels: false,
-    description: 'Power prevents the character from using some or all of his other powers when it\'s in use.',
-  },
-
-  // --- Range Based On Strength ---
-  RANGEBASEDONSTR: {
-    xmlId: 'RANGEBASEDONSTR',
-    display: 'Range Based On Strength',
-    abbreviation: 'Range Based On STR',
-    baseCost: -0.25,
-    exclusive: true,
-    isAdvantage: false,
-    isLimitation: true,
-    hasOptions: false,
-    hasLevels: false,
-    description: 'Ranged Power whose Range is based on the character\'s STR.',
-  },
 };
 
-// Modifiers the hand-written definitions above don't cover come from Hero Designer's template.
-// Hand-written entries win: they carry curated cost behaviour.
 for (const entry of MODIFIER_CATALOG_6E) {
-  const existing = ADVANTAGES[entry.xmlId] ?? LIMITATIONS[entry.xmlId];
-  if (existing) {
-    // ...but pick up options they leave out (e.g. Requires A Roll's PS/KS/SS rolls)
-    const known = new Set((existing.options ?? []).map((o) => o.xmlId));
-    const missing = (entry.options ?? []).filter((o) => !known.has(o.xmlId));
-    if (existing.options && missing.length) {
-      existing.options.push(...missing.map((o) => ({ xmlId: o.xmlId, display: o.display, baseCost: o.baseCost ?? 0, lvlVal: o.lvlVal })));
-    }
-    existing.inputLabel ??= entry.inputLabel;
-    continue;
-  }
-  const definition = modifierFromCatalog(entry);
+  const definition = curated(modifierFromCatalog(entry));
   (definition.isLimitation ? LIMITATIONS : ADVANTAGES)[entry.xmlId] = definition;
+}
+
+function curated(def: ModifierDefinition): ModifierDefinition {
+  const c = CURATED[def.xmlId];
+  if (!c) return def;
+  const isLimitation = c.isLimitation ?? def.isLimitation;
+  const order = c.optionOrder ?? [];
+  const rank = (o: ModifierOption) => (order.includes(o.xmlId) ? order.indexOf(o.xmlId) : order.length);
+  return {
+    ...def,
+    display: c.display ?? def.display,
+    isLimitation,
+    isAdvantage: !isLimitation,
+    options: def.options
+      ?.map((o) => (c.optionLabels?.[o.xmlId] ? { ...o, label: c.optionLabels[o.xmlId] } : o))
+      .map((o, i) => ({ o, i }))
+      .sort((a, b) => rank(a.o) - rank(b.o) || a.i - b.i)
+      .map(({ o }) => o),
+  };
 }
 
 // Modifiers only some powers can take (e.g. Hand-To-Hand Attack's mandatory limitation), by power
@@ -1162,8 +171,11 @@ for (const power of POWER_CATALOG_6E) {
 }
 
 /** A modifier as this power defines it, else the general definition */
-export function modifierFor(xmlId: string, powerXmlId?: string): ModifierDefinition | undefined {
-  return (powerXmlId && POWER_SPECIFIC.get(powerXmlId)?.find((m) => m.xmlId === xmlId)) || getModifierByXmlId(xmlId);
+export function modifierFor(xmlId: string, powerXmlId?: string, powerModifiers: PowerModifier[] = []): ModifierDefinition | undefined {
+  const def = (powerXmlId && POWER_SPECIFIC.get(powerXmlId)?.find((m) => m.xmlId === xmlId)) || getModifierByXmlId(xmlId);
+  // Time Limit's values depend on the power's duration (TimeLimit.setParent)
+  if (def && xmlId === 'TIMELIMIT') return timeLimitFor(def, { xmlId: powerXmlId, modifiers: powerModifiers });
+  return def;
 }
 
 /** Modifiers this power can take beyond the general ones */
@@ -1178,7 +190,7 @@ function modifierFromCatalog(e: CatalogEntry): ModifierDefinition {
   const isLimitation = e.isLimitation ?? (baseCost < 0 || (baseCost === 0 && (e.lvlCost ?? 0) < 0));
   return {
     xmlId: e.xmlId,
-    display: balanced(e.display.replace(/\s*\(\[LVL\]\)|\s*\[LVL\]/g, '').trim()),
+    display: balanced(withoutLevel(e.display)),
     abbreviation: e.abbreviation,
     baseCost,
     lvlCost: e.lvlCost,
@@ -1194,21 +206,57 @@ function modifierFromCatalog(e: CatalogEntry): ModifierDefinition {
     isLimitation,
     hasOptions: !!e.options?.length,
     hasLevels: e.lvlCost !== undefined && e.lvlCost !== 0,
-    options: e.options?.map((o) => ({ xmlId: o.xmlId, display: o.display, baseCost: o.baseCost ?? 0, lvlVal: o.lvlVal })),
-    adders: e.adders?.map((a) => ({
-      xmlId: a.xmlId,
-      display: a.display.replace(/\s*\(\[LVL\]\)|\s*\[LVL\]/g, '').trim(),
-      baseCost: a.baseCost,
-      required: a.required,
-      exclusive: a.exclusive,
-      lvlCost: a.lvlCost,
-      lvlVal: a.lvlVal,
-      minVal: a.minVal,
-      options: a.options?.map((o) => ({ xmlId: o.xmlId, display: o.display, baseCost: o.baseCost ?? 0, lvlVal: o.lvlVal })),
-    })),
+    options: e.options?.map(optionFromCatalog),
+    adders: e.adders?.map(adderFromCatalog),
+    subModifiers: e.modifiers?.length ? e.modifiers.map(modifierFromCatalog) : undefined,
+    types: e.types,
+    excludes: e.excludes,
+    requires: e.requires,
     inputLabel: e.inputLabel,
     description: e.description,
   };
+}
+
+/** Hero Designer display names carry a level placeholder ("Reduced Negation ([LVL])") */
+function withoutLevel(display: string): string {
+  return display.replace(/\s*\(\[LVL\]\)|\s*\[LVL\]/g, '').trim();
+}
+
+function optionFromCatalog(o: CatalogOption): ModifierOption {
+  return {
+    xmlId: o.xmlId,
+    display: o.display,
+    baseCost: o.baseCost ?? 0,
+    lvlCost: o.lvlCost,
+    lvlVal: o.lvlVal,
+    levelStart: o.levelStart,
+    adders: o.adders?.length ? o.adders.map(adderFromCatalog) : undefined,
+  };
+}
+
+function adderFromCatalog(a: CatalogAdder): ModifierAdder {
+  return {
+    xmlId: a.xmlId,
+    display: withoutLevel(a.display),
+    levelDisplay: a.display.includes('[LVL]') ? a.display : undefined,
+    baseCost: a.baseCost,
+    required: a.required,
+    exclusive: a.exclusive,
+    lvlCost: a.lvlCost,
+    lvlVal: a.lvlVal,
+    lvlPower: a.lvlPower,
+    minVal: a.minVal,
+    levelStart: a.levelStart,
+    options: a.options?.map(optionFromCatalog),
+    excludes: a.excludes,
+    requires: a.requires,
+  };
+}
+
+/** The adders a modifier offers with this option chosen: its own plus the option's */
+export function modifierAdders(def: ModifierDefinition | undefined, optionId?: string): ModifierAdder[] {
+  const option = optionId ? def?.options?.find((o) => o.xmlId === optionId) : undefined;
+  return [...(def?.adders ?? []), ...(option?.adders ?? [])];
 }
 
 // ============================================================================
@@ -1277,9 +325,9 @@ export function calculateModifierValue(
   }
 
   // Add adders
-  if (adders && modifier.adders) {
+  if (adders) {
     for (const adder of adders) {
-      const adderDef = modifier.adders.find(a => a.xmlId === adder.xmlId);
+      const adderDef = modifierAdders(modifier, selectedOption).find(a => a.xmlId === adder.xmlId);
       if (adderDef) {
         if (adder.optionId && adderDef.options) {
           const adderOption = adderDef.options.find(o => o.xmlId === adder.optionId);
@@ -1363,4 +411,333 @@ export function aoeValue(shape: string, size: number): number {
   if (size <= 0) return 0.25;
   const doublings = Math.ceil(Math.log(size / (AOE_SHAPES[shape] ?? 1)) / Math.log(2) - 1e-9);
   return Math.max(1, doublings) * 0.25;
+}
+
+// ============================================================================
+// Charges
+// ============================================================================
+
+/**
+ * Rows of the Charges Table that an option moves the power down (6E1 368-370): Boostable one,
+ * Recoverable two (Main6E.hdt's BOOSTABLELEVEL/RECOVERABLELEVEL), Continuing by its duration
+ * (the option's LVLVAL), Clips one per level, applied last
+ */
+const CHARGES_ROWS: Record<string, (a: { optionId?: string; levels?: number }, def: ModifierAdder | undefined) => number> = {
+  CONTINUING: (a, def) => def?.options?.find((o) => o.xmlId === a.optionId)?.lvlVal ?? 0,
+  BOOSTABLE: () => 1,
+  RECOVERABLE: () => 2,
+  CLIPS: (a) => a.levels ?? 0,
+};
+
+/**
+ * Prices Charges' table-shifting adders as Hero Designer does (Charges.setSelectedOption): each
+ * is worth the difference between the row it starts from and the row it moves to. Rows past the
+ * end of the table keep going up by the last step (+1/4). Other adders keep their own cost.
+ */
+export function priceChargesAdders<A extends { xmlId?: string; optionId?: string; levels?: number; baseCost: number }>(
+  def: ModifierDefinition,
+  optionId: string | undefined,
+  adders: A[],
+): A[] {
+  const rows = def.options ?? [];
+  if (!rows.length) return adders;
+  const last = rows[rows.length - 1]!.baseCost;
+  const step = rows.length > 1 ? last - rows[rows.length - 2]!.baseCost : 0.25;
+  const row = (i: number) => (i < rows.length ? rows[Math.max(0, i)]!.baseCost : last + (i - rows.length + 1) * step);
+  const start = Math.max(0, rows.findIndex((o) => o.xmlId === optionId));
+  const adderDefs = modifierAdders(def, optionId);
+  const order = Object.keys(CHARGES_ROWS);
+  let at = start;
+  const priced = new Map<A, number>();
+  for (const a of [...adders].sort((x, y) => order.indexOf(x.xmlId ?? '') - order.indexOf(y.xmlId ?? ''))) {
+    const shift = a.xmlId ? CHARGES_ROWS[a.xmlId] : undefined;
+    if (!shift) continue;
+    const n = shift(a, adderDefs.find((d) => d.xmlId === a.xmlId));
+    priced.set(a, row(at + n) - row(at));
+    at += n;
+  }
+  return adders.map((a) => (priced.has(a) ? { ...a, baseCost: priced.get(a)! } : a));
+}
+
+/**
+ * The most Charges can be worth (Charges.getTotalValue): +1 (0 END on an Autofire attack, 6E1
+ * 368) on a power that costs END, -0 on one that doesn't; Boostable raises it by its own value.
+ * Continuing Charges aren't capped on a power that costs END. Undefined means no cap.
+ */
+export function chargesMaxValue(adders: { xmlId?: string; baseCost: number }[], powerUsesEnd: boolean): number | undefined {
+  if (powerUsesEnd && adders.some((a) => a.xmlId === 'CONTINUING')) return undefined;
+  const boostable = adders.find((a) => a.xmlId === 'BOOSTABLE')?.baseCost ?? 0;
+  return (powerUsesEnd ? 1 : 0) + boostable;
+}
+
+/**
+ * Whether a power costs END apart from its Charges (Charges.parentUsesEND): Costs Endurance makes
+ * it, Reduced Endurance (0 END) stops it, half END doesn't
+ */
+export function costsEndBesidesCharges(defaultUsesEnd: boolean, modifiers: { xmlId?: string; optionId?: string }[]): boolean {
+  const reduced = modifiers.find((m) => m.xmlId === 'REDUCEDEND');
+  if (reduced) return reduced.optionId === 'HALFEND';
+  return defaultUsesEnd || modifiers.some((m) => m.xmlId === 'COSTSEND');
+}
+
+// ============================================================================
+// Modifiers of modifiers
+// ============================================================================
+
+const SUB_MODIFIERS: Record<string, ModifierDefinition> = {};
+for (const def of [...Object.values(ADVANTAGES), ...Object.values(LIMITATIONS)]) {
+  for (const sub of def.subModifiers ?? []) SUB_MODIFIERS[`${def.xmlId}/${sub.xmlId}`] = sub;
+}
+
+/** One of a modifier's own modifiers, as the template defines it under that modifier */
+export function subModifierFor(parentXmlId: string | undefined, xmlId: string | undefined): ModifierDefinition | undefined {
+  return parentXmlId && xmlId ? SUB_MODIFIERS[`${parentXmlId}/${xmlId}`] : undefined;
+}
+
+/** Rounds to the nearest 1/4, halves away from zero, as Hero Designer rounds modifier values */
+const nearestQuarter = (value: number) => (Math.sign(value) * Math.round(Math.abs(value) * 4)) / 4;
+
+/**
+ * A modifier's value with its own modifiers applied, as Hero Designer works it out
+ * (Modifier.getTotalValue): value x (1 + their advantages) / (1 + their limitations), to the
+ * nearest 1/4, before the modifier's own MINCOST/MAXCOST. So Gestures "throughout" (+1) doubles
+ * Gestures and Extra Time "Only to Activate" (-1) halves Extra Time (6E1 375, 381).
+ *
+ * Damage Over Time's are different (DamageOverTime.getTotalValue): "defenses only apply once"
+ * doubles the increments' value and "lock out" doubles the time's (or zeroes it if positive).
+ */
+export function withSubModifiers(
+  m: { xmlId?: string; adders?: { xmlId?: string; baseCost: number; levels?: number; lvlCost?: number }[]; modifiers?: { xmlId?: string; value: number }[] },
+  value: number,
+): number {
+  const subs = m.modifiers ?? [];
+  if (!subs.length) return value;
+  let total = value;
+  let others = subs;
+  if (m.xmlId === 'DAMAGEOVERTIME') {
+    const cost = (id: string) => {
+      const a = m.adders?.find((x) => x.xmlId === id);
+      return a ? a.baseCost + (a.levels ?? 0) * (a.lvlCost ?? 0) : 0;
+    };
+    const time = cost('TIMEBETWEEN');
+    if (subs.some((s) => s.xmlId === 'ONEDEFENSE')) total += cost('INCREMENTS');
+    if (subs.some((s) => s.xmlId === 'LOCKOUT')) total += time > 0 ? -time : time;
+    others = subs.filter((s) => s.xmlId !== 'ONEDEFENSE' && s.xmlId !== 'LOCKOUT');
+  }
+  const advantages = others.filter((s) => s.value > 0).reduce((sum, s) => sum + s.value, 0);
+  const limitations = others.filter((s) => s.value < 0).reduce((sum, s) => sum - s.value, 0);
+  return nearestQuarter((total * (1 + advantages)) / (1 + limitations));
+}
+
+/**
+ * Whether a modifier offers one of its own modifiers on this power (Gestures.getAvailableModifiers):
+ * "throughout" is for powers that last (not Instant ones), unless the power takes Extra Time or is
+ * Mind Control, Mind Scan, Mind Link, Telepathy or Barrier
+ */
+export function subModifierOffered(
+  xmlId: string,
+  power: { xmlId?: string; duration?: string; modifiers?: { xmlId?: string }[] },
+): boolean {
+  if (!['THROUGHOUT', 'CONSTANT', 'CONTINUOUSCONCENTRATION'].includes(xmlId)) return true;
+  const mods = power.modifiers ?? [];
+  const constant = mods.some((m) => m.xmlId === 'CONTINUOUS');
+  if ((power.duration ?? 'INSTANT') !== 'INSTANT' || constant) return true;
+  if (mods.some((m) => m.xmlId === 'EXTRATIME' || m.xmlId === 'REGENEXTRATIME')) return true;
+  return ['MINDCONTROL', 'MINDSCAN', 'MINDLINK', 'TELEPATHY', 'FORCEWALL'].includes(power.xmlId ?? '');
+}
+
+/** How a modifier's own modifiers show in its name: ", throughout" (their abbreviation or alias) */
+export function subModifierSuffix(parentXmlId: string | undefined, subs: { xmlId?: string; alias?: string; name: string }[] | undefined): string {
+  return (subs ?? [])
+    .map((s) => `, ${subModifierFor(parentXmlId, s.xmlId)?.abbreviation ?? s.alias ?? s.name}`)
+    .join('');
+}
+
+// ============================================================================
+// Values that depend on the power
+// ============================================================================
+
+/** What the power-dependent rules need to know of a power's other modifiers */
+export interface PowerModifier {
+  xmlId?: string;
+  optionId?: string;
+  adders?: { xmlId?: string; baseCost: number }[];
+}
+
+/** The power, as the power-dependent rules see it */
+export interface PowerContext {
+  xmlId?: string;
+  modifiers: PowerModifier[];
+}
+
+/** The template's powers (Mind Scan also appears as an empty entry; the complete one is kept) */
+export const POWER_TEMPLATE = new Map(
+  POWER_CATALOG_6E.filter((p) => p.duration || !POWER_CATALOG_6E.some((o) => o !== p && o.xmlId === p.xmlId)).map((p) => [p.xmlId, p]),
+);
+
+/** Whether a power costs END by its template (USESEND), absent meaning it does */
+const templateUsesEnd = (powerXmlId: string | undefined) => POWER_TEMPLATE.get(powerXmlId ?? '')?.usesEnd !== false;
+
+/**
+ * A power's duration with its modifiers (GenericObject.getDuration): Instant makes it Instant,
+ * Nonpersistent makes a Persistent power Constant, Inherent/Persistent/Constant advantages raise
+ * it, and a Persistent power that costs END is Constant
+ */
+export function effectiveDuration(power: PowerContext): string {
+  const base = POWER_TEMPLATE.get(power.xmlId ?? '')?.duration ?? 'INSTANT';
+  const has = (id: string) => power.modifiers.some((m) => m.xmlId === id);
+  if (has('INSTANT')) return 'INSTANT';
+  const lasting = (duration: string) =>
+    costsEndBesidesCharges(templateUsesEnd(power.xmlId), power.modifiers) && !has('COSTSENDTOMAINTAIN') ? 'CONSTANT' : duration;
+  if (base === 'PERSISTENT' || base === 'INHERENT') return has('NONPERSISTENT') ? 'CONSTANT' : lasting(base);
+  if (has('INHERENT')) return lasting('INHERENT');
+  if (has('PERSISTENT')) return lasting('PERSISTENT');
+  if (has('CONTINUOUS')) return 'CONSTANT';
+  return base === 'CONSTANT' ? 'CONSTANT' : 'INSTANT';
+}
+
+const options = (table: [string, string, number][]): ModifierOption[] => table.map(([xmlId, display, baseCost]) => ({ xmlId, display, baseCost }));
+
+/** Time Limit's tables (6E1 346; TimeLimit.setParent) */
+const TIME_LIMIT = {
+  /** Instant powers: an Advantage */
+  instant: options([
+    ['EXTRAPHASE', 'Extra Phase', 0.25], ['1TURN', '1 Turn', 0.5], ['1MINUTE', '1 Minute', 0.75], ['5MINUTES', '5 Minutes', 1],
+    ['20MINUTES', '20 Minutes', 1.25], ['1HOUR', '1 Hour', 1.5], ['6HOURS', '6 Hours', 1.75], ['1DAY', '1 Day', 2],
+    ['1WEEK', '1 Week', 2.25], ['1MONTH', '1 Month', 2.5], ['1SEASON', '1 Season', 2.75], ['1YEAR', '1 Year', 3],
+    ['5YEARS', '5 Years', 3.25], ['25YEARS', '25 Years', 3.5], ['1CENTURY', '1 Century', 3.75],
+  ]),
+  /** Constant powers: an Advantage */
+  constant: options([
+    ['1TURN', '1 Turn', 0.25], ['1MINUTE', '1 Minute', 0.5], ['5MINUTES', '5 Minutes', 0.75], ['20MINUTES', '20 Minutes', 1],
+    ['1HOUR', '1 Hour', 1.25], ['6HOURS', '6 Hours', 1.5], ['1DAY', '1 Day', 1.75], ['1WEEK', '1 Week', 2],
+    ['1MONTH', '1 Month', 2.25], ['1SEASON', '1 Season', 2.5], ['1YEAR', '1 Year', 2.75], ['5YEARS', '5 Years', 3],
+    ['25YEARS', '25 Years', 3.25], ['1CENTURY', '1 Century', 3.5],
+  ]),
+  /** Persistent powers, and Instant ones that linger: a Limitation */
+  limitation: options([
+    ['EXTRAPHASE', 'Extra Phase', -3], ['1TURN', '1 Turn', -2.5], ['1MINUTE', '1 Minute', -2], ['5MINUTES', '5 Minutes', -1.5],
+    ['20MINUTES', '20 Minutes', -1], ['1HOUR', '1 Hour', -0.75], ['6HOURS', '6 Hours', -0.5], ['1DAY', '1 Day', -0.25],
+    ['1WEEK', '1 Week', 0],
+  ]),
+};
+
+/**
+ * Time Limit as this power can take it: an Advantage for Instant and Constant powers, a Limitation
+ * for Persistent ones and for Instant powers whose effect lingers (Telepathy, Mind Control,
+ * Entangle, Barrier)
+ */
+function timeLimitFor(def: ModifierDefinition, power: PowerContext): ModifierDefinition {
+  const duration = effectiveDuration(power);
+  const lingers = ['TELEPATHY', 'MINDCONTROL', 'ENTANGLE', 'FORCEWALL'].includes(power.xmlId ?? '');
+  const table =
+    duration === 'PERSISTENT' || (duration === 'INSTANT' && lingers)
+      ? TIME_LIMIT.limitation
+      : duration === 'CONSTANT'
+        ? TIME_LIMIT.constant
+        : duration === 'INSTANT'
+          ? TIME_LIMIT.instant
+          : [];
+  if (!table.length) return def;
+  const isLimitation = table[0]!.baseCost < 0;
+  return { ...def, options: table, hasOptions: true, baseCost: table[0]!.baseCost, isLimitation, isAdvantage: !isLimitation };
+}
+
+/** Powers whose Autofire costs +1 more however they're targeted (Autofire.getTotalValue) */
+const AUTOFIRE_SURCHARGED = ['DRAIN', 'TRANSFORM', 'TRANSFER', 'AID', 'DISPEL', 'HEALING', 'SUCCOR', 'SUPPRESS'];
+
+/**
+ * A modifier's value on this power, where Hero Designer makes it depend on the power:
+ * - Autofire costs +1 more on an ability that doesn't target DCV (Mental and area attacks, among
+ *   others) and on Drain, Transform, Aid, Dispel and Healing (6E1 327), unless its Non-Standard
+ *   Attack Power adder already pays it; Images and Absorption are exempt. (Hero Designer looks for
+ *   5E's NND/AVLD here, so a 6E AVAD isn't surcharged; the book says it should be.)
+ * - Reduced Endurance costs double on an Autofire power (6E1 327)
+ * - Increased Endurance Cost is worth half with Costs END Only To Activate (6E1 345)
+ * - Charges are capped (chargesMaxValue)
+ */
+export function valueOnPower(m: PowerModifier & { value: number }, power: PowerContext): number {
+  const others = power.modifiers.filter((o) => o !== m);
+  const has = (id: string) => others.some((o) => o.xmlId === id);
+  switch (m.xmlId) {
+    case 'AUTOFIRE': {
+      const template = POWER_TEMPLATE.get(power.xmlId ?? '');
+      if (!template || m.adders?.some((a) => a.xmlId === 'ODDPOWER')) return m.value;
+      if (template.xmlId === 'IMAGES' || template.xmlId === 'ABSORPTION') return m.value;
+      const surcharged =
+        (template.target !== undefined && template.target !== 'DCV') ||
+        has('AOE') ||
+        !!template.types?.includes('MENTAL') ||
+        has('NND') ||
+        has('AVLD') ||
+        AUTOFIRE_SURCHARGED.includes(template.xmlId);
+      return surcharged ? m.value + 1 : m.value;
+    }
+    case 'REDUCEDEND':
+      return has('AUTOFIRE') ? m.value * 2 : m.value;
+    case 'INCREASEDEND':
+      return has('COSTSENDONLYTOACTIVATE') ? m.value / 2 : m.value;
+    case 'CHARGES': {
+      const max = chargesMaxValue(m.adders ?? [], costsEndBesidesCharges(templateUsesEnd(power.xmlId), others));
+      return max !== undefined && m.value > max ? max : m.value;
+    }
+    default:
+      return m.value;
+  }
+}
+
+/** Modifiers whose value depends on the power's other modifiers, so they're repriced together */
+export const POWER_DEPENDENT_MODIFIERS = new Set(['AUTOFIRE', 'REDUCEDEND', 'INCREASEDEND', 'CHARGES', 'TIMELIMIT']);
+
+// ============================================================================
+// END cost
+// ============================================================================
+
+/** Rounds to a whole number, halves down, as Hero Designer rounds END (Rounder.roundHalfDown) */
+const roundHalfDown = (value: number) => Math.ceil(value - 0.5);
+
+/**
+ * A power's END cost per use, as Hero Designer works it out (GenericObject.getEndUsage): 1 END
+ * per 10 Active Points (halves round down), at least 1.
+ * - Charges cost no END, unless the power also Costs Endurance (6E1 367)
+ * - Costs Endurance makes a 0-END power cost END; its Half END option halves it (6E1 374)
+ * - Reduced Endurance halves it, figured on the Active Points without itself, or makes it 0
+ *   (6E1 345); Costs END Only To Activate is likewise left out of the Active Points
+ * - Increased Endurance Cost multiplies it (x2 ... x10), unless it only applies in some
+ *   circumstances (6E1 374)
+ * The modifiers include any the power gets from its list.
+ */
+export function powerEndCost(
+  base: number,
+  usesEnd: boolean,
+  modifiers: { xmlId?: string; optionId?: string; value: number; adders?: { xmlId?: string }[] }[],
+  perEnd = 10,
+): number {
+  const find = (id: string) => modifiers.find((m) => m.xmlId === id);
+  let denominator = usesEnd ? perEnd : 0;
+  let multiplier = 1;
+  let leftOut: (typeof modifiers)[number] | undefined;
+  if (find('CHARGES')) denominator = 0;
+  const costsEnd = find('COSTSEND');
+  if (costsEnd) {
+    denominator = perEnd;
+    if (costsEnd.optionId === 'HALFEND') multiplier = 0.5;
+  }
+  const reduced = find('REDUCEDEND');
+  if (reduced) {
+    if (reduced.optionId === 'HALFEND') multiplier = 0.5;
+    else denominator = 0;
+    leftOut = reduced;
+  }
+  leftOut = find('COSTSENDONLYTOACTIVATE') ?? leftOut;
+  const increased = find('INCREASEDEND');
+  if (increased && !increased.adders?.some((a) => a.xmlId === 'CIRCUMSTANCE')) {
+    multiplier = Math.round(LIMITATIONS.INCREASEDEND?.options?.find((o) => o.xmlId === increased.optionId)?.lvlVal ?? 1);
+  }
+  if (!denominator) return 0;
+  const advantages = modifiers.filter((m) => m !== leftOut && m.value > 0).reduce((sum, m) => sum + m.value, 0);
+  const active = heroRoundCost(base * (1 + advantages));
+  const atLeastOne = (end: number) => (roundHalfDown(end) === 0 && active > 0 ? 1 : end);
+  const end = atLeastOne(roundHalfDown(atLeastOne(active / denominator)) * multiplier);
+  return Math.max(0, roundHalfDown(end));
 }

@@ -5,13 +5,37 @@
 
 import { FRAMEWORK_NAMES, frameworkOwnCost, inheritedSlotLimitations, isContainerType, isFramework, slotCost, type FrameworkType } from '../frameworks.js';
 import type { Adder, Character, Equipment, Modifier, Power } from '../types.js';
+import { modifierBookNotes, modifierProblem, powerBookNotes, type PowerFacts } from '../modifierRules.js';
 import {
   ALL_POWERS,
   calculatePowerBaseCost,
   getPowerDefinition,
+  flashDefenseLevels,
+  powerAdders,
+  steppedCost,
   type PowerDefinition,
 } from '../powerDefinitions.js';
-import { NND, aoeValue, clampModifierValue, getAllModifiers, getModifierByXmlId, isNnd, modifierFor, powerSpecificModifiers, type ModifierDefinition } from '../modifierDefinitions.js';
+import {
+  NND,
+  aoeValue,
+  clampModifierValue,
+  getAllModifiers,
+  getModifierByXmlId,
+  isNnd,
+  modifierAdders,
+  modifierFor,
+  powerSpecificModifiers,
+  POWER_DEPENDENT_MODIFIERS,
+  powerEndCost,
+  priceChargesAdders,
+  subModifierFor,
+  valueOnPower,
+  subModifierOffered,
+  subModifierSuffix,
+  withSubModifiers,
+  type ModifierAdder,
+  type ModifierDefinition,
+} from '../modifierDefinitions.js';
 import { calculateAdderCost, heroRoundCost } from '../utils.js';
 import { fractionText as fraction } from './lists.js';
 import { skillRollCategory } from '../hdc/foundry.js';
@@ -357,15 +381,24 @@ export function selectPower(draft: PowerDraft, xmlId: string): PowerDraft {
 
 export function availableAdders(draft: PowerDraft) {
   const def = getPowerDefinition(draft.xmlId);
+  const offered = powerAdders(def, draft.option || undefined);
   const chosen = new Set(draft.adders.map((a) => a.xmlId));
   const excluded = new Set(
-    draft.adders.flatMap((a) => def?.adders?.find((d) => d.xmlId === a.xmlId)?.excludes ?? []),
+    draft.adders.flatMap((a) => offered.find((d) => d.xmlId === a.xmlId)?.excludes ?? []),
   );
-  return (def?.adders ?? []).filter((a) => !chosen.has(a.xmlId) && !excluded.has(a.xmlId));
+  return offered.filter((a) => !chosen.has(a.xmlId) && !excluded.has(a.xmlId));
+}
+
+/** Chooses the power's option, dropping adders only the previous option offered */
+export function setPowerOption(draft: PowerDraft, optionId: string): PowerDraft {
+  const def = getPowerDefinition(draft.xmlId);
+  const offered = new Set(powerAdders(def, optionId || undefined).map((a) => a.xmlId));
+  const scoped = new Set((def?.options ?? []).flatMap((o) => o.adders ?? []).map((a) => a.xmlId));
+  return { ...draft, option: optionId, optionAlias: '', adders: draft.adders.filter((a) => !scoped.has(a.xmlId ?? '') || offered.has(a.xmlId ?? '')) };
 }
 
 export function addAdder(draft: PowerDraft, xmlId: string): PowerDraft {
-  const def = getPowerDefinition(draft.xmlId)?.adders?.find((a) => a.xmlId === xmlId);
+  const def = powerAdders(getPowerDefinition(draft.xmlId), draft.option || undefined).find((a) => a.xmlId === xmlId);
   if (!def) return draft;
   const excludes = new Set(def.excludes ?? []);
   const adder: Adder = {
@@ -397,28 +430,101 @@ export function setAdderLevels(draft: PowerDraft, id: string, levels: number): P
 
 export { aoeValue } from '../modifierDefinitions.js';
 
+/** A modifier adder's cost: its own (or its option's) plus its levels */
+const adderValue = (a: Adder) => (a.baseCost ?? 0) + (a.levels ?? 0) * (a.lvlCost ?? 0);
+
 /** A modifier's value, the way the HDC parser computes it (so saving round-trips) */
 function modifierValue(def: ModifierDefinition | undefined, m: Modifier): number {
-  const adders = (m.adders ?? []).reduce((sum, a) => sum + (a.baseCost ?? 0), 0);
-  if (m.xmlId === 'AOE') return clampModifierValue(def, aoeValue(m.optionId ?? 'RADIUS', m.levels ?? 4) + adders);
-  if (def?.hasLevels && (m.levels ?? 0) > 0) return clampModifierValue(def, (def.baseCost ?? 0) + (m.levels ?? 0) * (def.lvlCost ?? 0) + adders);
+  const adders = (m.adders ?? []).reduce((sum, a) => sum + adderValue(a), 0);
+  // Its own modifiers apply before its MINCOST/MAXCOST, as in Hero Designer
+  const total = (value: number) => clampModifierValue(def, withSubModifiers(m, value));
+  if (m.xmlId === 'AOE') return total(aoeValue(m.optionId ?? 'RADIUS', m.levels ?? 4) + adders);
+  if (def?.hasLevels && (m.levels ?? 0) > 0) return total((def.baseCost ?? 0) + (m.levels ?? 0) * (def.lvlCost ?? 0) + adders);
   const option = def?.options?.find((o) => o.xmlId === m.optionId);
-  if (option) return clampModifierValue(def, option.baseCost + adders);
+  if (option) return total(option.baseCost + adders);
+  if (m.xmlId === 'LINKED' && def) return total((m.linkedToLesser ? LINKED_TO_LESSER : def.baseCost) + adders);
+  if (def && !def.hasOptions && !def.hasLevels) return total(def.baseCost + adders);
   return m.value;
+}
+
+/** All the character's powers and equipment, including the parts of compound equipment */
+function characterItems(character: Character): Power[] {
+  // Compound equipment keeps its parts in subPowers; compound powers list theirs alongside
+  const flat = (items: (Power | Equipment)[]): Power[] =>
+    items.flatMap((p) => [p as Power, ...flat(('subPowers' in p ? p.subPowers : undefined) ?? [])]);
+  return flat([...character.powers, ...((character.equipment ?? []) as Power[])]);
+}
+
+/** Linked's value when the power it's linked to has fewer Active Points (Main6E.hdt LESSERVALUE) */
+const LINKED_TO_LESSER = -0.25;
+
+/** Powers and equipment a Linked modifier can name: anything but containers and the power itself */
+function linkTargets(character: Character, itemId?: string): Power[] {
+  const containers = ['LIST', 'MULTIPOWER', 'VPP', 'ELEMENTAL_CONTROL', 'COMPOUNDPOWER'];
+  return characterItems(character).filter(
+    (p) => p.id !== itemId && !containers.includes(p.type ?? '') && !p.isContainer,
+  );
+}
+
+/**
+ * Prices each Linked modifier by the power it's linked to (Linked.getBaseCost): -1/2 when that
+ * power has at least as many Active Points as this one, -1/4 when it has fewer
+ */
+export function relinkModifiers(character: Character, draft: PowerDraft): PowerDraft {
+  if (!draft.modifiers.some((m) => m.xmlId === 'LINKED' && m.linkedId)) return draft;
+  const active = powerCosts(draft).active;
+  return withModifiers(
+    draft,
+    draft.modifiers.map((m) => {
+      if (m.xmlId !== 'LINKED' || !m.linkedId) return m;
+      const target = linkTargets(character).find((p) => p.id === m.linkedId);
+      if (!target) return m;
+      const lesser = (target.activeCost ?? 0) < active || undefined;
+      return lesser === m.linkedToLesser ? m : refreshModifier({ ...m, linkedToLesser: lesser }, draft.xmlId, others(draft, m.id));
+    }),
+  );
+}
+
+/** Links a Linked modifier to another power (or to none) */
+export function setModifierLink(draft: PowerDraft, id: string, linkedId: string, character: Character): PowerDraft {
+  const linked = updateModifier(draft, id, (m) => ({ ...m, linkedId: linkedId || undefined, linkedToLesser: undefined }));
+  return relinkModifiers(character, linked);
 }
 
 function modifierName(def: ModifierDefinition | undefined, m: Modifier): string {
   if (isNnd(m)) return NND.display;
   const base = def?.display ?? m.alias ?? m.name;
-  if (m.xmlId === 'AOE') return `${base} (${m.levels ?? 4}m ${m.optionAlias ?? m.optionId ?? 'Radius'})`;
-  return m.optionAlias ? `${base} (${m.optionAlias})` : base;
+  const subs = subModifierSuffix(m.xmlId, m.modifiers);
+  if (m.xmlId === 'AOE') return `${base} (${m.levels ?? 4}m ${m.optionAlias ?? m.optionId ?? 'Radius'})${subs}`;
+  return (m.optionAlias ? `${base} (${m.optionAlias})` : base) + subs;
 }
 
-/** Recomputes a modifier's value and name (by the definition of the power it's on, if given) */
-function refreshModifier(m: Modifier, powerXmlId?: string): Modifier {
-  const def = m.xmlId ? modifierFor(m.xmlId, powerXmlId) : undefined;
-  const value = modifierValue(def, m);
-  return { ...m, value, name: modifierName(def, m), isAdvantage: value > 0, isLimitation: value < 0 };
+/**
+ * Recomputes a modifier's value and name (by the definition of the power it's on, if given).
+ * Some depend on the power's other modifiers too (valueOnPower): Autofire, Charges, ...
+ */
+function refreshModifier(m: Modifier, powerXmlId?: string, others: Modifier[] = []): Modifier {
+  const def = m.xmlId ? modifierFor(m.xmlId, powerXmlId, others) : undefined;
+  const priced = def && m.xmlId === 'CHARGES' ? { ...m, adders: priceChargesAdders(def, m.optionId, m.adders ?? []) } : m;
+  const base = { ...priced, value: modifierValue(def, priced) };
+  const value = def ? valueOnPower(base, { xmlId: powerXmlId, modifiers: [...others, base] }) : base.value;
+  return { ...base, value, name: modifierName(def, base), isAdvantage: value > 0, isLimitation: value < 0 };
+}
+
+/** Sets a draft's modifiers, repricing those that depend on the others (Autofire, Charges, ...) */
+function withModifiers(draft: PowerDraft, modifiers: Modifier[]): PowerDraft {
+  const repriced = modifiers.map((m) =>
+    POWER_DEPENDENT_MODIFIERS.has(m.xmlId ?? '') ? refreshModifier(m, draft.xmlId, modifiers.filter((o) => o !== m)) : m,
+  );
+  return { ...draft, modifiers: repriced };
+}
+
+/** Changes one of a draft's modifiers */
+function updateModifier(draft: PowerDraft, id: string, change: (m: Modifier, def: ModifierDefinition | undefined) => Modifier): PowerDraft {
+  return withModifiers(
+    draft,
+    draft.modifiers.map((m) => (m.id === id ? change(m, m.xmlId ? modifierFor(m.xmlId, draft.xmlId, others(draft, id)) : undefined) : m)),
+  );
 }
 
 export function addModifier(draft: PowerDraft, xmlId: string): PowerDraft {
@@ -429,10 +535,10 @@ export function addModifier(draft: PowerDraft, xmlId: string): PowerDraft {
     if (!avad || avad.xmlId !== 'AVAD') return draft;
     return setModifierAdder(setModifierOption(added, avad.id, NND.option), avad.id, NND.adder, true);
   }
-  const def = modifierFor(xmlId, draft.xmlId);
+  const def = modifierFor(xmlId, draft.xmlId, draft.modifiers);
   if (!def) return draft;
   const option = xmlId === 'AOE' ? def.options?.find((o) => o.xmlId === 'RADIUS') ?? def.options?.[0] : !def.hasLevels ? def.options?.[0] : undefined;
-  const modifier = refreshModifier({
+  const modifier = withRequiredAdders({
     id: newId(),
     xmlId,
     name: def.display,
@@ -443,8 +549,8 @@ export function addModifier(draft: PowerDraft, xmlId: string): PowerDraft {
     levels: xmlId === 'AOE' ? 4 : def.hasLevels ? 1 : undefined,
     optionId: option?.xmlId,
     optionAlias: option?.display,
-  }, draft.xmlId);
-  return { ...draft, modifiers: [...draft.modifiers, modifier] };
+  }, def);
+  return withModifiers(draft, [...draft.modifiers, refreshModifier(modifier, draft.xmlId, draft.modifiers)]);
 }
 
 /** A modifier with free-text name and value (the Hero Designer "custom modifier") */
@@ -457,22 +563,192 @@ export function addCustomModifier(draft: PowerDraft, name: string, value: number
 }
 
 export function removeModifier(draft: PowerDraft, id: string): PowerDraft {
-  return { ...draft, modifiers: draft.modifiers.filter((m) => m.id !== id) };
+  return withModifiers(draft, draft.modifiers.filter((m) => m.id !== id));
 }
 
 export function setModifierOption(draft: PowerDraft, id: string, optionId: string): PowerDraft {
-  return {
-    ...draft,
-    modifiers: draft.modifiers.map((m) => {
-      if (m.id !== id) return m;
-      const option = (m.xmlId ? modifierFor(m.xmlId, draft.xmlId) : undefined)?.options?.find((o) => o.xmlId === optionId);
-      return refreshModifier({ ...m, optionId, optionAlias: option?.display ?? optionId }, draft.xmlId);
-    }),
-  };
+  return updateModifier(draft, id, (m, def) => {
+    const option = def?.options?.find((o) => o.xmlId === optionId);
+    // An option's own adders go with it (Accurate is for a Radius, not a Cone)
+    const offered = new Set(modifierAdders(def, optionId).map((a) => a.xmlId));
+    const scoped = new Set((def?.options ?? []).flatMap((o) => o.adders ?? []).map((a) => a.xmlId));
+    const adders = (m.adders ?? []).filter((a) => !scoped.has(a.xmlId ?? '') || offered.has(a.xmlId ?? ''));
+    const changed = { ...m, optionId, optionAlias: option?.display ?? optionId, adders };
+    return refreshModifier(def ? withRequiredAdders(changed, def) : changed, draft.xmlId, others(draft, id));
+  });
 }
 
 export function setModifierLevels(draft: PowerDraft, id: string, levels: number): PowerDraft {
-  return { ...draft, modifiers: draft.modifiers.map((m) => (m.id === id ? refreshModifier({ ...m, levels: Math.max(1, levels) }, draft.xmlId) : m)) };
+  return updateModifier(draft, id, (m) => refreshModifier({ ...m, levels: Math.max(1, levels) }, draft.xmlId, others(draft, id)));
+}
+
+const others = (draft: PowerDraft, id: string) => draft.modifiers.filter((m) => m.id !== id);
+
+// -----------------------------------------------------------------------------
+// A modifier's own adders
+// -----------------------------------------------------------------------------
+
+/** Whether a modifier adder is bought in levels (Mobile's speed, Autofire's x2 shots, Charges' Clips) */
+const isLeveled = (def: ModifierAdder) => def.lvlCost !== undefined || def.lvlVal !== undefined;
+
+/** "x[LVL] Shots" at a level: x2 per level where the level multiplies (and for Clips) */
+function adderDisplay(def: ModifierAdder, levels: number): string {
+  if (!def.levelDisplay) return def.display;
+  const shown = def.lvlPower ? def.lvlPower ** levels : def.xmlId === 'CLIPS' ? 2 ** levels : levels;
+  return def.levelDisplay.replace('[LVL]', String(shown));
+}
+
+/** A new adder on a modifier, at its first option and lowest level */
+function newModifierAdder(def: ModifierAdder): Adder {
+  const option = def.options?.[0];
+  const levels = isLeveled(def) ? Math.max(def.minVal ?? 1, def.levelStart ?? 1, 1) : undefined;
+  // Hero Designer's alias is the display without its abbreviation ("All Or Nothing", not "... (NND)")
+  const display = adderDisplay(def, levels ?? 0);
+  const alias = def.abbreviation ? display.replace(` (${def.abbreviation})`, '') : display;
+  return {
+    id: newId(),
+    xmlId: def.xmlId,
+    name: alias,
+    alias,
+    baseCost: option?.baseCost ?? def.baseCost,
+    levels,
+    lvlCost: levels !== undefined ? (def.lvlCost ?? 0) : undefined,
+    lvlVal: levels !== undefined && def.lvlVal !== undefined && def.lvlVal !== 1 ? def.lvlVal : undefined,
+    optionId: option?.xmlId,
+    optionAlias: option?.display,
+    includeInBase: false,
+    selected: true,
+  };
+}
+
+/** Adds the adders the modifier must have (Damage Over Time's increments, a Trigger's reset) */
+function withRequiredAdders(m: Modifier, def: ModifierDefinition): Modifier {
+  const missing = modifierAdders(def, m.optionId).filter((a) => a.required && !(m.adders ?? []).some((x) => x.xmlId === a.xmlId));
+  return missing.length ? { ...m, adders: [...(m.adders ?? []), ...missing.map(newModifierAdder)] } : m;
+}
+
+/**
+ * Turns one of a modifier's adders on (replacing any it excludes, and adding any it requires)
+ * or off (with any that require it). Required adders stay on.
+ */
+function toggleModifierAdder(m: Modifier, def: ModifierDefinition | undefined, adderXmlId: string, on: boolean, make?: (d: ModifierAdder) => Adder): Modifier {
+  const offered = modifierAdders(def, m.optionId);
+  const adderDef = offered.find((a) => a.xmlId === adderXmlId);
+  if (!adderDef) return m;
+  let adders = (m.adders ?? []).filter((a) => a.xmlId !== adderXmlId);
+  if (!on) {
+    if (adderDef.required) return m;
+    const dependents = new Set(offered.filter((a) => a.requires?.includes(adderXmlId)).map((a) => a.xmlId));
+    return { ...m, adders: adders.filter((a) => !dependents.has(a.xmlId ?? '')) };
+  }
+  const excluded = new Set([...(adderDef.excludes ?? []), ...offered.filter((a) => a.excludes?.includes(adderXmlId)).map((a) => a.xmlId)]);
+  adders = adders.filter((a) => !excluded.has(a.xmlId ?? ''));
+  const needed = (adderDef.requires ?? [])
+    .map((x) => offered.find((a) => a.xmlId === x))
+    .filter((a): a is ModifierAdder => !!a && !adders.some((x) => x.xmlId === a.xmlId));
+  return { ...m, adders: [...adders, (make ?? newModifierAdder)(adderDef), ...needed.map(newModifierAdder)] };
+}
+
+/** Turns one of a modifier's own adders on or off (e.g. AVAD's All Or Nothing, which makes it NND) */
+export function setModifierAdder(draft: PowerDraft, id: string, adderXmlId: string, on: boolean): PowerDraft {
+  return updateModifier(draft, id, (m, def) => refreshModifier(toggleModifierAdder(m, def, adderXmlId, on), draft.xmlId, others(draft, id)));
+}
+
+/** Chooses a modifier adder's option (Continuing Charges' duration); none turns it off */
+export function setModifierAdderOption(draft: PowerDraft, id: string, adderXmlId: string, optionId: string): PowerDraft {
+  return updateModifier(draft, id, (m, def) => {
+    const adderDef = modifierAdders(def, m.optionId).find((a) => a.xmlId === adderXmlId);
+    const option = adderDef?.options?.find((o) => o.xmlId === optionId);
+    const existing = (m.adders ?? []).find((a) => a.xmlId === adderXmlId);
+    const changed = !option
+      ? toggleModifierAdder(m, def, adderXmlId, false)
+      : existing
+        ? { ...m, adders: (m.adders ?? []).map((a) => (a === existing ? { ...a, optionId: option.xmlId, optionAlias: option.display, baseCost: option.baseCost } : a)) }
+        : toggleModifierAdder(m, def, adderXmlId, true, (d) => ({ ...newModifierAdder(d), optionId: option.xmlId, optionAlias: option.display, baseCost: option.baseCost }));
+    return refreshModifier(changed, draft.xmlId, others(draft, id));
+  });
+}
+
+/** Sets a leveled modifier adder's levels (Autofire's x2 shots, Charges' Clips); 0 turns it off */
+export function setModifierAdderLevels(draft: PowerDraft, id: string, adderXmlId: string, levels: number): PowerDraft {
+  return updateModifier(draft, id, (m, def) => {
+    const adderDef = modifierAdders(def, m.optionId).find((a) => a.xmlId === adderXmlId);
+    if (!adderDef) return m;
+    const n = Math.max(0, Math.floor(Number.isFinite(levels) ? levels : 0));
+    const existing = (m.adders ?? []).find((a) => a.xmlId === adderXmlId);
+    const at = (a: Adder): Adder => {
+      const display = adderDisplay(adderDef, n);
+      return { ...a, levels: n, name: display, alias: display };
+    };
+    const changed = n === 0
+      ? toggleModifierAdder(m, def, adderXmlId, false)
+      : existing
+        ? { ...m, adders: (m.adders ?? []).map((a) => (a === existing ? at(a) : a)) }
+        : toggleModifierAdder(m, def, adderXmlId, true, (d) => at(newModifierAdder(d)));
+    return refreshModifier(changed, draft.xmlId, others(draft, id));
+  });
+}
+
+/**
+ * Turns one of a modifier's own modifiers on or off (Gestures "throughout", Extra Time "Only to
+ * Activate"), which multiplies or divides the modifier's value
+ */
+export function setModifierSubModifier(draft: PowerDraft, id: string, xmlId: string, on: boolean): PowerDraft {
+  return updateModifier(draft, id, (m) => {
+    const kept = (m.modifiers ?? []).filter((s) => s.xmlId !== xmlId);
+    const def = subModifierFor(m.xmlId, xmlId);
+    if (on && !def) return m;
+    const sub: Modifier | undefined = on && def
+      ? { id: newId(), xmlId, name: def.display, alias: def.display, value: clampModifierValue(def, def.baseCost), isAdvantage: def.baseCost > 0, isLimitation: def.baseCost < 0 }
+      : undefined;
+    const modifiers = sub ? [...kept, sub] : kept;
+    return refreshModifier({ ...m, modifiers: modifiers.length ? modifiers : undefined }, draft.xmlId, others(draft, id));
+  });
+}
+
+/** The modifier's own modifiers for the form, those this power can take (and any it already has) */
+function subModifierChoices(m: Modifier, def: ModifierDefinition | undefined, draft: PowerDraft) {
+  const power = { xmlId: draft.xmlId, duration: getPowerDefinition(draft.xmlId)?.duration, modifiers: draft.modifiers };
+  return (def?.subModifiers ?? [])
+    .filter((s) => subModifierOffered(s.xmlId, power) || (m.modifiers ?? []).some((x) => x.xmlId === s.xmlId))
+    .map((s) => ({
+      value: s.xmlId,
+      label: s.display,
+      cost: subModifierEffect(s),
+      checked: (m.modifiers ?? []).some((x) => x.xmlId === s.xmlId),
+    }));
+}
+
+/** What a modifier's own modifier does to it: x2 for +1, x1/2 for -1 */
+function subModifierEffect(s: ModifierDefinition): string {
+  const factor = s.baseCost >= 0 ? 1 + s.baseCost : 1 / (1 - s.baseCost);
+  return factor === 0.5 ? 'x½' : `x${factor}`;
+}
+
+const CHARGES_TABLE_ADDERS = new Set(['CONTINUING', 'BOOSTABLE', 'RECOVERABLE', 'CLIPS']);
+
+/** The modifier's adders for the form: on/off, a choice of option, or a number of levels */
+function modifierAdderChoices(m: Modifier, def: ModifierDefinition | undefined) {
+  return modifierAdders(def, m.optionId).map((a) => {
+    const chosen = (m.adders ?? []).find((x) => x.xmlId === a.xmlId);
+    const levels = chosen?.levels ?? 0;
+    return {
+      value: a.xmlId,
+      label: isLeveled(a) ? adderDisplay(a, Math.max(levels, 1)).replace(/^x\d+ /, '') : a.display,
+      // Charges' table adders are only priced once taken (by the rows they move the power)
+      cost: chosen
+        ? fraction(adderValue(chosen))
+        : m.xmlId === 'CHARGES' && CHARGES_TABLE_ADDERS.has(a.xmlId)
+          ? ''
+          : fraction((a.options?.[0]?.baseCost ?? a.baseCost) + (isLeveled(a) ? Math.max(a.minVal ?? 1, 1) * (a.lvlCost ?? 0) : 0)),
+      checked: !!chosen,
+      required: !!a.required,
+      kind: a.options?.length ? 'select' : isLeveled(a) ? 'levels' : 'check',
+      options: a.options?.map((o) => ({ value: o.xmlId, label: o.label ?? o.display, selected: chosen?.optionId === o.xmlId })),
+      levels,
+      levelsLabel: a.levelDisplay ? adderDisplay(a, levels).replace(/ .*/, '') : '',
+    };
+  });
 }
 
 // =============================================================================
@@ -527,24 +803,6 @@ export function setModifierInput(draft: PowerDraft, id: string, input: string): 
   return { ...draft, modifiers: draft.modifiers.map((m) => (m.id === id ? { ...m, input: input.trim() || undefined } : m)) };
 }
 
-/** Turns one of a modifier's own adders on or off (e.g. AVAD's All Or Nothing, which makes it NND) */
-export function setModifierAdder(draft: PowerDraft, id: string, adderXmlId: string, on: boolean): PowerDraft {
-  return {
-    ...draft,
-    modifiers: draft.modifiers.map((m) => {
-      if (m.id !== id) return m;
-      const kept = (m.adders ?? []).filter((a) => a.xmlId !== adderXmlId);
-      if (!on) return refreshModifier({ ...m, adders: kept }, draft.xmlId);
-      const def = (m.xmlId ? modifierFor(m.xmlId, draft.xmlId) : undefined)?.adders?.find((a) => a.xmlId === adderXmlId);
-      if (!def) return m;
-      // Hero Designer's alias is the display without its abbreviation ("All Or Nothing", not "... (NND)")
-      const alias = def.abbreviation ? def.display.replace(` (${def.abbreviation})`, '') : def.display;
-      const adder: Adder = { id: newId(), xmlId: adderXmlId, name: alias, alias, baseCost: def.baseCost, includeInBase: false, selected: true };
-      return refreshModifier({ ...m, adders: [...kept, adder] }, draft.xmlId);
-    }),
-  };
-}
-
 export function setModifierValue(draft: PowerDraft, id: string, value: number): PowerDraft {
   return {
     ...draft,
@@ -559,7 +817,8 @@ export function setModifierValue(draft: PowerDraft, id: string, value: number): 
 /** Barrier: 3 CP for 1m x 1m x 0.5m; +1 per extra meter (or half meter of thickness) and BODY; 3 per 2 DEF */
 export function barrierBaseCost(b: PowerDraft['barrier']): number {
   const dimensions = Math.max(0, b.length - 1) + Math.max(0, b.height - 1) + Math.max(0, (b.width - 0.5) * 2);
-  const defense = Math.ceil((b.pd + b.ed + b.md + b.powd) * 1.5);
+  // 3 per 2 points of defense, a part pair costing a whole one (ForceWall.getTotalCost)
+  const defense = steppedCost(0, b.pd + b.ed + b.md + b.powd, 2, 3);
   return 3 + dimensions + b.body + defense;
 }
 
@@ -590,17 +849,20 @@ export function powerCosts(draft: PowerDraft, inherited: Modifier[] = []): Power
   if (draft.kind !== 'power') return { base: 0, active: 0, real: 0, end: 0 };
   const def = getPowerDefinition(draft.xmlId);
   const adders = calculateAdderCost(draft.adders);
+  // Resistant Protection's Flash Defense is priced with its other defenses
+  const flash = flashDefenseLevels(def?.xmlId, draft.adders);
+  const ownAdders = flash ? calculateAdderCost(draft.adders.filter((a) => a.xmlId !== 'FLASHDEFENSE')) : adders;
   const base = !def
     ? draft.customCost + adders
     : def.xmlId === 'FORCEWALL'
       ? barrierBaseCost(draft.barrier) + adders
-      : calculatePowerBaseCost(def, draft.levels, draft.option || undefined) + adders;
+      : calculatePowerBaseCost(def, draft.levels + flash, draft.option || undefined) + ownAdders;
   const all = [...draft.modifiers, ...inherited];
   const advantages = all.filter((m) => m.value > 0).reduce((s, m) => s + m.value, 0);
   const limitations = all.filter((m) => m.value < 0).reduce((s, m) => s + Math.abs(m.value), 0);
   const active = heroRoundCost(base * (1 + advantages));
   const real = limitations > 0 ? heroRoundCost(active / (1 + limitations)) : active;
-  const end = def && def.usesEnd === false ? 0 : Math.ceil(active / 10);
+  const end = powerEndCost(base, def?.usesEnd !== false, all);
   return { base, active, real, end };
 }
 
@@ -668,10 +930,12 @@ export function powerTypeChoices(): TypeChoiceGroup[] {
   ];
 }
 
-export function modifierChoices(powerXmlId?: string) {
+export function modifierChoices(powerXmlId?: string, powerModifiers: Modifier[] = []) {
   // The power's own definitions first, so they win over general ones with the same XMLID
   const all = [...powerSpecificModifiers(powerXmlId), ...Object.values(getAllModifiers())]
     .filter((m, i, list) => list.findIndex((o) => o.xmlId === m.xmlId) === i)
+    // Time Limit is a Limitation on a Persistent power, an Advantage otherwise
+    .map((m) => (m.xmlId === 'TIMELIMIT' ? (modifierFor(m.xmlId, powerXmlId, powerModifiers) ?? m) : m))
     .sort((a, b) => a.display.localeCompare(b.display));
   return {
     advantages: [
@@ -684,6 +948,7 @@ export function modifierChoices(powerXmlId?: string) {
 
 export function powerFormView(character: Character, section: PowerSection, draft: PowerDraft, itemId?: string) {
   const def = getPowerDefinition(draft.xmlId);
+  const facts = powerFacts(character, draft, itemId);
   const parent = containerOf(character, section, draft.parentId);
   const parentType = typeOf(parent);
   // A list's modifiers apply to everything in it; a Multipower's limitations to its slots
@@ -739,7 +1004,11 @@ export function powerFormView(character: Character, section: PowerSection, draft
       label: `${a.display} (${a.baseCost}${a.lvlCost ? ` + ${a.lvlCost}/level` : ''})`,
     })),
     modifiers: draft.modifiers.map((m) => {
-      const mdef = m.xmlId ? modifierFor(m.xmlId, draft.xmlId) : undefined;
+      const mdef = m.xmlId ? modifierFor(m.xmlId, draft.xmlId, others(draft, m.id)) : undefined;
+      // Hero Designer's warning if this power can't normally take it
+      const problem = m.xmlId ? modifierProblem(m.xmlId, facts) : '';
+      // Rules the book states that Hero Designer doesn't apply
+      const bookNotes = modifierBookNotes(m, facts).map((n) => `${n.text} (6E1 ${n.page})`);
       const nnd = isNnd(m);
       const rollsSkill = m.xmlId === 'REQUIRESASKILLROLL' && SKILL_ROLL_OPTION.test(m.optionId ?? '');
       const skills = rollsSkill ? rollSkillChoices(character) : [];
@@ -759,21 +1028,22 @@ export function powerFormView(character: Character, section: PowerSection, draft
         isNnd: nnd,
         toSpell: isCustomSpell(m),
         options: nnd ? undefined : m.xmlId === 'AOE' || !mdef?.hasLevels
-          ? mdef?.options?.map((o) => ({ value: o.xmlId, label: o.display, selected: o.xmlId === m.optionId }))
+          ? mdef?.options?.map((o) => ({ value: o.xmlId, label: o.label ?? o.display, selected: o.xmlId === m.optionId }))
           : undefined,
         // Free-text detail, e.g. the defense an AVAD attack works against
         input: nnd
           ? { label: 'Rare defense', value: m.input ?? '' }
           : mdef?.inputLabel || m.input ? { label: mdef?.inputLabel ?? 'Details', value: m.input ?? '' } : undefined,
-        // The modifier's own on/off adders (AVAD's All Or Nothing makes it NND)
-        adderChoices: (nnd ? [] : mdef?.adders ?? [])
-          .filter((a) => !a.options?.length && !a.lvlCost)
-          .map((a) => ({
-            value: a.xmlId,
-            label: a.display,
-            cost: fraction(a.baseCost),
-            checked: (m.adders ?? []).some((x) => x.xmlId === a.xmlId),
-          })),
+        // The modifier's own adders (AVAD's All Or Nothing makes it NND)
+        adderChoices: nnd ? [] : modifierAdderChoices(m, mdef),
+        // Its own modifiers ("throughout" doubles Gestures)
+        subChoices: subModifierChoices(m, mdef, draft),
+        problem,
+        bookNotes,
+        // Linked: the power it's linked to
+        linkChoices: m.xmlId === 'LINKED'
+          ? linkTargets(character, itemId).map((p) => ({ value: p.id, label: `${p.name} (${p.activeCost ?? 0} AP)`, selected: p.id === m.linkedId }))
+          : undefined,
       };
     }),
     inherited: inherited.map((m) => `${m.name} (${fraction(m.value)})`),
@@ -784,10 +1054,32 @@ export function powerFormView(character: Character, section: PowerSection, draft
       detail: [p.alias && p.alias !== p.name ? p.alias : '', modifierText(p.modifiers)].filter(Boolean).join(' · '),
       cost: p.realCost ?? 0,
     })),
-    modifierChoices: modifierChoices(draft.xmlId),
+    modifierChoices: modifierChoices(draft.xmlId, draft.modifiers),
+    // Rules for the power itself from its 6E1 description
+    powerNotes: powerBookNotes({
+      ...facts,
+      input: draft.input,
+      levels: draft.levels,
+      framework: parentType === 'MULTIPOWER' || parentType === 'VPP' ? parentType : undefined,
+    }).map((n) => `${n.text} (6E1 ${n.page})`),
     /** Custom "Spell" modifiers elsewhere in the character (see convertCustomSpells) */
     otherCustomSpells: draft.modifiers.some(isCustomSpell) ? convertCustomSpells(character, itemId).count : 0,
     costs,
+  };
+}
+
+/** What Hero Designer's modifier rules need to know about the power being edited */
+export function powerFacts(character: Character, draft: PowerDraft, itemId?: string): PowerFacts {
+  const items = characterItems(character);
+  const containers: Partial<Record<PowerKind, PowerFacts['container']>> = { list: 'LIST', multipower: 'MULTIPOWER', vpp: 'VPP', compound: 'COMPOUNDPOWER' };
+  return {
+    xmlId: draft.xmlId,
+    modifiers: draft.modifiers,
+    adders: draft.adders.map((a) => a.xmlId ?? ''),
+    baseCost: powerCosts(draft).base,
+    container: containers[draft.kind],
+    characterPowers: items.map((p) => p.type ?? ''),
+    characterItems: items.filter((p) => p.id !== itemId).map((p) => ({ id: p.id, xmlId: p.type, modifiers: p.modifiers ?? [] })),
   };
 }
 
@@ -917,7 +1209,9 @@ export function propagateCost<T extends { id: string; parentId?: string; realCos
   );
 }
 
-export function savePowerDraft(character: Character, section: PowerSection, itemId: string | undefined, draft: PowerDraft): Character {
+export function savePowerDraft(character: Character, section: PowerSection, itemId: string | undefined, unlinked: PowerDraft): Character {
+  // Linked's value follows the Active Points of both powers as they are now
+  const draft = relinkModifiers(character, unlinked);
   const existing = itemId ? findPower(character, section, itemId) : undefined;
   const parent = containerOf(character, section, draft.parentId);
   const costs = powerCosts(draft, parent?.type === 'LIST' ? (parent.modifiers ?? []) : []);

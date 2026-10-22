@@ -5,7 +5,7 @@
  * for all standard HERO System powers as used in Hero Designer.
  */
 
-import { POWER_CATALOG_6E, type CatalogEntry } from './generated/catalog6e.js';
+import { POWER_CATALOG_6E, type CatalogAdder, type CatalogEntry } from './generated/catalog6e.js';
 import { SKILL_CATALOG_6E } from './generated/skillCatalog6e.js';
 
 // ============================================================================
@@ -40,6 +40,8 @@ export interface PowerOption {
   baseCost?: number;   // Optional base cost for the option
   lvlCost?: number;    // Optional per-level cost for the option
   lvlVal?: number;
+  /** Adders only this option offers (a Major Transform's +1/2d6) */
+  adders?: PowerAdder[];
 }
 
 export interface PowerDefinition {
@@ -1169,7 +1171,7 @@ export const SENSORY_POWERS: Record<string, PowerDefinition> = {
     options: [
       { xmlId: 'SINGLE', display: 'A Single Thing', baseCost: 3, lvlCost: 1, lvlVal: 1 },
       { xmlId: 'CLASS', display: 'A Class Of Things', baseCost: 5, lvlCost: 1, lvlVal: 1 },
-      { xmlId: 'LARGECLASS', display: 'A Large Class Of Things', baseCost: 8, lvlCost: 1, lvlVal: 1 },
+      { xmlId: 'LARGECLASS', display: 'A Large Class Of Things', baseCost: 10, lvlCost: 1, lvlVal: 1 },
     ],
   },
 
@@ -2008,6 +2010,9 @@ for (const entry of POWER_CATALOG_6E) {
   const extraAdders = (fromCatalog.adders ?? []).filter((a) => !known.has(a.xmlId));
   if (extraAdders.length) existing.adders = [...(existing.adders ?? []), ...extraAdders];
   if (!existing.options?.length && fromCatalog.options?.length) existing.options = fromCatalog.options;
+  for (const option of existing.options ?? []) {
+    option.adders ??= fromCatalog.options?.find((o) => o.xmlId === option.xmlId)?.adders;
+  }
 }
 
 /** Hero Designer display names carry a level placeholder ("Reduced Negation ([LVL])") */
@@ -2044,20 +2049,7 @@ function powerFromCatalog(e: CatalogEntry): PowerDefinition {
     continuingEffect: e.continuingEffect,
     exclusive: e.exclusive,
     warningSign: e.warningSign,
-    adders: e.adders?.map((a) => ({
-      xmlId: a.xmlId,
-      display: cleanDisplay(a.display),
-      baseCost: a.baseCost,
-      lvlCost: a.lvlCost,
-      lvlVal: a.lvlVal,
-      minVal: a.minVal,
-      levelStart: a.levelStart,
-      exclusive: a.exclusive,
-      required: a.required,
-      includeInBase: a.includeInBase,
-      excludes: a.excludes,
-      options: a.options?.map((o) => ({ xmlId: o.xmlId, display: o.display, baseCost: o.baseCost, lvlCost: o.lvlCost, lvlVal: o.lvlVal })),
-    })),
+    adders: e.adders?.map(powerAdderFromCatalog),
     options: e.scopeCosts
       ? senseScopeOptions(e.scopeCosts, e.lvlVal !== undefined || e.minVal !== undefined ? (e.lvlVal ?? 1) : undefined)
       : e.options?.map((o) => ({
@@ -2066,12 +2058,36 @@ function powerFromCatalog(e: CatalogEntry): PowerDefinition {
           baseCost: o.baseCost,
           lvlCost: o.lvlCost,
           lvlVal: o.lvlVal,
+          adders: o.adders?.length ? o.adders.map(powerAdderFromCatalog) : undefined,
         })),
     ...(e.scopeCosts && e.lvlVal === undefined && e.minVal === undefined ? { baseCost: e.scopeCosts.group ?? e.scopeCosts.sense ?? 0 } : {}),
     ...(e.scopeCosts && (e.lvlVal !== undefined || e.minVal !== undefined)
       ? { lvlCost: e.scopeCosts.all ?? e.scopeCosts.group ?? e.scopeCosts.sense ?? 0 }
       : {}),
   };
+}
+
+function powerAdderFromCatalog(a: CatalogAdder): PowerAdder {
+  return {
+    xmlId: a.xmlId,
+    display: cleanDisplay(a.display),
+    baseCost: a.baseCost,
+    lvlCost: a.lvlCost,
+    lvlVal: a.lvlVal,
+    minVal: a.minVal,
+    levelStart: a.levelStart,
+    exclusive: a.exclusive,
+    required: a.required,
+    includeInBase: a.includeInBase,
+    excludes: a.excludes,
+    options: a.options?.map((o) => ({ xmlId: o.xmlId, display: o.display, baseCost: o.baseCost, lvlCost: o.lvlCost, lvlVal: o.lvlVal })),
+  };
+}
+
+/** The adders a power offers with this option chosen: its own plus the option's */
+export function powerAdders(def: PowerDefinition | undefined, optionId?: string): PowerAdder[] {
+  const option = optionId ? def?.options?.find((o) => o.xmlId === optionId) : undefined;
+  return [...(def?.adders ?? []), ...(option?.adders ?? [])];
 }
 
 /**
@@ -2134,7 +2150,40 @@ export function calculatePowerBaseCost(power: PowerDefinition, levels: number, o
   const lvlCost = selectedOption?.lvlCost ?? power.lvlCost;
   // Priced per level step, as Hero Designer does (Resistant Protection 3 per 2, Multiform 1 per 5)
   const step = selectedOption?.lvlVal || power.lvlVal || 1;
-  return baseCost + lvlCost * (levels / step);
+  return powerLevelsCost(power.xmlId, baseCost, levels, step, lvlCost);
+}
+
+/**
+ * A power's base and levels, with Hero Designer's exceptions to pricing by whole steps:
+ * Duplication pays for its points exactly (Duplication.getTotalCost: 247 points is 49.4), and
+ * Density Increase stops at 50 levels (DensityIncrease.getLevels)
+ */
+export function powerLevelsCost(xmlId: string | undefined, base: number, levels: number, step: number, perStep: number): number {
+  if (xmlId === 'DUPLICATION') return base + (levels / (step || 1)) * perStep;
+  return steppedCost(base, xmlId === 'DENSITYINCREASE' ? Math.min(levels, 50) : levels, step, perStep);
+}
+
+/**
+ * Resistant Protection's Flash Defense adder is priced with its other defenses, by the same 3 per 2
+ * (ForceField.getTotalCost): the extra levels it adds, in place of its own cost
+ */
+export function flashDefenseLevels(xmlId: string | undefined, adders: { xmlId?: string; levels?: number; lvlVal?: number }[]): number {
+  if (xmlId !== 'FORCEFIELD') return 0;
+  return adders.filter((a) => a.xmlId === 'FLASHDEFENSE').reduce((sum, a) => sum + (a.levels ?? 0) * (a.lvlVal ?? 1), 0);
+}
+
+/**
+ * A base cost plus levels priced per step, as Hero Designer prices them (GenericObject.getTotalCost):
+ * a part step costs a whole one (Multiform 247 points at 1 per 5 is 50 steps; 5 REC at 2 per 3 is
+ * 2), and where a step costs less than its size the total rounds, halves down, to at least 1
+ */
+export function steppedCost(base: number, levels: number, step: number, perStep: number): number {
+  if (!step) return base;
+  let steps = Math.floor(levels / step);
+  if (levels % step !== 0 && step > 1) steps += 1;
+  const total = base + steps * perStep;
+  if (perStep >= step) return total;
+  return total > 0 && total < 1 ? 1 : Math.ceil(total - 0.5);
 }
 
 /**

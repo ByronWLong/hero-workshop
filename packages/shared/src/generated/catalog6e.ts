@@ -10,6 +10,9 @@ export interface CatalogOption {
   baseCost?: number;
   lvlCost?: number;
   lvlVal?: number;
+  levelStart?: number;
+  /** Adders only this option offers (Area Of Effect's Accurate is for a Radius only) */
+  adders?: CatalogAdder[];
 }
 
 export interface CatalogAdder {
@@ -18,6 +21,8 @@ export interface CatalogAdder {
   baseCost: number;
   lvlCost?: number;
   lvlVal?: number;
+  /** The level multiplies rather than adds ("x[LVL] Shots": 2 to the levels) */
+  lvlPower?: number;
   minVal?: number;
   maxVal?: number;
   levelStart?: number;
@@ -26,6 +31,8 @@ export interface CatalogAdder {
   includeInBase?: boolean;
   options?: CatalogOption[];
   excludes?: string[];
+  /** Adders that must be taken with this one (Usable On Others' Grantor controls needs Grantor pays END) */
+  requires?: string[];
 }
 
 /** A power, modifier, perk, talent or complication as defined by the Hero Designer template */
@@ -71,6 +78,7 @@ export interface CatalogEntry {
   warningSign?: boolean;
   types?: string[];
   excludes?: string[];
+  requires?: string[];
   options?: CatalogOption[];
   adders?: CatalogAdder[];
 }
@@ -1193,7 +1201,10 @@ export const POWER_CATALOG_6E: CatalogEntry[] = [
         "xmlId": "SELFONLY",
         "display": "Self Only",
         "description": "This Limitation means that the Change Environment doesn't cover an area, only the character.",
-        "baseCost": -0.5
+        "baseCost": -0.5,
+        "requires": [
+          "NORANGE"
+        ]
       }
     ]
   },
@@ -1218,6 +1229,7 @@ export const POWER_CATALOG_6E: CatalogEntry[] = [
         "baseCost": 0,
         "lvlCost": 5,
         "lvlVal": 1,
+        "lvlPower": 2,
         "minVal": 1,
         "exclusive": true
       },
@@ -1253,6 +1265,7 @@ export const POWER_CATALOG_6E: CatalogEntry[] = [
         "baseCost": 5,
         "lvlCost": 5,
         "lvlVal": 1,
+        "lvlPower": 2,
         "minVal": 0,
         "levelStart": 0,
         "exclusive": true
@@ -1263,6 +1276,7 @@ export const POWER_CATALOG_6E: CatalogEntry[] = [
         "baseCost": 0,
         "lvlCost": 5,
         "lvlVal": 1,
+        "lvlPower": 2,
         "minVal": 1,
         "maxVal": 10,
         "levelStart": 1,
@@ -1575,7 +1589,19 @@ export const POWER_CATALOG_6E: CatalogEntry[] = [
           {
             "xmlId": "LINE",
             "display": "Line",
-            "baseCost": 0
+            "baseCost": 0,
+            "adders": [
+              {
+                "xmlId": "DOUBLEWIDTH",
+                "display": "[LVL]\" wide",
+                "baseCost": 0,
+                "lvlCost": 0.25,
+                "lvlVal": 1,
+                "lvlPower": 2,
+                "minVal": 1,
+                "levelStart": 1
+              }
+            ]
           },
           {
             "xmlId": "ANY",
@@ -3013,12 +3039,18 @@ export const POWER_CATALOG_6E: CatalogEntry[] = [
       {
         "xmlId": "VERSUSEGO",
         "display": "Works Against EGO, Not STR",
-        "baseCost": 0.25
+        "baseCost": 0.25,
+        "requires": [
+          "ACV"
+        ]
       },
       {
         "xmlId": "MDADDSTOEGO",
         "display": "Mental Defense Adds To EGO",
-        "baseCost": -0.5
+        "baseCost": -0.5,
+        "requires": [
+          "VERSUSEGO"
+        ]
       },
       {
         "xmlId": "NODEFENSE",
@@ -3232,6 +3264,7 @@ export const POWER_CATALOG_6E: CatalogEntry[] = [
         "baseCost": 0,
         "lvlCost": 5,
         "lvlVal": 1,
+        "lvlPower": 2,
         "minVal": 1,
         "levelStart": 1
       }
@@ -3389,6 +3422,7 @@ export const POWER_CATALOG_6E: CatalogEntry[] = [
         "baseCost": 0,
         "lvlCost": 5,
         "lvlVal": 1,
+        "lvlPower": 2,
         "minVal": 1,
         "levelStart": 1
       },
@@ -4831,6 +4865,7 @@ export const POWER_CATALOG_6E: CatalogEntry[] = [
         "baseCost": 0,
         "lvlCost": 5,
         "lvlVal": 1,
+        "lvlPower": 2,
         "minVal": 1,
         "levelStart": 1,
         "exclusive": true,
@@ -5072,6 +5107,7 @@ export const POWER_CATALOG_6E: CatalogEntry[] = [
         "baseCost": 0,
         "lvlCost": 5,
         "lvlVal": 1,
+        "lvlPower": 2,
         "minVal": 1,
         "levelStart": 1,
         "exclusive": true,
@@ -5513,7 +5549,10 @@ export const POWER_CATALOG_6E: CatalogEntry[] = [
         "xmlId": "RESURRECTIONONLY",
         "display": "Resurrection Only",
         "description": "Resurrection Regeneration with this Limitation can only resurrect the character; it cannot help the character Recover BODY if he's alive.",
-        "baseCost": -2
+        "baseCost": -2,
+        "requires": [
+          "RESURRECTION"
+        ]
       },
       {
         "xmlId": "DOESNOTWORKONSOMEDAMAGE",
@@ -5795,6 +5834,7 @@ export const POWER_CATALOG_6E: CatalogEntry[] = [
         "baseCost": 0,
         "lvlCost": 5,
         "lvlVal": 1,
+        "lvlPower": 2,
         "minVal": 1,
         "levelStart": 1,
         "exclusive": true,
@@ -5808,6 +5848,7 @@ export const POWER_CATALOG_6E: CatalogEntry[] = [
         "baseCost": 0,
         "lvlCost": 5,
         "lvlVal": 1,
+        "lvlPower": 2,
         "minVal": 1,
         "includeInBase": true
       }
@@ -5899,6 +5940,7 @@ export const POWER_CATALOG_6E: CatalogEntry[] = [
         "baseCost": 0,
         "lvlCost": 5,
         "lvlVal": 1,
+        "lvlPower": 2,
         "minVal": 1,
         "levelStart": 1,
         "includeInBase": true
@@ -5967,6 +6009,7 @@ export const POWER_CATALOG_6E: CatalogEntry[] = [
             "baseCost": 0,
             "lvlCost": 0.25,
             "lvlVal": 1,
+            "lvlPower": 2,
             "minVal": 1,
             "exclusive": true
           }
@@ -6071,6 +6114,7 @@ export const POWER_CATALOG_6E: CatalogEntry[] = [
         "baseCost": 0,
         "lvlCost": 5,
         "lvlVal": 1,
+        "lvlPower": 2,
         "minVal": 1,
         "levelStart": 1
       }
@@ -6322,6 +6366,7 @@ export const POWER_CATALOG_6E: CatalogEntry[] = [
         "baseCost": 0,
         "lvlCost": 5,
         "lvlVal": 1,
+        "lvlPower": 2,
         "minVal": 1,
         "levelStart": 1,
         "exclusive": true
@@ -6350,6 +6395,7 @@ export const POWER_CATALOG_6E: CatalogEntry[] = [
         "baseCost": 0,
         "lvlCost": 5,
         "lvlVal": 1,
+        "lvlPower": 2,
         "minVal": 1,
         "levelStart": 1,
         "exclusive": true
@@ -6359,7 +6405,12 @@ export const POWER_CATALOG_6E: CatalogEntry[] = [
       {
         "xmlId": "GATE",
         "display": "Gate",
-        "baseCost": -0.5
+        "baseCost": -0.5,
+        "requires": [
+          "AOE",
+          "UOO",
+          "CONTINUOUS"
+        ]
       },
       {
         "xmlId": "SAFEBLINDTELEPORT",
@@ -6459,28 +6510,142 @@ export const POWER_CATALOG_6E: CatalogEntry[] = [
         "display": "Cosmetic",
         "baseCost": 0,
         "lvlCost": 3,
-        "lvlVal": 1
+        "lvlVal": 1,
+        "adders": [
+          {
+            "xmlId": "PLUSONEHALFDIE",
+            "display": "+1/2 d6",
+            "baseCost": 2,
+            "exclusive": true,
+            "includeInBase": true,
+            "excludes": [
+              "PLUSONEPIP"
+            ]
+          },
+          {
+            "xmlId": "PLUSONEPIP",
+            "display": "+1 pip",
+            "baseCost": 1,
+            "exclusive": true,
+            "includeInBase": true,
+            "excludes": [
+              "PLUSONEHALFDIE"
+            ]
+          }
+        ]
       },
       {
         "xmlId": "MINOR",
         "display": "Minor",
         "baseCost": 0,
         "lvlCost": 5,
-        "lvlVal": 1
+        "lvlVal": 1,
+        "adders": [
+          {
+            "xmlId": "PLUSONEHALFDIE",
+            "display": "+1/2 d6",
+            "baseCost": 3,
+            "exclusive": true,
+            "includeInBase": true,
+            "excludes": [
+              "PLUSONEPIP"
+            ]
+          },
+          {
+            "xmlId": "PLUSONEPIP",
+            "display": "+1 pip",
+            "baseCost": 2,
+            "exclusive": true,
+            "includeInBase": true,
+            "excludes": [
+              "PLUSONEHALFDIE"
+            ]
+          }
+        ]
       },
       {
         "xmlId": "MAJOR",
         "display": "Major",
         "baseCost": 0,
         "lvlCost": 10,
-        "lvlVal": 1
+        "lvlVal": 1,
+        "adders": [
+          {
+            "xmlId": "PLUSONEPIP",
+            "display": "+1 pip",
+            "baseCost": 3,
+            "exclusive": true,
+            "includeInBase": true,
+            "excludes": [
+              "PLUSONEHALFDIE",
+              "MINUSONEPIP"
+            ]
+          },
+          {
+            "xmlId": "PLUSONEHALFDIE",
+            "display": "+1/2 d6",
+            "baseCost": 5,
+            "exclusive": true,
+            "includeInBase": true,
+            "excludes": [
+              "PLUSONEPIP",
+              "MINUSONEPIP"
+            ]
+          },
+          {
+            "xmlId": "MINUSONEPIP",
+            "display": "+1d6 -1",
+            "baseCost": 5,
+            "exclusive": true,
+            "includeInBase": true,
+            "excludes": [
+              "PLUSONEHALFDIE",
+              "PLUSONEPIP"
+            ]
+          }
+        ]
       },
       {
         "xmlId": "SEVERE",
         "display": "Severe",
         "baseCost": 0,
         "lvlCost": 15,
-        "lvlVal": 1
+        "lvlVal": 1,
+        "adders": [
+          {
+            "xmlId": "PLUSONEPIP",
+            "display": "+1 pip",
+            "baseCost": 5,
+            "exclusive": true,
+            "includeInBase": true,
+            "excludes": [
+              "PLUSONEHALFDIE",
+              "MINUSONEPIP"
+            ]
+          },
+          {
+            "xmlId": "PLUSONEHALFDIE",
+            "display": "+1/2 d6",
+            "baseCost": 10,
+            "exclusive": true,
+            "includeInBase": true,
+            "excludes": [
+              "PLUSONEPIP",
+              "MINUSONEPIP"
+            ]
+          },
+          {
+            "xmlId": "MINUSONEPIP",
+            "display": "+1d6 -1",
+            "baseCost": 10,
+            "exclusive": true,
+            "includeInBase": true,
+            "excludes": [
+              "PLUSONEHALFDIE",
+              "PLUSONEPIP"
+            ]
+          }
+        ]
       }
     ],
     "adders": [
@@ -6599,6 +6764,7 @@ export const POWER_CATALOG_6E: CatalogEntry[] = [
         "baseCost": 0,
         "lvlCost": 5,
         "lvlVal": 1,
+        "lvlPower": 2,
         "minVal": 1,
         "levelStart": 1
       },
@@ -7559,19 +7725,57 @@ export const MODIFIER_CATALOG_6E: CatalogEntry[] = [
         "xmlId": "RADIUS",
         "display": "Radius",
         "lvlCost": 0.25,
-        "lvlVal": 1
+        "lvlVal": 1,
+        "adders": [
+          {
+            "xmlId": "ACCURATE",
+            "display": "Accurate",
+            "baseCost": 0.25,
+            "exclusive": true
+          }
+        ]
       },
       {
         "xmlId": "CONE",
         "display": "Cone",
         "lvlCost": 0.25,
-        "lvlVal": 1
+        "lvlVal": 1,
+        "adders": [
+          {
+            "xmlId": "THINCONE",
+            "display": "Thin Cone",
+            "baseCost": -0.25,
+            "exclusive": true
+          }
+        ]
       },
       {
         "xmlId": "LINE",
         "display": "Line",
         "lvlCost": 0.25,
-        "lvlVal": 1
+        "lvlVal": 1,
+        "adders": [
+          {
+            "xmlId": "DOUBLEHEIGHT",
+            "display": "Height (m)",
+            "baseCost": 0,
+            "lvlCost": 0.25,
+            "lvlVal": 1,
+            "lvlPower": 2,
+            "minVal": 3,
+            "exclusive": true
+          },
+          {
+            "xmlId": "DOUBLEWIDTH",
+            "display": "Width (m)",
+            "baseCost": 0,
+            "lvlCost": 0.25,
+            "lvlVal": 1,
+            "lvlPower": 2,
+            "minVal": 3,
+            "exclusive": true
+          }
+        ]
       },
       {
         "xmlId": "SURFACE",
@@ -7583,7 +7787,15 @@ export const MODIFIER_CATALOG_6E: CatalogEntry[] = [
         "xmlId": "ANY",
         "display": "Any Area",
         "lvlCost": 0.25,
-        "lvlVal": 1
+        "lvlVal": 1,
+        "adders": [
+          {
+            "xmlId": "FIXEDSHAPE",
+            "display": "Fixed Shape",
+            "baseCost": -0.25,
+            "exclusive": true
+          }
+        ]
       }
     ],
     "adders": [
@@ -7617,6 +7829,7 @@ export const MODIFIER_CATALOG_6E: CatalogEntry[] = [
         "baseCost": 0.25,
         "lvlCost": 0.25,
         "lvlVal": 1,
+        "lvlPower": 2,
         "minVal": 1,
         "exclusive": true
       }
@@ -7765,17 +7978,33 @@ export const MODIFIER_CATALOG_6E: CatalogEntry[] = [
       {
         "xmlId": "TWO",
         "display": "2 Shots",
-        "baseCost": 0.25
+        "baseCost": 0.25,
+        "levelStart": 2
       },
       {
         "xmlId": "THREE",
         "display": "3 Shots",
-        "baseCost": 0.25
+        "baseCost": 0.25,
+        "levelStart": 3
       },
       {
         "xmlId": "FIVE",
         "display": "5 Shots",
-        "baseCost": 0.5
+        "baseCost": 0.5,
+        "levelStart": 5,
+        "adders": [
+          {
+            "xmlId": "DOUBLE",
+            "display": "x[LVL] Shots",
+            "baseCost": 0,
+            "lvlCost": 0.5,
+            "lvlVal": 1,
+            "lvlPower": 2,
+            "minVal": 1,
+            "levelStart": 1,
+            "exclusive": true
+          }
+        ]
       }
     ],
     "adders": [
@@ -8586,22 +8815,298 @@ export const MODIFIER_CATALOG_6E: CatalogEntry[] = [
       {
         "xmlId": "UBO",
         "display": "Usable By Other",
-        "baseCost": 0.25
+        "baseCost": 0.25,
+        "adders": [
+          {
+            "xmlId": "GRANTORTAKEBACK",
+            "display": "Grantor can take back power at any time",
+            "baseCost": 0.25,
+            "exclusive": true,
+            "excludes": [
+              "TOTALCONTROL"
+            ]
+          },
+          {
+            "xmlId": "TOTALCONTROL",
+            "display": "Grantor controls the power totally",
+            "baseCost": 0.5,
+            "exclusive": true,
+            "excludes": [
+              "GRANTORTAKEBACK"
+            ],
+            "requires": [
+              "GRANTORPAYSEND"
+            ]
+          },
+          {
+            "xmlId": "GRANTORPAYSEND",
+            "display": "Grantor pays the END whenever the power is used",
+            "baseCost": -0.25
+          },
+          {
+            "xmlId": "NOSELFUSE",
+            "display": "Grantor can only grant the power to others",
+            "baseCost": -0.5,
+            "exclusive": true
+          },
+          {
+            "xmlId": "LIMITEDRANGE",
+            "display": "Recipient must be within Limited Range of the Grantor for power to be granted",
+            "baseCost": 0.25,
+            "exclusive": true,
+            "excludes": [
+              "STANDARDRANGE"
+            ]
+          },
+          {
+            "xmlId": "STANDARDRANGE",
+            "display": "Recipient must be within Standard Range of the Grantor for power to be granted",
+            "baseCost": 0.5,
+            "exclusive": true,
+            "excludes": [
+              "LIMITEDRANGE"
+            ]
+          },
+          {
+            "xmlId": "REMAINWITHINLOS",
+            "display": "Recipient must remain within Line of Sight of Grantor",
+            "baseCost": -0.25,
+            "excludes": [
+              "REMAINCLOSE"
+            ]
+          },
+          {
+            "xmlId": "REMAINCLOSE",
+            "display": "Recipient must remain close to Grantor",
+            "baseCost": -0.5,
+            "excludes": [
+              "REMAINWITHINLOS"
+            ]
+          }
+        ]
       },
       {
         "xmlId": "SIMULTANEOUSLY",
         "display": "Usable Simultaneously",
-        "baseCost": 0.5
+        "baseCost": 0.5,
+        "adders": [
+          {
+            "xmlId": "TARGETS",
+            "display": "x[LVL] Number of Targets",
+            "baseCost": 0,
+            "lvlCost": 0.25,
+            "lvlVal": 1,
+            "lvlPower": 2,
+            "minVal": 1,
+            "levelStart": 1,
+            "exclusive": true,
+            "excludes": [
+              "ALLINRANGE"
+            ]
+          },
+          {
+            "xmlId": "ONEATATIME",
+            "display": "Grantor must grant power one Recipient at a time.",
+            "baseCost": -0.25,
+            "exclusive": true
+          },
+          {
+            "xmlId": "ALLINRANGE",
+            "display": "all targets standing within 10 meters of Grantor",
+            "baseCost": 1,
+            "exclusive": true,
+            "excludes": [
+              "TARGETS"
+            ]
+          },
+          {
+            "xmlId": "GRANTORTAKEBACK",
+            "display": "Grantor can take back power at any time",
+            "baseCost": 0.25,
+            "exclusive": true,
+            "excludes": [
+              "TOTALCONTROL"
+            ]
+          },
+          {
+            "xmlId": "TOTALCONTROL",
+            "display": "Grantor controls the power totally",
+            "baseCost": 0.5,
+            "exclusive": true,
+            "excludes": [
+              "GRANTORTAKEBACK"
+            ],
+            "requires": [
+              "GRANTORPAYSEND"
+            ]
+          },
+          {
+            "xmlId": "GRANTORPAYSEND",
+            "display": "Grantor pays the END whenever the power is used",
+            "baseCost": -0.25
+          },
+          {
+            "xmlId": "NOSELFUSE",
+            "display": "Grantor can only grant the power to others",
+            "baseCost": -0.5,
+            "exclusive": true
+          },
+          {
+            "xmlId": "LIMITEDRANGE",
+            "display": "Recipient must be within Limited Range of the Grantor for power to be granted",
+            "baseCost": 0.25,
+            "exclusive": true,
+            "excludes": [
+              "STANDARDRANGE"
+            ]
+          },
+          {
+            "xmlId": "STANDARDRANGE",
+            "display": "Recipient must be within Standard Range of the Grantor for power to be granted",
+            "baseCost": 0.5,
+            "exclusive": true,
+            "excludes": [
+              "LIMITEDRANGE"
+            ]
+          },
+          {
+            "xmlId": "REMAINWITHINLOS",
+            "display": "Recipient must remain within Line of Sight of Grantor",
+            "baseCost": -0.25,
+            "excludes": [
+              "REMAINCLOSE"
+            ]
+          },
+          {
+            "xmlId": "REMAINCLOSE",
+            "display": "Recipient must remain close to Grantor",
+            "baseCost": -0.5,
+            "excludes": [
+              "REMAINWITHINLOS"
+            ]
+          }
+        ]
       },
       {
         "xmlId": "UNB",
         "display": "Usable Nearby",
-        "baseCost": 1
+        "baseCost": 1,
+        "adders": [
+          {
+            "xmlId": "GRANTORTAKEBACK",
+            "display": "Grantor can take back power at any time",
+            "baseCost": 0.25,
+            "exclusive": true,
+            "excludes": [
+              "TOTALCONTROL"
+            ]
+          },
+          {
+            "xmlId": "TOTALCONTROL",
+            "display": "Grantor controls the power totally",
+            "baseCost": 0.5,
+            "exclusive": true,
+            "excludes": [
+              "GRANTORTAKEBACK"
+            ],
+            "requires": [
+              "GRANTORPAYSEND"
+            ]
+          },
+          {
+            "xmlId": "GRANTORPAYSEND",
+            "display": "Grantor pays the END whenever the power is used",
+            "baseCost": -0.25
+          },
+          {
+            "xmlId": "NOSELFUSE",
+            "display": "Grantor can only grant the power to others",
+            "baseCost": -0.5,
+            "exclusive": true
+          }
+        ]
       },
       {
         "xmlId": "UAA",
         "display": "Usable As Attack",
-        "baseCost": 1.25
+        "baseCost": 1.25,
+        "adders": [
+          {
+            "xmlId": "TARGETS",
+            "display": "x[LVL] Maximum Weight (on inanimate targets only)",
+            "baseCost": 0,
+            "lvlCost": 0.25,
+            "lvlVal": 1,
+            "lvlPower": 2,
+            "minVal": 1,
+            "levelStart": 1,
+            "exclusive": true
+          },
+          {
+            "xmlId": "ALLINRANGE",
+            "display": "all targets standing within 10 meters of Grantor",
+            "baseCost": 1,
+            "exclusive": true,
+            "excludes": [
+              "TARGETS"
+            ]
+          },
+          {
+            "xmlId": "GRANTORTAKEBACK",
+            "display": "Grantor can take back power at any time",
+            "baseCost": 0.25,
+            "exclusive": true,
+            "excludes": [
+              "TOTALCONTROL"
+            ]
+          },
+          {
+            "xmlId": "TOTALCONTROL",
+            "display": "Grantor controls the power totally",
+            "baseCost": 0.5,
+            "exclusive": true,
+            "excludes": [
+              "GRANTORTAKEBACK"
+            ],
+            "requires": [
+              "GRANTORPAYSEND"
+            ]
+          },
+          {
+            "xmlId": "GRANTORPAYSEND",
+            "display": "Grantor pays the END whenever the power is used",
+            "baseCost": -0.25
+          },
+          {
+            "xmlId": "NOSELFUSE",
+            "display": "Grantor can only grant the power to others",
+            "baseCost": -0.5,
+            "exclusive": true
+          },
+          {
+            "xmlId": "LIMITEDRANGE",
+            "display": "Recipient must be within Limited Range of the Grantor for power to be granted",
+            "baseCost": 0.25,
+            "exclusive": true,
+            "excludes": [
+              "STANDARDRANGE"
+            ]
+          },
+          {
+            "xmlId": "STANDARDRANGE",
+            "display": "Recipient must be within Standard Range of the Grantor for power to be granted",
+            "baseCost": 0.5,
+            "exclusive": true,
+            "excludes": [
+              "LIMITEDRANGE"
+            ]
+          },
+          {
+            "xmlId": "REMAINCLOSE",
+            "display": "Recipient must remain close to Grantor",
+            "baseCost": -0.25
+          }
+        ]
       }
     ]
   },
@@ -8771,6 +9276,7 @@ export const MODIFIER_CATALOG_6E: CatalogEntry[] = [
         "display": "x[LVL] Clips",
         "baseCost": 0,
         "lvlVal": 1,
+        "lvlPower": 2,
         "levelStart": 1
       },
       {
@@ -8814,6 +9320,9 @@ export const MODIFIER_CATALOG_6E: CatalogEntry[] = [
             "display": "6 Hours",
             "baseCost": -1.75
           }
+        ],
+        "requires": [
+          "CLIPS"
         ]
       },
       {
@@ -8903,7 +9412,10 @@ export const MODIFIER_CATALOG_6E: CatalogEntry[] = [
         "xmlId": "FUEL",
         "display": "Fuel",
         "baseCost": 0.25,
-        "exclusive": true
+        "exclusive": true,
+        "requires": [
+          "CONTINUING"
+        ]
       },
       {
         "xmlId": "DIFFICULTFUEL",
@@ -8913,6 +9425,9 @@ export const MODIFIER_CATALOG_6E: CatalogEntry[] = [
         "excludes": [
           "VERYDIFFICULTFUEL",
           "EXTREMELYDIFFICULTFUEL"
+        ],
+        "requires": [
+          "FUEL"
         ]
       },
       {
@@ -8923,6 +9438,9 @@ export const MODIFIER_CATALOG_6E: CatalogEntry[] = [
         "excludes": [
           "DIFFICULTFUEL",
           "EXTREMELYDIFFICULTFUEL"
+        ],
+        "requires": [
+          "FUEL"
         ]
       },
       {
@@ -8933,6 +9451,9 @@ export const MODIFIER_CATALOG_6E: CatalogEntry[] = [
         "excludes": [
           "VERYDIFFICULTFUEL",
           "DIFFICULTFUEL"
+        ],
+        "requires": [
+          "FUEL"
         ]
       },
       {
@@ -9189,87 +9710,221 @@ export const MODIFIER_CATALOG_6E: CatalogEntry[] = [
       {
         "xmlId": "SEGMENT",
         "display": "Extra Segment",
-        "baseCost": -0.5
+        "baseCost": -0.5,
+        "adders": [
+          {
+            "xmlId": "NOOTHERACTIONS",
+            "display": "Character May Take No Other Actions",
+            "baseCost": -0.25,
+            "exclusive": true
+          }
+        ]
       },
       {
         "xmlId": "FULL",
         "display": "Full Phase",
-        "baseCost": -0.5
+        "baseCost": -0.5,
+        "adders": [
+          {
+            "xmlId": "DELAYEDPHASE",
+            "display": "Delayed Phase",
+            "baseCost": -0.25
+          }
+        ]
       },
       {
         "xmlId": "EXTRA",
         "display": "Extra Phase",
-        "baseCost": -0.75
+        "baseCost": -0.75,
+        "adders": [
+          {
+            "xmlId": "DELAYEDPHASE",
+            "display": "Delayed Phase",
+            "baseCost": -0.25
+          }
+        ]
       },
       {
         "xmlId": "TURN",
         "display": "1 Turn (Post-Segment 12)",
-        "baseCost": -1.25
+        "baseCost": -1.25,
+        "adders": [
+          {
+            "xmlId": "NOOTHERACTIONS",
+            "display": "Character May Take No Other Actions",
+            "baseCost": -0.25,
+            "exclusive": true
+          }
+        ]
       },
       {
         "xmlId": "1MINUTE",
         "display": "1 Minute",
-        "baseCost": -1.5
+        "baseCost": -1.5,
+        "adders": [
+          {
+            "xmlId": "NOOTHERACTIONS",
+            "display": "Character May Take No Other Actions",
+            "baseCost": -0.25,
+            "exclusive": true
+          }
+        ]
       },
       {
         "xmlId": "5MINUTES",
         "display": "5 Minutes",
-        "baseCost": -2
+        "baseCost": -2,
+        "adders": [
+          {
+            "xmlId": "NOOTHERACTIONS",
+            "display": "Character May Take No Other Actions",
+            "baseCost": -0.25,
+            "exclusive": true
+          }
+        ]
       },
       {
         "xmlId": "20MINUTES",
         "display": "20 Minutes",
-        "baseCost": -2.5
+        "baseCost": -2.5,
+        "adders": [
+          {
+            "xmlId": "NOOTHERACTIONS",
+            "display": "Character May Take No Other Actions",
+            "baseCost": -0.25,
+            "exclusive": true
+          }
+        ]
       },
       {
         "xmlId": "1HOUR",
         "display": "1 Hour",
-        "baseCost": -3
+        "baseCost": -3,
+        "adders": [
+          {
+            "xmlId": "NOOTHERACTIONS",
+            "display": "Character May Take No Other Actions",
+            "baseCost": -0.25,
+            "exclusive": true
+          }
+        ]
       },
       {
         "xmlId": "6HOURS",
         "display": "6 Hours",
-        "baseCost": -3.5
+        "baseCost": -3.5,
+        "adders": [
+          {
+            "xmlId": "NOOTHERACTIONS",
+            "display": "Character May Take No Other Actions",
+            "baseCost": -0.25,
+            "exclusive": true
+          }
+        ]
       },
       {
         "xmlId": "1DAY",
         "display": "1 Day",
-        "baseCost": -4
+        "baseCost": -4,
+        "adders": [
+          {
+            "xmlId": "NOOTHERACTIONS",
+            "display": "Character May Take No Other Actions",
+            "baseCost": -0.25,
+            "exclusive": true
+          }
+        ]
       },
       {
         "xmlId": "1WEEK",
         "display": "1 Week",
-        "baseCost": -4.5
+        "baseCost": -4.5,
+        "adders": [
+          {
+            "xmlId": "NOOTHERACTIONS",
+            "display": "Character May Take No Other Actions",
+            "baseCost": -0.25,
+            "exclusive": true
+          }
+        ]
       },
       {
         "xmlId": "1MONTH",
         "display": "1 Month",
-        "baseCost": -5
+        "baseCost": -5,
+        "adders": [
+          {
+            "xmlId": "NOOTHERACTIONS",
+            "display": "Character May Take No Other Actions",
+            "baseCost": -0.25,
+            "exclusive": true
+          }
+        ]
       },
       {
         "xmlId": "1SEASON",
         "display": "1 Season",
-        "baseCost": -5.5
+        "baseCost": -5.5,
+        "adders": [
+          {
+            "xmlId": "NOOTHERACTIONS",
+            "display": "Character May Take No Other Actions",
+            "baseCost": -0.25,
+            "exclusive": true
+          }
+        ]
       },
       {
         "xmlId": "1YEAR",
         "display": "1 Year",
-        "baseCost": -6
+        "baseCost": -6,
+        "adders": [
+          {
+            "xmlId": "NOOTHERACTIONS",
+            "display": "Character May Take No Other Actions",
+            "baseCost": -0.25,
+            "exclusive": true
+          }
+        ]
       },
       {
         "xmlId": "5YEARS",
         "display": "5 Years",
-        "baseCost": -6.5
+        "baseCost": -6.5,
+        "adders": [
+          {
+            "xmlId": "NOOTHERACTIONS",
+            "display": "Character May Take No Other Actions",
+            "baseCost": -0.25,
+            "exclusive": true
+          }
+        ]
       },
       {
         "xmlId": "25YEARS",
         "display": "25 Years",
-        "baseCost": -7
+        "baseCost": -7,
+        "adders": [
+          {
+            "xmlId": "NOOTHERACTIONS",
+            "display": "Character May Take No Other Actions",
+            "baseCost": -0.25,
+            "exclusive": true
+          }
+        ]
       },
       {
         "xmlId": "1CENTURY",
         "display": "1 Century",
-        "baseCost": -7.5
+        "baseCost": -7.5,
+        "adders": [
+          {
+            "xmlId": "NOOTHERACTIONS",
+            "display": "Character May Take No Other Actions",
+            "baseCost": -0.25,
+            "exclusive": true
+          }
+        ]
       }
     ],
     "modifiers": [
@@ -10797,13 +11452,19 @@ export const PERK_CATALOG_6E: CatalogEntry[] = [
         "xmlId": "PSIONIC",
         "display": "Psionic Police Powers",
         "baseCost": 3,
-        "exclusive": true
+        "exclusive": true,
+        "requires": [
+          "INTERNATIONALPOLICE"
+        ]
       },
       {
         "xmlId": "TEMPORAL",
         "display": "Temporal Police Powers",
         "baseCost": 3,
-        "exclusive": true
+        "exclusive": true,
+        "requires": [
+          "INTERNATIONALPOLICE"
+        ]
       },
       {
         "xmlId": "HEADOFSTATE",
@@ -11522,7 +12183,10 @@ export const TALENT_CATALOG_6E: CatalogEntry[] = [
       {
         "xmlId": "ANALYZE",
         "display": "Analyze",
-        "baseCost": 5
+        "baseCost": 5,
+        "requires": [
+          "DISCRIMINATORY"
+        ]
       },
       {
         "xmlId": "CONCEALED",
@@ -11539,6 +12203,7 @@ export const TALENT_CATALOG_6E: CatalogEntry[] = [
         "baseCost": 0,
         "lvlCost": 3,
         "lvlVal": 1,
+        "lvlPower": 10,
         "minVal": 1,
         "levelStart": 1
       },
@@ -11548,6 +12213,7 @@ export const TALENT_CATALOG_6E: CatalogEntry[] = [
         "baseCost": 0,
         "lvlCost": 3,
         "lvlVal": 1,
+        "lvlPower": 10,
         "minVal": 1,
         "levelStart": 1
       },
@@ -11643,7 +12309,10 @@ export const TALENT_CATALOG_6E: CatalogEntry[] = [
       {
         "xmlId": "ANALYZE",
         "display": "Analyze",
-        "baseCost": 5
+        "baseCost": 5,
+        "requires": [
+          "DISCRIMINATORY"
+        ]
       },
       {
         "xmlId": "CONCEALED",
@@ -11660,6 +12329,7 @@ export const TALENT_CATALOG_6E: CatalogEntry[] = [
         "baseCost": 0,
         "lvlCost": 3,
         "lvlVal": 1,
+        "lvlPower": 10,
         "minVal": 1,
         "levelStart": 1
       },
@@ -11669,6 +12339,7 @@ export const TALENT_CATALOG_6E: CatalogEntry[] = [
         "baseCost": 0,
         "lvlCost": 3,
         "lvlVal": 1,
+        "lvlPower": 10,
         "minVal": 1,
         "levelStart": 1
       },
@@ -12274,6 +12945,7 @@ export const DISADVANTAGE_CATALOG_6E: CatalogEntry[] = [
         "baseCost": 0,
         "lvlCost": 5,
         "lvlVal": 1,
+        "lvlPower": 2,
         "minVal": 1,
         "levelStart": 1,
         "exclusive": true

@@ -26,3 +26,32 @@ describe('level steps', () => {
     expect(parseHdcFile(XML).equipment!.find((e) => e.id === '9810')!.realCost).toBe(150);
   });
 });
+
+describe("Hero Designer's per-power pricing", () => {
+  const XML2 = blankHdc().replace('<POWERS />', `<POWERS>
+    <POWER XMLID="MULTIFORM" ID="9701" BASECOST="0.0" LEVELS="247" ALIAS="Multiform" POSITION="0" NAME="Shark" QUANTITY="1" />
+    <POWER XMLID="DUPLICATION" ID="9702" BASECOST="0.0" LEVELS="247" ALIAS="Duplication" POSITION="1" NAME="Twins" QUANTITY="1" />
+    <POWER XMLID="DENSITYINCREASE" ID="9703" BASECOST="0.0" LEVELS="60" ALIAS="Density Increase" POSITION="2" NAME="Heavy" QUANTITY="1" />
+    <POWER XMLID="FORCEFIELD" ID="9704" BASECOST="0.0" LEVELS="20" ALIAS="Resistant Protection" POSITION="3" NAME="Ward" PDLEVELS="10" EDLEVELS="10" MDLEVELS="0" POWDLEVELS="0" QUANTITY="1">
+      <ADDER XMLID="FLASHDEFENSE" ID="9705" BASECOST="0.0" LEVELS="5" LVLCOST="3.0" LVLVAL="2.0" ALIAS="Flash Defense" OPTION="SIGHTGROUP" OPTIONID="SIGHTGROUP" OPTION_ALIAS="Sight Group" SELECTED="YES" />
+    </POWER>
+  </POWERS>`);
+  const c = parseHdcFile(XML2);
+  const real = (id: string) => c.powers.find((p) => p.id === id)!.realCost;
+
+  it('charges a part step as a whole one (Multiform 247 points: 50)', () => {
+    expect(real('9701')).toBe(50);
+    expect(powerCosts(powerDraft(c, 'powers', '9701')).base).toBe(50);
+  });
+
+  it('prices Duplication exactly and caps Density Increase at 50 levels', () => {
+    expect(c.powers.find((p) => p.id === '9702')!.baseCost).toBeCloseTo(49.4);
+    expect(real('9703')).toBe(200);
+  });
+
+  it("counts Resistant Protection's Flash Defense with its other defenses", () => {
+    // 10 PD + 10 ED + 5 Flash Defense = 25 points at 3 per 2: 13 steps, 39 points
+    expect(real('9704')).toBe(39);
+    expect(powerCosts(powerDraft(c, 'powers', '9704')).base).toBe(39);
+  });
+});

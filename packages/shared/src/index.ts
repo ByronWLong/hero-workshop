@@ -27,6 +27,7 @@ export {
   getPowerDefinition,
   getPowersByType,
   calculatePowerBaseCost,
+  powerAdders,
   getPowerDisplayName,
   type PowerDefinition,
   type PowerAdder,
@@ -46,6 +47,8 @@ export {
   getModifierByXmlId,
   powerSpecificModifiers,
   modifierFor,
+  modifierAdders,
+  powerEndCost,
   NND,
   isNnd,
   calculateModifierValue,
@@ -54,6 +57,9 @@ export {
   type ModifierOption,
   type ModifierAdder,
 } from './modifierDefinitions.js';
+
+// Which modifiers a power can take (Hero Designer's Modifier Intelligence)
+export { modifierBookNotes, modifierProblem, powerBookNotes, type BookNote, type PowerFacts } from './modifierRules.js';
 
 // Lossless HDC parsing/writing (used by the Foundry module)
 export * from './hdc/index.js';

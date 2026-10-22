@@ -28,6 +28,11 @@ import {
   convertSpellModifier,
   convertCustomSpells,
   setModifierAdder,
+  setModifierAdderLevels,
+  setModifierAdderOption,
+  setModifierSubModifier,
+  setModifierLink,
+  setPowerOption,
   setRequiredSkill,
   setSubPowers,
   partsFromTransfer,
@@ -220,7 +225,7 @@ export class PowerDialog extends HeroWorkshopApplication {
       case 'option': {
         // A new option has its own wording, except that Skill Levels keep naming their skills
         const skills = this.#targetsField();
-        const changed = { ...draft, option: value, optionAlias: '' };
+        const changed = setPowerOption(draft, value);
         if (skills?.name !== 'skills') return this.#update(changed);
         const item = { xmlid: changed.xmlId, option: value, adders: changed.adders, optionAlias: '' };
         return this.#update({ ...changed, optionAlias: withLevelTargets(item, 'skills', skills.value as string[]).optionAlias ?? '' });
@@ -240,6 +245,10 @@ export class PowerDialog extends HeroWorkshopApplication {
         if (prop === 'value') return this.#update(setModifierValue(draft, id!, n));
         if (prop === 'input') return this.#update(setModifierInput(draft, id!, value));
         if (prop === 'adder') return this.#update(setModifierAdder(draft, id!, sub!, target.checked));
+        if (prop === 'adderOption') return this.#update(setModifierAdderOption(draft, id!, sub!, value));
+        if (prop === 'adderLevels') return this.#update(setModifierAdderLevels(draft, id!, sub!, n));
+        if (prop === 'sub') return this.#update(setModifierSubModifier(draft, id!, sub!, target.checked));
+        if (prop === 'link') return this.#update(setModifierLink(draft, id!, value, this.config.character()));
         if (prop === 'skill') return value ? this.#update(setRequiredSkill(draft, id!, value, this.config.character())) : undefined;
         return;
       case 'barrier':

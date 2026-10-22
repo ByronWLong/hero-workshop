@@ -712,7 +712,7 @@ function reconcileModifiers(ctx: WriteContext, owner: XmlElement, before: Modifi
       const el = byId(b.id);
       if (el) updateModifier(ctx, el, b, a);
     } else {
-      insertChild(owner, createModifier(ctx, a));
+      insertChild(owner, createModifier(ctx, a, owner.name === 'MODIFIER'));
       ctx.change(`Added modifier ${a.name}`);
     }
   }
@@ -732,31 +732,53 @@ function updateModifier(ctx: WriteContext, el: XmlElement, b: Modifier, a: Modif
     if (a.input) el.setAttr('INPUT', a.input);
     else el.removeAttr('INPUT');
   }
+  if (!same(b.linkedId, a.linkedId)) el.setAttr('LINKED_ID', a.linkedId ?? '-1');
   if (!same(b.comments, a.comments)) el.setAttr('COMMENTS', a.comments ?? '');
   else if (!same(b.notes, a.notes)) {
     // Modifier "notes" were read from NOTES, falling back to COMMENTS (the Requires A Roll binding)
     if (el.hasAttr('COMMENTS') && !el.firstElement('NOTES')?.text.trim()) el.setAttr('COMMENTS', a.notes ?? '');
     else setNotes(el, a.notes);
   }
-  if (!same(b.value, a.value) && same(b.levels, a.levels) && same(b.adders, a.adders)) {
-    const def = a.xmlId ? getModifierByXmlId(a.xmlId) : undefined;
-    if (def?.hasLevels) {
+  const def = a.xmlId ? getModifierByXmlId(a.xmlId) : undefined;
+  const option = def?.options?.find((o) => o.xmlId === a.optionId);
+  if (def?.hasLevels) {
+    if (!same(b.value, a.value) && same(b.levels, a.levels) && same(b.adders, a.adders)) {
       ctx.warn(`${a.name}: change the modifier's levels rather than its value.`);
-    } else {
-      el.setAttr('BASECOST', hdModifierCost(a.value - adderCost(a.adders)));
     }
+  } else if (option) {
+    // An option's cost is the base; adders (and caps, like Charges') add to it as Hero Designer reads it
+    if (!same(b.optionId, a.optionId)) el.setAttr('BASECOST', hdModifierCost(option.baseCost));
+  } else if (!same(b.value, a.value) || !same(b.adders, a.adders) || !same(b.linkedToLesser, a.linkedToLesser)) {
+    el.setAttr('BASECOST', hdModifierCost(storedModifierCost(a)));
   }
   if (!same(b.adders, a.adders)) reconcileAdders(ctx, el, b.adders ?? [], a.adders ?? []);
+  // Its own modifiers are MODIFIER children, kept like a power's
+  if (!same(b.modifiers, a.modifiers)) reconcileModifiers(ctx, el, b.modifiers ?? [], a.modifiers ?? []);
 }
 
-function createModifier(ctx: WriteContext, m: Modifier): XmlElement {
-  const xmlId = hdcModifierXmlId(m.xmlId);
+/**
+ * What Hero Designer stores as BASECOST: a leveled modifier's base, an option's cost, a template
+ * modifier's own cost (its own modifiers and adders apply on top), else the value less adders
+ */
+function storedModifierCost(m: Modifier): number {
   const def = m.xmlId ? getModifierByXmlId(m.xmlId) : undefined;
-  const base = def?.hasLevels ? (def.baseCost ?? 0) : m.value - adderCost(m.adders);
+  // Linked's is -1/4 when linked to a lesser power (Linked.getBaseCost)
+  if (m.xmlId === 'LINKED') return m.linkedToLesser ? -0.25 : (def?.baseCost ?? -0.5);
+  // Time Limit's comes from the table for the power's duration
+  if (m.xmlId === 'TIMELIMIT') return m.value - adderCost(m.adders);
+  if (def?.hasLevels) return def.baseCost ?? 0;
+  const option = def?.options?.find((o) => o.xmlId === m.optionId);
+  if (option) return option.baseCost;
+  if (def && !def.hasOptions) return def.baseCost;
+  return m.value - adderCost(m.adders);
+}
+
+function createModifier(ctx: WriteContext, m: Modifier, subModifier = false): XmlElement {
+  const xmlId = hdcModifierXmlId(m.xmlId);
   const el = createElement('MODIFIER', {
     XMLID: xmlId,
     ID: ctx.doc.nextId(),
-    BASECOST: hdModifierCost(base),
+    BASECOST: hdModifierCost(subModifier ? m.value : storedModifierCost(m)),
     LEVELS: hdInt(m.levels),
     ALIAS: m.alias || m.name,
     POSITION: '-1',
@@ -766,12 +788,14 @@ function createModifier(ctx: WriteContext, m: Modifier): XmlElement {
     OPTION_ALIAS: m.optionAlias,
     NAME: '',
     INPUT: m.input,
+    LINKED_ID: m.xmlId === 'LINKED' ? (m.linkedId ?? '-1') : undefined,
     COMMENTS: m.comments ?? m.notes ?? '',
     PRIVATE: 'No',
     FORCEALLOW: 'No',
   });
   insertChild(el, createElement('NOTES'));
   for (const adder of m.adders ?? []) insertChild(el, createAdder(ctx, adder));
+  for (const sub of m.modifiers ?? []) insertChild(el, createModifier(ctx, sub, true));
   return el;
 }
 

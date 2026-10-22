@@ -367,6 +367,12 @@ export interface Modifier {
   optionAlias?: string;  // Display name for option (e.g., 'Radius', 'Line')
   /** COMMENTS: for Requires A Roll, the name of the skill the roll uses */
   comments?: string;
+  /** The modifier's own modifiers (Gestures "throughout", Extra Time "Only to Activate") */
+  modifiers?: Modifier[];
+  /** Linked: the power it's linked to (LINKED_ID) */
+  linkedId?: string;
+  /** Linked: that power has fewer Active Points, so it's worth 1/4 less (6E1 385) */
+  linkedToLesser?: boolean;
 }
 
 export interface Adder {

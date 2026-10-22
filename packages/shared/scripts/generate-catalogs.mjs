@@ -75,6 +75,9 @@ function option(node) {
     baseCost: num(a.BASECOST),
     lvlCost: num(a.LVLCOST),
     lvlVal: num(a.LVLVAL),
+    levelStart: num(a.LEVELSTART),
+    // Adders only this option offers (Area Of Effect's Accurate is for a Radius only)
+    adders: elements(node, 'ADDER').map(adder),
   });
 }
 
@@ -87,6 +90,7 @@ function adder(node) {
     baseCost: num(a.BASECOST) ?? 0,
     lvlCost: num(a.LVLCOST),
     lvlVal: num(a.LVLVAL),
+    lvlPower: num(a.LVLPOWER),
     minVal: num(a.MINVAL),
     maxVal: num(a.MAXVAL),
     levelStart: num(a.LEVELSTART),
@@ -95,6 +99,7 @@ function adder(node) {
     includeInBase: bool(a.INCLUDEINBASE),
     options: elements(node, 'OPTION').map(option),
     excludes: elements(node, 'EXCLUDES').map(textOf),
+    requires: elements(node, 'REQUIRES').map(textOf),
   });
 }
 
@@ -144,6 +149,7 @@ function entry(node) {
     warningSign: bool(a.WARNSIGN),
     types: elements(node, 'TYPE').map(textOf),
     excludes: elements(node, 'EXCLUDES').map(textOf),
+    requires: elements(node, 'REQUIRES').map(textOf),
     options: elements(node, 'OPTION').map(option),
     adders: elements(node, 'ADDER').map(adder),
     // Modifiers only this power can take (e.g. Hand-To-Hand Attack's mandatory limitation)
@@ -312,6 +318,9 @@ export interface CatalogOption {
   baseCost?: number;
   lvlCost?: number;
   lvlVal?: number;
+  levelStart?: number;
+  /** Adders only this option offers (Area Of Effect's Accurate is for a Radius only) */
+  adders?: CatalogAdder[];
 }
 
 export interface CatalogAdder {
@@ -320,6 +329,8 @@ export interface CatalogAdder {
   baseCost: number;
   lvlCost?: number;
   lvlVal?: number;
+  /** The level multiplies rather than adds ("x[LVL] Shots": 2 to the levels) */
+  lvlPower?: number;
   minVal?: number;
   maxVal?: number;
   levelStart?: number;
@@ -328,6 +339,8 @@ export interface CatalogAdder {
   includeInBase?: boolean;
   options?: CatalogOption[];
   excludes?: string[];
+  /** Adders that must be taken with this one (Usable On Others' Grantor controls needs Grantor pays END) */
+  requires?: string[];
 }
 
 /** A power, modifier, perk, talent or complication as defined by the Hero Designer template */
@@ -373,6 +386,7 @@ export interface CatalogEntry {
   warningSign?: boolean;
   types?: string[];
   excludes?: string[];
+  requires?: string[];
   options?: CatalogOption[];
   adders?: CatalogAdder[];
 }

@@ -174,6 +174,7 @@
   {{#unless (eq kind "compound")}}
   <fieldset>
     <legend>{{#if (eq kind "list")}}Modifiers for everything in the list{{else}}Advantages &amp; limitations{{/if}}</legend>
+    {{#each ../powerNotes}}<p class="hint"><i class="fa-solid fa-book" inert></i> {{this}}</p>{{/each}}
     {{#each modifiers}}
     <div class="hw-mod-row {{#if isAdvantage}}hw-advantage{{else}}hw-limitation{{/if}}">
       <span class="hw-mod-name">{{name}}</span>
@@ -187,6 +188,8 @@
       {{else}}<span class="hw-mod-value">{{value}}</span>{{/if}}
       <a data-action="removeModifier" data-id="{{id}}" data-tooltip="Remove"><i class="fa-solid fa-xmark" inert></i></a>
     </div>
+    {{#if problem}}<p class="hint hw-bad"><i class="fa-solid fa-triangle-exclamation" inert></i> {{problem}} (Hero Designer would warn about this; the modifier is kept.)</p>{{/if}}
+    {{#each bookNotes}}<p class="hint"><i class="fa-solid fa-book" inert></i> {{this}}</p>{{/each}}
     {{#if toSpell}}
     <p class="hint hw-mod-mismatch">
       This custom modifier is Fantasy Hero's Spell limitation.
@@ -195,15 +198,41 @@
       Same cost; hero6e then knows it's a Spell (desktop Hero Designer's 6E template doesn't include it).
     </p>
     {{/if}}
-    {{#if (or input adderChoices.length)}}
+    {{#if (or input adderChoices.length subChoices.length linkChoices)}}
     <div class="hw-mod-details">
+      {{#if linkChoices}}
+      <label class="hw-mod-input">Linked to
+        <select data-field="mod.{{id}}.link">
+          <option value="">Choose the power…</option>
+          {{#each linkChoices}}<option value="{{value}}" {{#if selected}}selected{{/if}}>{{label}}</option>{{/each}}
+        </select>
+      </label>
+      {{/if}}
       {{#if input}}
       <label class="hw-mod-input">{{input.label}}
         <input type="text" data-field="mod.{{id}}.input" value="{{input.value}}" placeholder="{{input.label}}">
       </label>
       {{/if}}
       {{#each adderChoices}}
-      <label class="checkbox"><input type="checkbox" data-field="mod.{{../id}}.adder.{{value}}" {{checked checked}}> {{label}} ({{cost}})</label>
+      {{#if (eq kind "select")}}
+      <label class="hw-mod-input">{{label}}
+        <select data-field="mod.{{../id}}.adderOption.{{value}}">
+          {{#unless required}}<option value="" {{#unless checked}}selected{{/unless}}>None</option>{{/unless}}
+          {{#each options}}<option value="{{value}}" {{#if selected}}selected{{/if}}>{{label}}</option>{{/each}}
+        </select>
+        {{#if checked}}({{cost}}){{/if}}
+      </label>
+      {{else if (eq kind "levels")}}
+      <label class="hw-mod-input">{{label}}
+        <input type="number" class="hw-small" min="0" data-field="mod.{{../id}}.adderLevels.{{value}}" value="{{levels}}" data-tooltip="Levels (0 for none)">
+        {{levelsLabel}}{{#if cost}} ({{cost}}){{/if}}
+      </label>
+      {{else}}
+      <label class="checkbox"><input type="checkbox" data-field="mod.{{../id}}.adder.{{value}}" {{checked checked}} {{#if required}}disabled{{/if}}> {{label}}{{#if cost}} ({{cost}}){{/if}}</label>
+      {{/if}}
+      {{/each}}
+      {{#each subChoices}}
+      <label class="checkbox"><input type="checkbox" data-field="mod.{{../id}}.sub.{{value}}" {{checked checked}}> {{label}} ({{cost}})</label>
       {{/each}}
     </div>
     {{/if}}
