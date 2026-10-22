@@ -561,6 +561,8 @@ export function subModifierSuffix(parentXmlId: string | undefined, subs: { xmlId
 export interface PowerModifier {
   xmlId?: string;
   optionId?: string;
+  /** On a naked advantage: on the naked advantage itself rather than what it adds */
+  private?: boolean;
   adders?: { xmlId?: string; baseCost: number }[];
 }
 
@@ -657,12 +659,17 @@ const AUTOFIRE_SURCHARGED = ['DRAIN', 'TRANSFORM', 'TRANSFER', 'AID', 'DISPEL', 
  * - Charges are capped (chargesMaxValue)
  */
 export function valueOnPower(m: PowerModifier & { value: number }, power: PowerContext): number {
-  const others = power.modifiers.filter((o) => o !== m);
+  // On a naked advantage, what it adds and what's on it don't affect each other (its own
+  // Reduced Endurance isn't doubled by the Autofire it adds to a gun: 6E1 315 prices that +1/2)
+  const naked = power.xmlId === 'NAKEDMODIFIER';
+  const others = power.modifiers.filter((o) => o !== m && (!naked || !!o.private === !!m.private));
   const has = (id: string) => others.some((o) => o.xmlId === id);
   switch (m.xmlId) {
     case 'AUTOFIRE': {
       const template = POWER_TEMPLATE.get(power.xmlId ?? '');
       if (!template || m.adders?.some((a) => a.xmlId === 'ODDPOWER')) return m.value;
+      // A naked Autofire's surcharge depends on the power it's for, not on itself
+      if (template.xmlId === 'NAKEDMODIFIER') return m.value;
       if (template.xmlId === 'IMAGES' || template.xmlId === 'ABSORPTION') return m.value;
       const surcharged =
         (template.target !== undefined && template.target !== 'DCV') ||
@@ -740,4 +747,40 @@ export function powerEndCost(
   const atLeastOne = (end: number) => (roundHalfDown(end) === 0 && active > 0 ? 1 : end);
   const end = atLeastOne(roundHalfDown(atLeastOne(active / denominator)) * multiplier);
   return Math.max(0, roundHalfDown(end));
+}
+
+// ============================================================================
+// Naked advantages
+// ============================================================================
+
+/** Advantages a naked advantage can be that make it cost no END (NakedModifier.getEndUsage) */
+const NO_END_NAKED = ['REDUCEDEND', 'HARDENED', 'RESISTANT', 'IMPENETRABLE'];
+
+/**
+ * A naked advantage's costs (6E1 314-316; NakedModifier): an Advantage bought on its own, for up
+ * to `levels` Active Points of some other power. Its own (not private) modifiers are what it adds
+ * to that power; its private ones apply to the naked advantage itself, as to any power.
+ * - Base: the advantage's value on those Active Points (60 AP of Autofire +1/4 is 15)
+ * - Active: the base with the private advantages (and a list's)
+ * - Real: the active cost less the private limitations (and a list's); at least 1
+ * - END: as usual for its Active Points, but none for a naked Reduced Endurance, Hardened,
+ *   Resistant or Impenetrable
+ */
+export function nakedAdvantageCosts(
+  levels: number,
+  modifiers: { xmlId?: string; optionId?: string; value: number; private?: boolean; adders?: { xmlId?: string }[] }[],
+  inherited: { value: number }[] = [],
+): { base: number; active: number; real: number; end: number } {
+  const roundHalfDownCost = (value: number) => Math.ceil(value - 0.5);
+  const naked = modifiers.filter((m) => !m.private);
+  const own = modifiers.filter((m) => m.private);
+  const nakedAdvantages = naked.filter((m) => m.value >= 0).reduce((sum, m) => sum + m.value, 0);
+  const base = nakedAdvantages > 0 ? roundHalfDownCost(levels * (1 + nakedAdvantages) - levels) : 0;
+  const advantages = [...own, ...inherited].filter((m) => m.value > 0).reduce((sum, m) => sum + m.value, 0);
+  const active = advantages > 0 ? roundHalfDownCost(base * (1 + advantages)) : base;
+  const limitations = [...own, ...inherited].filter((m) => m.value < 0).reduce((sum, m) => sum - m.value, 0);
+  let real = limitations > 0 ? roundHalfDownCost(active / (1 + limitations)) : active;
+  if (naked.some((m) => m.value > 0) && !naked.some((m) => m.value < 0) && real < 1) real = 1;
+  const end = naked.some((m) => NO_END_NAKED.includes(m.xmlId ?? '')) ? 0 : powerEndCost(base, true, own);
+  return { base, active, real, end };
 }

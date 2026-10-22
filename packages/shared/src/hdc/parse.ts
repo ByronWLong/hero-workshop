@@ -40,6 +40,7 @@ import {
   getModifierByXmlId,
   isNnd,
   subModifierFor,
+  nakedAdvantageCosts,
   powerEndCost,
   subModifierSuffix,
   valueOnPower,
@@ -800,6 +801,11 @@ function parsePowersList(container: unknown): Power[] {
           
           // Use the true base cost (now correctly stored in baseCost)
           const trueBase = power.baseCost ?? 0;
+          if ((power.type as string) === 'NAKEDMODIFIER') {
+            const naked = nakedAdvantageCosts(power.levels ?? 0, powerMods, listMods);
+            power.activeCost = naked.active;
+            power.realCost = naked.real;
+          } else {
           
           // Recalculate active cost with combined advantages (power + list)
           const totalAdvantages = powerAdvantages + listAdvantages;
@@ -815,6 +821,7 @@ function parsePowersList(container: unknown): Power[] {
           const listedEnd = getAttrNum(powerObj, 'END_COST', -1) === -1 && getAttrNum(powerObj, 'ENDCOST', -1) === -1;
           const def = getPowerDefinition(getAttr(powerObj, 'XMLID', ''));
           if (listedEnd && def) power.endCost = powerEndCost(trueBase, def.usesEnd !== false, [...powerMods, ...listMods]);
+          }
         }
         
         // Apply list discount adders (like Cantrip's -1 per child power)
@@ -1389,6 +1396,14 @@ function parsePower(obj: Record<string, unknown>): Power {
     realCost = heroRoundCost(activeCost / (1 + limitationTotal));
   }
 
+  // A naked advantage is priced by what it adds to the Active Points it's for
+  if (xmlid === 'NAKEDMODIFIER') {
+    const naked = nakedAdvantageCosts(levels, modifiers);
+    trueBaseCost = naked.base;
+    activeCost = naked.active;
+    realCost = naked.real;
+  }
+
   // An Endurance Reserve's Recovery is a power nested in it, with its own cost and modifiers
   if (xmlid === 'ENDURANCERESERVE') {
     const nested = obj['POWER'];
@@ -1409,6 +1424,7 @@ function parsePower(obj: Record<string, unknown>): Power {
   
   if (xmlEndCost !== -1) endCost = xmlEndCost;
   else if (xmlEndCost2 !== -1) endCost = xmlEndCost2;
+  else if (xmlid === 'NAKEDMODIFIER') endCost = nakedAdvantageCosts(levels, modifiers).end;
   else if (powerDef) {
     // 1 END per 10 Active Points, as Hero Designer adjusts it for the power's modifiers
     endCost = powerEndCost(trueBaseCost, powerDef.usesEnd !== false, modifiers);
@@ -1907,6 +1923,7 @@ function parseModifiers(obj: Record<string, unknown>, parentXmlId?: string): Mod
         optionAlias: optionAlias || undefined,
         modifiers: subModifiers.length ? subModifiers : undefined,
         ...linkOf(mod, xmlid),
+        private: getAttr(mod, 'PRIVATE', 'No') === 'Yes' || undefined,
       });
     }
   }

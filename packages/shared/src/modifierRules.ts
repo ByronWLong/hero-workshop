@@ -53,7 +53,8 @@ export function modifierProblem(modifierXmlId: string, power: PowerFacts): strin
   if (types.includes('VPP') && power.container !== 'VPP') return `${name} can only be applied to a Variable Power Pool.`;
   if (types.includes('MP') && power.container !== 'MULTIPOWER') return `${name} can only be applied to a Multipower.`;
   if (types.includes('LIST') && power.container !== 'LIST') return `${name} can only be applied to a List.`;
-  if (power.container || !template) return '';
+  // A naked advantage can be any advantage, for whatever power it's for (NakedModifier)
+  if (power.container || !template || template.xmlId === 'NAKEDMODIFIER') return '';
 
   const target = power.modifiers.some((m) => m.xmlId === 'AOE') ? 'HEX' : (template.target ?? 'N/A');
   const powerTypes = template.types ?? [];

@@ -71,7 +71,7 @@
   {{/if}}
   {{#if definition.hasLevels}}{{#unless isBarrier}}
   <div class="form-group">
-    <label>Dice / levels</label>
+    <label>{{#if definition.levelsTitle}}{{definition.levelsTitle}}{{else}}Dice / levels{{/if}}</label>
     <input type="number" data-field="levels" value="{{draft.levels}}">
     {{#if definition.levelLabel}}<p class="hint">{{definition.levelLabel}}</p>{{/if}}
   </div>
@@ -198,8 +198,11 @@
       Same cost; hero6e then knows it's a Spell (desktop Hero Designer's 6E template doesn't include it).
     </p>
     {{/if}}
-    {{#if (or input adderChoices.length subChoices.length linkChoices)}}
+    {{#if (or input adderChoices.length subChoices.length linkChoices nakedPart)}}
     <div class="hw-mod-details">
+      {{#if nakedPart}}
+      <label class="checkbox" data-tooltip="Checked: it applies to the naked advantage itself (like Reduced Endurance on a naked Autofire). Unchecked: it's what the naked advantage adds to the other power."><input type="checkbox" data-field="mod.{{id}}.private" {{checked nakedPart.private}}> On the naked advantage itself</label>
+      {{/if}}
       {{#if linkChoices}}
       <label class="hw-mod-input">Linked to
         <select data-field="mod.{{id}}.link">

@@ -49,6 +49,7 @@ export {
   modifierFor,
   modifierAdders,
   powerEndCost,
+  nakedAdvantageCosts,
   NND,
   isNnd,
   calculateModifierValue,

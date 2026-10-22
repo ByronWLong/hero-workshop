@@ -31,6 +31,7 @@ import {
   setModifierAdderLevels,
   setModifierAdderOption,
   setModifierSubModifier,
+  setModifierPrivate,
   setModifierLink,
   setPowerOption,
   setRequiredSkill,
@@ -248,6 +249,7 @@ export class PowerDialog extends HeroWorkshopApplication {
         if (prop === 'adderOption') return this.#update(setModifierAdderOption(draft, id!, sub!, value));
         if (prop === 'adderLevels') return this.#update(setModifierAdderLevels(draft, id!, sub!, n));
         if (prop === 'sub') return this.#update(setModifierSubModifier(draft, id!, sub!, target.checked));
+        if (prop === 'private') return this.#update(setModifierPrivate(draft, id!, target.checked));
         if (prop === 'link') return this.#update(setModifierLink(draft, id!, value, this.config.character()));
         if (prop === 'skill') return value ? this.#update(setRequiredSkill(draft, id!, value, this.config.character())) : undefined;
         return;

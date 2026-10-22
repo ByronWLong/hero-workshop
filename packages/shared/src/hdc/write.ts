@@ -733,6 +733,7 @@ function updateModifier(ctx: WriteContext, el: XmlElement, b: Modifier, a: Modif
     else el.removeAttr('INPUT');
   }
   if (!same(b.linkedId, a.linkedId)) el.setAttr('LINKED_ID', a.linkedId ?? '-1');
+  if (!same(b.private, a.private)) el.setAttr('PRIVATE', a.private ? 'Yes' : 'No');
   if (!same(b.comments, a.comments)) el.setAttr('COMMENTS', a.comments ?? '');
   else if (!same(b.notes, a.notes)) {
     // Modifier "notes" were read from NOTES, falling back to COMMENTS (the Requires A Roll binding)
@@ -790,7 +791,7 @@ function createModifier(ctx: WriteContext, m: Modifier, subModifier = false): Xm
     INPUT: m.input,
     LINKED_ID: m.xmlId === 'LINKED' ? (m.linkedId ?? '-1') : undefined,
     COMMENTS: m.comments ?? m.notes ?? '',
-    PRIVATE: 'No',
+    PRIVATE: m.private ? 'Yes' : 'No',
     FORCEALLOW: 'No',
   });
   insertChild(el, createElement('NOTES'));

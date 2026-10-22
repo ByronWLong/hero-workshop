@@ -26,6 +26,7 @@ import {
   modifierFor,
   powerSpecificModifiers,
   POWER_DEPENDENT_MODIFIERS,
+  nakedAdvantageCosts,
   powerEndCost,
   priceChargesAdders,
   subModifierFor,
@@ -549,8 +550,18 @@ export function addModifier(draft: PowerDraft, xmlId: string): PowerDraft {
     levels: xmlId === 'AOE' ? 4 : def.hasLevels ? 1 : undefined,
     optionId: option?.xmlId,
     optionAlias: option?.display,
+    // On a naked advantage, a Limitation limits the naked advantage itself
+    private: draft.xmlId === 'NAKEDMODIFIER' && def.isLimitation ? true : undefined,
   }, def);
   return withModifiers(draft, [...draft.modifiers, refreshModifier(modifier, draft.xmlId, draft.modifiers)]);
+}
+
+/**
+ * On a naked advantage: whether a modifier applies to the naked advantage itself (Reduced
+ * Endurance on the naked Autofire, its Focus) rather than being what it adds to the other power
+ */
+export function setModifierPrivate(draft: PowerDraft, id: string, on: boolean): PowerDraft {
+  return updateModifier(draft, id, (m) => refreshModifier({ ...m, private: on || undefined }, draft.xmlId, others(draft, id)));
 }
 
 /** A modifier with free-text name and value (the Hero Designer "custom modifier") */
@@ -847,6 +858,8 @@ export function powerCosts(draft: PowerDraft, inherited: Modifier[] = []): Power
     return { base: own.base, active: own.active, real: own.real, end: 0 };
   }
   if (draft.kind !== 'power') return { base: 0, active: 0, real: 0, end: 0 };
+  // A naked advantage costs what it adds to the Active Points it's for
+  if (draft.xmlId === 'NAKEDMODIFIER') return nakedAdvantageCosts(draft.levels, draft.modifiers, inherited);
   const def = getPowerDefinition(draft.xmlId);
   const adders = calculateAdderCost(draft.adders);
   // Resistant Protection's Flash Defense is priced with its other defenses
@@ -986,7 +999,10 @@ export function powerFormView(character: Character, section: PowerSection, draft
       // Hero Designer's drop-down for the input ("Vs.": PD, ED), with typed values when it allows others
       inputExamples: def.inputExamples?.length ? def.inputExamples : undefined,
       otherInput: def.otherInput !== false,
-      levelLabel: def.lvlVal && def.lvlCost ? `${def.lvlCost} pts per ${def.lvlVal === 1 ? 'level' : `${def.lvlVal}`}` : undefined,
+      levelLabel: def.xmlId === 'NAKEDMODIFIER'
+        ? 'The naked advantage costs its value on this many Active Points of the power it\'s for (6E1 315).'
+        : def.lvlVal && def.lvlCost ? `${def.lvlCost} pts per ${def.lvlVal === 1 ? 'level' : `${def.lvlVal}`}` : undefined,
+      levelsTitle: def.xmlId === 'NAKEDMODIFIER' ? 'Up to Active Points' : undefined,
       hasLevels: !!def.lvlCost || !!def.options?.some((o) => o.lvlCost),
       options: def.options?.map((o) => ({ value: o.xmlId, label: o.display, selected: o.xmlId === draft.option })),
     },
@@ -1038,6 +1054,8 @@ export function powerFormView(character: Character, section: PowerSection, draft
         adderChoices: nnd ? [] : modifierAdderChoices(m, mdef),
         // Its own modifiers ("throughout" doubles Gestures)
         subChoices: subModifierChoices(m, mdef, draft),
+        // On a naked advantage: whether it's on the naked advantage itself
+        nakedPart: draft.xmlId === 'NAKEDMODIFIER' ? { private: !!m.private } : undefined,
         problem,
         bookNotes,
         // Linked: the power it's linked to

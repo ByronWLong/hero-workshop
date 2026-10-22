@@ -373,6 +373,8 @@ export interface Modifier {
   linkedId?: string;
   /** Linked: that power has fewer Active Points, so it's worth 1/4 less (6E1 385) */
   linkedToLesser?: boolean;
+  /** On a naked advantage: applies to the naked advantage itself, not what it adds (PRIVATE) */
+  private?: boolean;
 }
 
 export interface Adder {
