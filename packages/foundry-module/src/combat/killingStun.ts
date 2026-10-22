@@ -13,7 +13,12 @@
  * (BODY - rDEF) x BODYx x (STUNx + bonus) - DEF. BODY taken is hero6e's either way.
  */
 
-export type StunMultiplierMode = 'hero6e' | 'rolled' | 'fixed';
+/**
+ * hero6e: the hit location's STUNx, or hero6e's roll without hit locations; rolled: always a
+ * roll; fixed: always the fixed value; locationOrFixed: the hit location's STUNx, or the fixed
+ * value without hit locations
+ */
+export type StunMultiplierMode = 'hero6e' | 'rolled' | 'fixed' | 'locationOrFixed';
 
 /** hero6e's STUN multiplier dice (its NonStandardStunMultiplierForKillingAttackBackingSetting) */
 export interface StunMultiplierDice {
@@ -154,7 +159,8 @@ export function stunMultiplierFor(
   card: KillingCardDamage,
   { fixed, additional, rolled }: { fixed: number; additional: number; rolled?: StunMultiplier }
 ): StunMultiplier {
-  if (mode === 'fixed') {
+  // hero6e applied a location BODYx exactly when the hit had a location
+  if (mode === 'fixed' || (mode === 'locationOrFixed' && card.bodyMultiplier === undefined)) {
     return {
       value: Math.max(1, fixed + additional),
       label: additional

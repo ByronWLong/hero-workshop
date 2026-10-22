@@ -172,6 +172,24 @@ describe('STUN multiplier', () => {
     expect(stunMultiplierFor('rolled', card, { fixed: 2, additional: 0 }).value).toBe(3);
   });
 
+  it('uses the hit location STUNx, or the fixed value when the hit had no location', () => {
+    expect(card.bodyMultiplier).toBe(1);
+    expect(stunMultiplierFor('locationOrFixed', card, { fixed: 2, additional: 0 })).toEqual({
+      value: 3,
+      label: 'Chest STUNx',
+    });
+    const noLocations = readKillingCard(
+      chestCard({
+        bodyBreakdown: '12 - 8 resistant defense = 4',
+        stunBreakdown: '12 BODY x3 (STUNx roll) = 36\n36 - 15 defense = 21',
+      })
+    )!;
+    expect(stunMultiplierFor('locationOrFixed', noLocations, { fixed: 2, additional: 1 })).toEqual({
+      value: 3,
+      label: 'fixed 2 +1 levels',
+    });
+  });
+
   it("rolls 1d3 in 6e, 1d6-1 in 5e, or hero6e's custom dice", () => {
     const six = () => 6;
     expect(rollStunMultiplier(undefined, false, 0, six).value).toBe(3);

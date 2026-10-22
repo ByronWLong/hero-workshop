@@ -88,6 +88,7 @@ export function registerKillingStunSettings(): void {
     type: String,
     choices: {
       hero6e: 'HERO_WORKSHOP.KillingStunMultiplierHero6e',
+      locationOrFixed: 'HERO_WORKSHOP.KillingStunMultiplierLocationOrFixed',
       rolled: 'HERO_WORKSHOP.KillingStunMultiplierRolled',
       fixed: 'HERO_WORKSHOP.KillingStunMultiplierFixed',
     },
