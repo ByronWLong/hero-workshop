@@ -27,6 +27,20 @@
     "OpenItemsInWorkshopHint": "Opening an item in the Items sidebar or a compendium edits it in Hero Workshop instead of showing hero6e's item sheet (which is still in the item's right-click menu). Items on characters, and items you can't edit, still open hero6e's sheet.",
     "RepairImports": "Repair imported Hero Designer files",
     "RepairImportsHint": "When hero6e imports an HDC or HDP, link Combat Skill Levels to the attacks they name, comma-separate adjustment targets, and make other fixes hero6e needs. The build is not changed.",
+    "KillingStun": "Killing attacks: STUN from BODY that gets through (house rule)",
+    "KillingStunHint": "BODY is reduced by resistant defense as normal. The STUN multiplier is then applied to the BODY that got through, and only the non-resistant PD/ED is subtracted from that STUN. Applies when Apply Damage is used on a killing attack; BODY and knockback are hero6e's.",
+    "KillingStunMultiplier": "Killing attacks: STUN multiplier",
+    "KillingStunMultiplierHint": "Used by the killing STUN house rule. Increased/Decreased STUN Multiplier levels on the attack are added to a roll or fixed value.",
+    "KillingStunMultiplierHero6e": "As hero6e (hit location STUNx; rolled when hit locations are off)",
+    "KillingStunMultiplierRolled": "Always roll (hero6e's STUN multiplier dice, 1d3 by default)",
+    "KillingStunMultiplierFixed": "Fixed value",
+    "KillingStunFixed": "Killing attacks: fixed STUN multiplier",
+    "KillingStunFixedHint": "The multiplier when the STUN multiplier is set to Fixed value. x2 is the average of the standard 1d3.",
+    "KillingStunBonus": "Killing attacks: STUN multiplier bonus",
+    "KillingStunBonusHint": "Added to every killing attack's STUN multiplier under the house rule, to offset the resistant defense it now subtracts before multiplying.",
+    "KillingStunIncludesBodyMultiplier": "Killing attacks: STUN multiplier includes location BODY multiplier",
+    "KillingStunIncludesBodyMultiplierHint": "Under the killing STUN house rule with hit locations, multiply the BODY that got through by the location's BODY multiplier (Head and Vitals x2, limbs x1/2) before the STUN multiplier. Off: the STUN multiplier applies to the BODY that got through. BODY taken uses the location BODY multiplier either way. Leaving it out averages about 0.4 less STUN multiplier.",
+    "KillingStunCard": "House rule STUN: {summary} (hero6e: {stun} STUN)",
     "ImportRepaired": "Hero Workshop repaired {changes} thing(s) in {name} for hero6e; {unresolved} couldn't be repaired automatically. Details are in the console (F12)."
   }
 }

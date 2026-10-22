@@ -33,6 +33,7 @@ import { MODULE_ID, createActorSession } from './sync/session';
 import { registerImportRepair, wrapHeroUploads } from './sync/importRepair';
 import { openHeroSheet, opensInWorkshop, registerItemSheetBypass, wrapItemSheets } from './apps/item-sheet-bypass';
 import { makeFamilyRowsDraggable, wrapActorSheetDrag } from './apps/actor-sheet-drag';
+import { registerKillingStunSettings, wrapKillingStunRule } from './combat/killingStunRule';
 
 /** Lists Foundry-side edits not yet in an actor's stored HDC (for macros and debugging) */
 function driftReport(actor: FoundryActor): { item: string; kind: string; summary: string }[] {
@@ -69,6 +70,7 @@ Hooks.once('init', () => {
   registerRaceSettings(openRaceLibrary);
   registerImportRepair();
   registerItemSheetBypass();
+  registerKillingStunSettings();
   void preloadTemplates();
 });
 
@@ -77,6 +79,7 @@ Hooks.once('setup', () => {
   if (!isHeroSystem()) return;
   wrapHeroUploads();
   wrapItemSheets();
+  wrapKillingStunRule();
 });
 
 // Actor sheet classes are registered after setup
