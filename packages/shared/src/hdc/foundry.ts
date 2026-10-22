@@ -14,6 +14,7 @@
 
 import type { HdcDocument } from './document.js';
 import type { XmlElement } from './xml.js';
+import { pslOptionAlias, pslPenaltyInName, skillLevelOption } from '../skillLevels.js';
 
 export const CHARACTERISTIC_TAGS = [
   'STR', 'DEX', 'CON', 'INT', 'EGO', 'PRE',
@@ -166,6 +167,11 @@ export function normalizeForFoundry(
     notes.push(`${label}: custom maneuver is Hand to Hand`);
   }
 
+  if (lacksPslOption(item)) {
+    fixPslOption(item);
+    notes.push(`${label}: Penalty Skill Levels ${item.getAttr('OPTION_ALIAS')}`);
+  }
+
   return notes;
 }
 
@@ -177,6 +183,23 @@ export function lacksManeuverCategory(el: XmlElement): boolean {
   if (el.name !== 'MANEUVER' || el.getAttr('CUSTOM') !== 'Yes') return false;
   const category = (el.getAttr('CATEGORY') ?? '').toLowerCase();
   return category !== 'hand to hand' && category !== 'ranged';
+}
+
+/**
+ * A Penalty Skill Level without its option or the option's text: hero6e reads the penalty from
+ * OPTION_ALIAS + INPUT, which throws when both are missing, and the sheet fails to open
+ */
+export function lacksPslOption(el: XmlElement): boolean {
+  return el.getAttr('XMLID') === 'PENALTY_SKILL_LEVELS' && el.name === 'SKILL'
+    && (!el.getAttr('OPTIONID')?.trim() || el.getAttr('OPTION_ALIAS') === undefined);
+}
+
+/** Gives a PSL its option (the stated one, else Hero Designer's default "any single attack") and its text */
+export function fixPslOption(el: XmlElement): void {
+  const option = [el.getAttr('OPTIONID'), el.getAttr('OPTION')].find((o) => skillLevelOption('PENALTY_SKILL_LEVELS', o?.trim())) ?? 'SINGLE';
+  el.setAttr('OPTION', option);
+  el.setAttr('OPTIONID', option);
+  el.setAttr('OPTION_ALIAS', pslOptionAlias(option, pslPenaltyInName(el.getAttr('NAME'))) ?? '');
 }
 
 /** Invisibility or Darkness without the Sense Group it affects (hero6e's description fails) */
@@ -313,6 +336,9 @@ export function validateForFoundry(doc: HdcDocument): FoundryValidationIssue[] {
       }
       if (lacksManeuverCategory(item)) {
         warn(`${label} is a custom maneuver without CATEGORY="Hand to Hand" or "Ranged"; hero6e's sheet can't open.`, item);
+      }
+      if (lacksPslOption(item)) {
+        warn(`${label} is a Penalty Skill Level without its option (OPTIONID and OPTION_ALIAS); hero6e's sheet can't open.`, item);
       }
     }
 

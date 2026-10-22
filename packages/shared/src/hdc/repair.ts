@@ -8,6 +8,8 @@
  *   hand-to-hand / ranged attack.
  * - Adjustment powers list their targets comma-separated ("BODY and STUN" -> "BODY, STUN").
  * - "Usable As" movement says which movement it is (hero6e reads ALIAS or COMMENTS).
+ * - Penalty Skill Levels have their option, and the penalty their name states is in the
+ *   option's text, where hero6e looks for it.
  *
  * Anything that can't be worked out is reported, not guessed.
  */
@@ -18,7 +20,8 @@ import { isContainerType } from '../frameworks.js';
 import { HdcDocument } from './document.js';
 import { parseHdcDocument } from './parse.js';
 import { updateHdc } from './write.js';
-import { characteristicRollFix, lacksManeuverCategory, lacksSenseGroup } from './foundry.js';
+import { characteristicRollFix, fixPslOption, lacksManeuverCategory, lacksPslOption, lacksSenseGroup } from './foundry.js';
+import { PSL_PENALTIES, pslPenalty, pslPenaltyInName } from '../skillLevels.js';
 
 export interface RepairResult {
   xml: string;
@@ -43,6 +46,7 @@ export function repairForFoundry(xml: string): RepairResult {
   repairAdjustmentInputs(fixed, changes);
   repairUsableAs(fixed, changes);
   repairManeuverCategories(fixed, changes);
+  repairPenaltySkillLevels(fixed, changes);
   repairSenseGroups(fixed, changes);
   repairAdderIds(fixed, changes);
   repairCharacteristicRolls(fixed, changes);
@@ -286,6 +290,33 @@ function repairCharacteristicRolls(doc: HdcDocument, changes: string[]): void {
     el.setAttr('COMMENTS', key);
     const owner = el.parent;
     changes.push(`${owner?.getAttr('NAME') || owner?.getAttr('ALIAS') || 'Power'}: Requires A Roll is a ${key} roll`);
+  }
+}
+
+/**
+ * Penalty Skill Levels: one without its option stops hero6e's sheet opening (it gets Hero
+ * Designer's default, "any single attack"); one whose name states its penalty ("+6 vs Range
+ * Modifier with Crossbows") gets it in the option text, where hero6e looks for it
+ */
+function repairPenaltySkillLevels(doc: HdcDocument, changes: string[]): void {
+  for (const el of doc.root.descendants()) {
+    if (el.name !== 'SKILL' || el.getAttr('XMLID') !== 'PENALTY_SKILL_LEVELS') continue;
+    const name = el.getAttr('NAME') || el.getAttr('ALIAS') || 'Penalty Skill Levels';
+    if (lacksPslOption(el)) {
+      fixPslOption(el);
+      changes.push(`${name}: Penalty Skill Levels ${el.getAttr('OPTION_ALIAS')}`);
+      continue;
+    }
+    const alias = el.getAttr('OPTION_ALIAS') ?? '';
+    const penalty = pslPenaltyInName(el.getAttr('NAME'));
+    if (!penalty || pslPenalty(alias, el.getAttr('INPUT'))) continue;
+    const wording = PSL_PENALTIES.find((p) => p.value === penalty)!.wording;
+    // The template's text names the penalty in place; a writer's own text gets it added
+    const named = /a specific negative [OD]CV modifier/.test(alias)
+      ? alias.replace(/a specific negative ([OD]CV) modifier/, `the ${wording} $1 modifier`)
+      : `${alias} (${wording})`.trim();
+    el.setAttr('OPTION_ALIAS', named);
+    changes.push(`${name}: offsets the ${wording} penalty`);
   }
 }
 

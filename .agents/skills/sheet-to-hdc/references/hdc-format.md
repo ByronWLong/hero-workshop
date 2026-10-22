@@ -172,6 +172,8 @@ Use `CUSTOMSKILL` for uncertain sheet-derived skills rather than inventing IDs l
 
 For `COMBAT_LEVELS`, plain Hero Designer import works with the skill alone, but Foundry can require explicit attack binding for "single attack" CSLs. That binding can be represented with zero-cost child adders such as `ADDER XMLID="ADDER" BASECOST="0" ALIAS="Exact Attack Name"`. In this skill, prefer inferred bindings only when combat focus terms in the skill text, such as `sword`, `knife`, `bow`, `claw`, or `grab`, match one unambiguous generated attack candidate; guessed bindings are worse than leaving the CSL unbound.
 
+`PENALTY_SKILL_LEVELS` must have its option (`OPTION`/`OPTIONID`, e.g. `SINGLE`) and `OPTION_ALIAS`: hero6e reads the penalty from `OPTION_ALIAS` + `INPUT`, and a PSL with neither stops the character's sheet opening. hero6e finds the penalty by keyword in `OPTION_ALIAS` (`armor`, `encumbrance`, `groundfighting`, `location`, `range`, `throwing`, `underwater`), not in `NAME`, so name it there in Hero Designer's wording: `OPTION_ALIAS="to offset the Range OCV modifier with any single attack"`. Hero Designer keeps an edited `OPTION_ALIAS`. hero6e applies Range and Hit Location PSLs to attack rolls and Encumbrance PSLs to DCV. Single-attack PSLs bind to their attack with the same zero-cost adders as CSLs.
+
 ## Modifiers and Adders
 
 Modifiers are child `MODIFIER` elements:

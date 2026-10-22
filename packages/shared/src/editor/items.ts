@@ -23,7 +23,15 @@ import {
 } from '../generated/catalog6e.js';
 import { SKILL_CATALOG_6E } from '../generated/skillCatalog6e.js';
 import { getPowerDefinition } from '../powerDefinitions.js';
-import { skillLevelCost, skillLevelOption, skillLevelOptions } from '../skillLevels.js';
+import {
+  pslOptionAlias,
+  pslPenaltiesFor,
+  pslPenalty,
+  pslPenaltyInName,
+  skillLevelCost,
+  skillLevelOption,
+  skillLevelOptions,
+} from '../skillLevels.js';
 import { LABELLED_SKILL_XMLIDS, skillItemName } from '../hdc/foundry.js';
 import { retargetSkillRolls } from './powers.js';
 import { sectionItems, setSectionItems, type ListItem, type SectionId } from './lists.js';
@@ -356,8 +364,13 @@ function skillValues(skill: Skill | undefined): FormValues {
   return otherSkillValues(skill, xmlid);
 }
 
+/** The penalty a PSL offsets: what hero6e reads from its option text, else what its name states */
+const pslPenaltyOf = (skill: Skill | undefined) =>
+  pslPenalty(skill?.optionAlias, skill?.input) || pslPenaltyInName(skill?.name);
+
 function otherSkillValues(skill: Skill | undefined, xmlid: string): FormValues {
   const values = otherSkillFields(skill, xmlid);
+  if (xmlid === 'PENALTY_SKILL_LEVELS') values.penalty = pslPenaltyOf(skill);
   if (ATTACK_LINKED_SKILLS.includes(xmlid)) return { ...values, attacks: (skill?.adders ?? []).filter(isLinkAdder).map((a) => a.alias ?? a.name) };
   // Skill Levels' skills are read from the option text when the form is shown (it needs the character's skills)
   if (xmlid === 'SKILL_LEVELS') return { ...values, optionAlias: skill?.optionAlias ?? '' };
@@ -438,6 +451,18 @@ function skillForm(v: FormValues, isNew: boolean, character?: Character): ItemFo
   if (skillLevelOptions(xmlid)) {
     const list = breadthOptions(xmlid, str(v.option));
     fields.push({ name: 'option', label: 'Applies to', type: 'select', value: str(v.option), options: options(list, str(v.option) || list[0]!.value) });
+    if (xmlid === 'PENALTY_SKILL_LEVELS') {
+      const penalties = pslPenaltiesFor(str(v.option) || list[0]!.value);
+      const penalty = penalties.some((p) => p.value === v.penalty) ? str(v.penalty) : '';
+      fields.push({
+        name: 'penalty',
+        label: 'Penalty',
+        type: 'select',
+        value: penalty,
+        options: options([...penalties, { value: '', label: 'Other' }], penalty),
+        hint: "Written into the option's wording, where hero6e reads it. hero6e applies Range and Hit Location PSLs to attack rolls and Encumbrance PSLs to DCV; it doesn't apply other penalties itself",
+      });
+    }
   } else if (xmlid === 'LANGUAGES') {
     fields.push(
       { name: 'option', label: 'Fluency', type: 'select', value: str(v.option), options: options(LANGUAGE_OPTIONS, str(v.option) || 'FLUENT') },
@@ -519,9 +544,19 @@ function saveSkill(existing: Skill | undefined, v: FormValues, position: number,
   // Nothing to compose it from (e.g. a Weapon Familiarity listing its weapons as adders): keep the name it has
   const name = shownName || composed || (existing && existing.xmlid === xmlid ? existing.name : entry?.display ?? 'Skill');
   const cost = skillCost(v);
-  const option = str(v.option) || undefined;
+  // The form shows the first option until another is picked; save that one too
+  const option = str(v.option) || skillLevelOptions(xmlid)?.[0]?.xmlId || (xmlid === 'LANGUAGES' ? 'FLUENT' : undefined);
   // Hero Designer's OPTION_ALIAS is the option's display ("with HTH Combat")
   const optionLabel = skillLevelOption(xmlid, option)?.display ?? LANGUAGE_OPTIONS.find((o) => o.value === option)?.label;
+  // A PSL's option text names its penalty, which hero6e reads; a penalty the option can't take is dropped
+  const penalty = xmlid === 'PENALTY_SKILL_LEVELS' && v.penalty !== undefined
+    ? pslPenaltiesFor(option).find((p) => p.value === v.penalty)?.value ?? ''
+    : undefined;
+  // Compared with what hero6e reads now: a penalty only the name states is written into the text
+  const pslAlias = penalty !== undefined
+    && (option !== existing?.option || !existing?.optionAlias || penalty !== pslPenalty(existing.optionAlias, existing.input))
+    ? pslOptionAlias(option, penalty)
+    : undefined;
   const characteristic = (str(v.characteristic) || entry?.characteristicChoices?.[0]?.characteristic) as Skill['characteristic'];
 
   let adders = existing?.adders;
@@ -552,7 +587,7 @@ function saveSkill(existing: Skill | undefined, v: FormValues, position: number,
     everyman: bool(v.everyman) || undefined,
     option,
     // Keep the file's own wording (e.g. "with Demonic Claw") unless the option itself changed
-    optionAlias: skillsAlias ?? (option && option !== existing?.option ? optionLabel?.replace(/ \(.*\)$/, '') : existing?.optionAlias),
+    optionAlias: skillsAlias ?? pslAlias ?? (option && option !== existing?.option ? optionLabel?.replace(/ \(.*\)$/, '') : existing?.optionAlias),
     nativeTongue: bool(v.nativeTongue) || undefined,
     notes: str(v.notes) || undefined,
     baseCost: cost,
