@@ -24,6 +24,7 @@ import {
   removeItem,
   setCharacteristicValue,
   typeChoices,
+  hasLists,
   updateHdc,
   withInsertedItems,
   withMaxima,
@@ -206,6 +207,7 @@ export class HeroWorkshopEditor extends HeroWorkshopApplication {
         points: rows.reduce((n, r) => n + r.cost, 0),
         // A single world item's editor saves only that item, so nothing else can be added
         canAdd: !this.session.view?.visibleTabs && !this.readOnly,
+        canAddList: id !== 'powers' && id !== 'equipment' && hasLists(id as FormSection),
         // Type a power, skill, talent… to open its form with it chosen
         addChoices:
           id === 'powers' || id === 'equipment' ? powerTypeChoices() : typeChoices(id as FormSection)?.groups,
@@ -442,7 +444,7 @@ export class HeroWorkshopEditor extends HeroWorkshopApplication {
   }
 
   static #onAddItem(this: HeroWorkshopEditor, _event: Event, target: HTMLElement) {
-    void this.editItem(target.dataset.section as SectionId, undefined, target.dataset.kind as PowerKind | undefined);
+    void this.editItem(target.dataset.section as SectionId, undefined, target.dataset.kind as PowerKind | undefined, target.dataset.type);
   }
 
   static #onEditItem(this: HeroWorkshopEditor, _event: Event, target: HTMLElement) {

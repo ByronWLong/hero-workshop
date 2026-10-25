@@ -523,7 +523,8 @@ function reconcileItems<T extends ItemModel>(
     }
   }
 
-  // Updates
+  // Updates; an item moved into a list created in this pass joins it once the list exists
+  const moveIntoNew: { el: XmlElement; a: T }[] = [];
   for (const a of after) {
     const b = beforeById.get(a.id);
     if (!b || same(b, a)) continue;
@@ -535,7 +536,9 @@ function reconcileItems<T extends ItemModel>(
     const oldIdentities = sectionName === 'SKILLS' ? skillIdentities(el) : [];
     const beforeXml = el.toString();
     spec.update(ctx, el, b, a);
-    writeCommonFields(ctx, el, b, a);
+    const intoNew = !!a.parentId && a.parentId !== b.parentId && afterIds.has(a.parentId) && !beforeById.has(a.parentId);
+    if (intoNew) moveIntoNew.push({ el, a });
+    writeCommonFields(ctx, el, b, intoNew ? { ...a, parentId: b.parentId } : a);
     // Editors also recompute derived values (costs, display names); only real XML edits count
     if (el.toString() !== beforeXml) {
       ctx.touch(topLevelItem(el, sectionName), sectionName);
@@ -597,6 +600,15 @@ function reconcileItems<T extends ItemModel>(
     if (nested?.length) {
       reconcileItems(ctx, sectionName, [], nested.map((p) => ({ ...p, parentId: a.id })), POWER_SPEC);
     }
+  }
+
+  for (const { el, a } of moveIntoNew) {
+    const parentId = ctx.resolveId(a.parentId)!;
+    const parentEl = doc.findById(parentId);
+    if (!parentEl || nestsChildren(parentEl)) continue;
+    el.setAttr('PARENTID', parentId);
+    ctx.touch(topLevelItem(el, sectionName), sectionName);
+    ctx.change(`Updated ${a.name}`);
   }
 }
 

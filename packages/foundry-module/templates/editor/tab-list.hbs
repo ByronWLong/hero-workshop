@@ -7,6 +7,9 @@
       {{> "modules/hero-workshop/templates/partials/typeahead.hbs" field=tab.addField clear=true groups=tab.addChoices placeholder=tab.addPlaceholder icon="fa-plus" cssClass="hw-add-typeahead"}}
       {{/if}}
       <button type="button" data-action="addItem" data-section="{{tab.section}}"><i class="fa-solid fa-plus" inert></i> Add {{tab.noun}}</button>
+      {{#if tab.canAddList}}
+      <button type="button" data-action="addItem" data-section="{{tab.section}}" data-type="LIST" data-tooltip="A heading to group {{tab.noun}}s under"><i class="fa-solid fa-folder-plus" inert></i> Add list</button>
+      {{/if}}
     </div>
     {{/if}}
   </div>

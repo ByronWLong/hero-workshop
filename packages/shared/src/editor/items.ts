@@ -385,6 +385,8 @@ const pslPenaltyOf = (skill: Skill | undefined) =>
 function otherSkillValues(skill: Skill | undefined, xmlid: string): FormValues {
   const values = otherSkillFields(skill, xmlid);
   if (xmlid === 'PENALTY_SKILL_LEVELS') values.penalty = pslPenaltyOf(skill);
+  // A Weapon Familiarity costs what its weapon groups do (its adders)
+  if (xmlid === 'WEAPON_FAMILIARITY' && skill) values.weaponCost = calculateAdderCost(skill.adders ?? []);
   if (ATTACK_LINKED_SKILLS.includes(xmlid)) return { ...values, attacks: (skill?.adders ?? []).filter(isLinkAdder).map((a) => a.alias ?? a.name) };
   // Skill Levels' skills are read from the option text when the form is shown (it needs the character's skills)
   if (xmlid === 'SKILL_LEVELS') return { ...values, optionAlias: skill?.optionAlias ?? '' };
@@ -420,6 +422,7 @@ function skillCost(v: FormValues): number {
   const levels = num(v.levels);
   if (bool(v.everyman)) return 0;
   if (xmlid === 'CUSTOMSKILL') return num(v.cost);
+  if (xmlid === 'WEAPON_FAMILIARITY' && v.weaponCost !== undefined) return num(v.weaponCost);
   const breadth = skillLevelCost(xmlid, str(v.option) || skillLevelOptions(xmlid)?.[0]?.xmlId, levels);
   if (breadth !== undefined) return breadth;
   if (xmlid === 'LANGUAGES') {
@@ -841,9 +844,9 @@ function purchaseValues(kind: PerkTalentKind, item: PerkOrTalent | undefined, ty
 }
 
 /** A perk list's adders discount the perks in it (as the HDC parser applies them) */
-function listDiscount(character: Character | undefined, kind: PerkTalentKind, item: PerkOrTalent | undefined): number {
-  if (kind !== 'perk' || !character || !item?.parentId) return 0;
-  return calculateAdderCost(character.perks.find((p) => p.id === item.parentId && p.isGroup)?.adders ?? []);
+function listDiscount(character: Character | undefined, kind: PerkTalentKind, parentId: string | undefined): number {
+  if (kind !== 'perk' || !character || !parentId) return 0;
+  return calculateAdderCost(character.perks.find((p) => p.id === parentId && p.isGroup)?.adders ?? []);
 }
 
 /** What the form buys, priced */
@@ -974,7 +977,58 @@ function savePurchase<T extends PerkOrTalent>(kind: PerkTalentKind, existing: T 
 
 export function itemFormValues(character: Character, section: FormSection, itemId?: string): FormValues {
   const item = itemId ? sectionItems(character, section).find((i) => i.id === itemId) : undefined;
-  return { ...sectionFormValues(section, item), icon: item?.icon ?? '', free: item?.multiplier === 0, itemId: item?.id };
+  return {
+    ...sectionFormValues(section, item),
+    icon: item?.icon ?? '',
+    free: item?.multiplier === 0,
+    itemId: item?.id,
+    ...(hasLists(section) ? { list: item?.parentId ?? '' } : {}),
+  };
+}
+
+// =============================================================================
+// Lists: Hero Designer's LIST groups a section's items under a heading
+// =============================================================================
+
+/** The type that adds a list rather than an item (newItemFormValues) */
+export const LIST_TYPE = 'LIST';
+
+const LIST_SECTIONS: ReadonlySet<FormSection> = new Set(['skills', 'perks', 'talents', 'martialarts']);
+
+/** Whether a section's items can be grouped in lists */
+export function hasLists(section: FormSection): boolean {
+  return LIST_SECTIONS.has(section);
+}
+
+/** What an item can go in: the section's lists, and for skills its Skill Enhancers */
+function listChoices(character: Character, section: FormSection, item: ListItem | undefined): FieldOption[] {
+  const holders = sectionItems(character, section).filter((i) => i.isGroup || ('isEnhancer' in i && i.isEnhancer));
+  const choices = holders.map((h) => ({ value: h.id, label: h.name }));
+  // Whatever it's in now stays a choice
+  const parent = item?.parentId && !holders.some((h) => h.id === item.parentId) ? sectionItems(character, section).find((i) => i.id === item.parentId) : undefined;
+  if (parent) choices.push({ value: parent.id, label: parent.name });
+  return choices;
+}
+
+function listField(character: Character, section: FormSection, values: FormValues): FormField | undefined {
+  const item = values.itemId ? sectionItems(character, section).find((i) => i.id === values.itemId) : undefined;
+  const choices = listChoices(character, section, item);
+  if (!choices.length) return undefined;
+  const value = str(values.list);
+  return { name: 'list', label: 'In list', type: 'select', value, options: options([{ value: '', label: 'None' }, ...choices], value) };
+}
+
+function newList(section: FormSection, name: string, position: number): ListItem {
+  const list = { id: newId(), name: name || 'New list', position, levels: 0, baseCost: 0, realCost: 0, isGroup: true };
+  switch (section) {
+    case 'skills':
+      return { ...list, type: 'GENERAL' } as Skill;
+    case 'perks':
+    case 'talents':
+      return { ...list, type: 'GENERIC' } as Perk | Talent;
+    default:
+      return { ...list, ocv: 0, dcv: 0 } as MartialManeuver;
+  }
 }
 
 function sectionFormValues(section: FormSection, item: ListItem | undefined): FormValues {
@@ -1025,9 +1079,10 @@ export function itemForm(section: FormSection, values: FormValues, isNew: boolea
   const form = sectionForm(section, values, isNew, character);
   if (section === 'disadvantages' || values.group) return form;
   const free: FormField = { ...FREE_FIELD, type: 'checkbox', value: bool(values.free) };
+  const list = character && hasLists(section) ? listField(character, section, values) : undefined;
   const notesAt = form.fields.findIndex((f) => f.name === 'notes');
   const fields = [...form.fields];
-  fields.splice(notesAt < 0 ? fields.length : notesAt, 0, free);
+  fields.splice(notesAt < 0 ? fields.length : notesAt, 0, ...(list ? [list] : []), free);
   return { ...form, fields, cost: bool(values.free) ? 0 : form.cost };
 }
 
@@ -1035,8 +1090,8 @@ function sectionForm(section: FormSection, values: FormValues, isNew: boolean, c
   const notes: FormField = { name: 'notes', label: 'Notes', type: 'textarea', value: str(values.notes) };
   if (values.group) {
     return {
-      title: 'Edit list',
-      fields: [{ name: 'name', label: 'Name', type: 'text', value: str(values.name) }, notes],
+      title: isNew ? 'Add list' : 'Edit list',
+      fields: [{ name: 'name', label: 'Name', type: 'text', value: str(values.name), hint: isNew ? 'Put items in it from their own forms, or drag them onto it' : undefined }, notes],
       cost: 0,
       costLabel: '',
     };
@@ -1047,7 +1102,7 @@ function sectionForm(section: FormSection, values: FormValues, isNew: boolean, c
     case 'skills':
       return skillForm(values, isNew, character);
     case 'perks':
-      return purchaseForm('perk', values, isNew, existing as Perk | undefined, listDiscount(character, 'perk', existing as Perk | undefined));
+      return purchaseForm('perk', values, isNew, existing as Perk | undefined, listDiscount(character, 'perk', chosenParent(values, existing)));
     case 'talents':
       return purchaseForm('talent', values, isNew, existing as Talent | undefined, 0);
     case 'disadvantages':
@@ -1101,7 +1156,33 @@ export function saveItemForm(character: Character, section: FormSection, itemId:
     const renamed = { ...existing, name: str(values.name).trim() || existing.name, notes: str(values.notes) || undefined, icon };
     return setSectionItems(character, section, list.map((i) => (i.id === existing.id ? renamed : i)));
   }
+  if (values.group) {
+    const added = { ...newList(section, str(values.name).trim(), position), notes: str(values.notes) || undefined, icon };
+    return setSectionItems(character, section, [...list, added]);
+  }
 
+  const saved = saveSectionItem(character, section, existing, values, position, put);
+  if (!hasLists(section) || values.list === undefined) return saved;
+  // The list it's in
+  const savedList = sectionItems(saved, section);
+  const id = existing?.id ?? savedList.at(-1)!.id;
+  const parentId = str(values.list) || undefined;
+  return setSectionItems(saved, section, savedList.map((i) => (i.id === id && i.parentId !== parentId ? { ...i, parentId } : i)));
+}
+
+/** The list an item's form puts it in */
+function chosenParent(values: FormValues, existing: ListItem | undefined): string | undefined {
+  return values.list === undefined ? existing?.parentId : str(values.list) || undefined;
+}
+
+function saveSectionItem(
+  character: Character,
+  section: FormSection,
+  existing: ListItem | undefined,
+  values: FormValues,
+  position: number,
+  put: <T extends { id: string; icon?: string; multiplier?: number }>(items: T[], saved: T) => T[],
+): Character {
   switch (section) {
     case 'skills': {
       const before = existing as Skill | undefined;
@@ -1111,7 +1192,7 @@ export function saveItemForm(character: Character, section: FormSection, itemId:
     }
 
     case 'perks':
-      return { ...character, perks: put(character.perks, savePurchase('perk', existing as Perk | undefined, values, position, listDiscount(character, 'perk', existing as Perk | undefined))) };
+      return { ...character, perks: put(character.perks, savePurchase('perk', existing as Perk | undefined, values, position, listDiscount(character, 'perk', chosenParent(values, existing)))) };
 
     case 'talents':
       return { ...character, talents: put(character.talents, savePurchase('talent', existing as Talent | undefined, values, position, 0)) };
@@ -1190,6 +1271,7 @@ export function typeChoices(section: FormSection): { field: string; groups: Type
 /** Form values for a new item of the given type (a perk or talent starts at its template's purchase) */
 export function newItemFormValues(character: Character, section: FormSection, type: string): FormValues {
   const values = itemFormValues(character, section);
+  if (type === LIST_TYPE && hasLists(section)) return { group: true, name: '', notes: '', icon: '' };
   if (section === 'perks') return { ...values, ...purchaseValues('perk', undefined, type) };
   if (section === 'talents') return { ...values, ...purchaseValues('talent', undefined, talentXmlId(type)) };
   const field = typeChoices(section)?.field;

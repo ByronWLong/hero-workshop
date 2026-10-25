@@ -3,9 +3,12 @@ import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import {
   HdcDocument,
+  LIST_TYPE,
+  blankHdc,
   decodeHdcBytes,
   itemForm,
   itemFormValues,
+  newItemFormValues,
   parseHdcFile,
   saveItemForm,
   updateHdc,
@@ -73,6 +76,52 @@ describe('item forms', () => {
     const el = HdcDocument.parse(xml).findById(report.idMap[edited.disadvantages.at(-1)!.id]!)!;
     expect(el.getAttr('XMLID')).toBe('SOCIALLIMITATION');
     expect(el.getAttr('INPUT')).toBe('Secret Identity');
+  });
+
+  it('adds lists and moves items into and out of them', () => {
+    for (const section of ['skills', 'perks', 'talents', 'martialarts'] as const) {
+      const character = parseHdcFile(EVO);
+      const items = () => (section === 'martialarts' ? 'martialArts' : section);
+      const member = character[items()].find((i) => !i.isGroup && !i.parentId && !('isEnhancer' in i && i.isEnhancer));
+      if (!member) continue;
+      const listValues = { ...newItemFormValues(character, section, LIST_TYPE), name: 'Dragon Lore' };
+      expect(itemForm(section, listValues, true, character).title).toBe('Add list');
+      let edited = saveItemForm(character, section, undefined, listValues);
+      const list = edited[items()].at(-1)!;
+      expect(list.isGroup).toBe(true);
+
+      // The new list is offered on the item's form, and the item saved into it
+      const values = itemFormValues(edited, section, member.id);
+      expect(itemForm(section, values, false, edited).fields.find((f) => f.name === 'list')?.options?.map((o) => o.label)).toContain('Dragon Lore');
+      edited = saveItemForm(edited, section, member.id, { ...values, list: list.id });
+
+      const { xml, report } = updateHdc(EVO, edited);
+      const doc = HdcDocument.parse(xml);
+      const listEl = doc.findById(report.idMap[list.id]!)!;
+      expect(listEl.name, section).toBe('LIST');
+      expect(listEl.getAttr('ALIAS')).toBe('Dragon Lore');
+      expect(doc.findById(member.id)!.getAttr('PARENTID')).toBe(listEl.getAttr('ID'));
+      const reread = parseHdcFile(xml);
+      expect(reread[items()].find((i) => i.id === member.id)?.parentId).toBe(listEl.getAttr('ID'));
+
+      // And out again
+      const out = saveItemForm(reread, section, member.id, { ...itemFormValues(reread, section, member.id), list: '' });
+      expect(HdcDocument.parse(updateHdc(xml, out).xml).findById(member.id)!.hasAttr('PARENTID')).toBe(false);
+    }
+  });
+
+  it("prices a Weapon Familiarity from its weapon groups", () => {
+    const character = parseHdcFile(sample('SkralkSkekMal.hdc'));
+    const wf = character.skills.find((s) => s.xmlid === 'WEAPON_FAMILIARITY')!;
+    const values = itemFormValues(character, 'skills', wf.id);
+    expect(itemForm('skills', values, false, character).cost).toBe(3);
+    expect(saveItemForm(character, 'skills', wf.id, values).skills.find((s) => s.id === wf.id)?.realCost).toBe(3);
+  });
+
+  it('offers no list field where there are no lists', () => {
+    const character = parseHdcFile(blankHdc());
+    const values = newItemFormValues(character, 'skills', 'STEALTH');
+    expect(itemForm('skills', values, true, character).fields.some((f) => f.name === 'list')).toBe(false);
   });
 
   it('edits a skill list as a list (name and notes only)', () => {
