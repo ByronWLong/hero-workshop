@@ -221,6 +221,8 @@ export interface Power extends GenericObjectBase {
   affectsPrimary?: boolean;
   /** Whether this power contributes to the character's total stats (default true) */
   affectsTotal?: boolean;
+  /** An enhanced sense's group (GROUP: SIGHTGROUP, UNUSUALGROUP; Hero Designer also writes NOGROUP) */
+  senseGroup?: string;
   // Barrier-specific fields
   pdLevels?: number;      // Physical Defense levels
   edLevels?: number;      // Energy Defense levels

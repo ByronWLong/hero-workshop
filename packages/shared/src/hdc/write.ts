@@ -30,6 +30,7 @@ import type {
   Talent,
 } from '../types.js';
 import { getPowerDefinition } from '../powerDefinitions.js';
+import { defaultSenseGroup, isEnhancedSense, senseIsActive } from '../senses.js';
 import { FRAMEWORK_NAMES, isFramework } from '../frameworks.js';
 import { characteristicRulesFor, formatRulesName, parseRulesName } from '../characteristics.js';
 import { getModifierByXmlId } from '../modifierDefinitions.js';
@@ -1239,6 +1240,12 @@ function updatePowerFields(ctx: WriteContext, el: XmlElement, b: Power, a: Power
     if (el.getAttr('XMLID') === 'CUSTOMPOWER') el.setAttr('LEVELS', hdInt(Math.ceil(cost)));
   }
   writeBarrierFields(el, b, a);
+  writeSenseGroup(el, b, a);
+}
+
+/** An enhanced sense's group (GROUP) */
+function writeSenseGroup(el: XmlElement, b: Partial<Power>, a: Partial<Power>): void {
+  if (!same(b.senseGroup, a.senseGroup) && a.senseGroup) el.setAttr('GROUP', a.senseGroup);
 }
 
 function writeBarrierFields(el: XmlElement, b: Partial<Power>, a: Partial<Power>): void {
@@ -1327,6 +1334,11 @@ function createPower(ctx: WriteContext, p: Power, section: HdcItemSection): XmlE
       : {}),
   });
   if (xmlId === 'FORCEWALL') writeBarrierFields(el, {}, p);
+  // An enhanced sense: its group, and whether it's Active (Hero Designer writes both; hero6e shows the group)
+  if (isEnhancedSense(xmlId)) {
+    el.setAttr('GROUP', p.senseGroup ?? defaultSenseGroup(xmlId) ?? 'UNUSUALGROUP');
+    el.setAttr('ACTIVE', yesNo(senseIsActive(xmlId)));
+  }
   // Resistant Protection: Hero Designer writes all four defenses, and hero6e reads them (not LEVELS)
   if (el.getAttr('XMLID') === 'FORCEFIELD') {
     el.setAttr('PDLEVELS', hdInt(p.pdLevels ?? 0));
@@ -1342,6 +1354,7 @@ const POWER_SPEC: ItemSpec<Power> = {
   handled: new Set([
     'name', 'alias', 'levels', 'input', 'option', 'optionAlias', 'affectsPrimary', 'affectsTotal', 'notes', 'slotFixed',
     'pdLevels','edLevels', 'mdLevels', 'powdLevels', 'bodyLevels', 'lengthLevels', 'heightLevels', 'widthLevels',
+    'senseGroup',
   ]),
   derived: POWER_DERIVED,
   update: updatePowerFields,
@@ -1357,6 +1370,7 @@ const EQUIPMENT_SPEC: ItemSpec<Equipment> = {
     'name', 'levels', 'notes', 'price', 'weight', 'carried', 'subPowers',
     'input', 'option', 'optionAlias', 'affectsPrimary', 'affectsTotal', 'slotFixed',
     'pdLevels','edLevels', 'mdLevels', 'powdLevels', 'bodyLevels', 'lengthLevels', 'heightLevels', 'widthLevels',
+    'senseGroup',
   ]),
   derived: new Set([...POWER_DERIVED, 'alias', 'xmlId']),
   nested: (e) => e.subPowers,
@@ -1382,6 +1396,7 @@ const EQUIPMENT_SPEC: ItemSpec<Equipment> = {
     if (!same(bp.affectsPrimary, ap.affectsPrimary)) el.setAttr('AFFECTS_PRIMARY', yesNo(ap.affectsPrimary ?? true));
     if (!same(bp.affectsTotal, ap.affectsTotal)) el.setAttr('AFFECTS_TOTAL', yesNo(ap.affectsTotal ?? true));
     writeBarrierFields(el, bp, ap);
+    writeSenseGroup(el, bp, ap);
   },
 
   create(ctx, e, section) {

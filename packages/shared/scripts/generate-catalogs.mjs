@@ -150,6 +150,14 @@ function entry(node) {
     types: elements(node, 'TYPE').map(textOf),
     excludes: elements(node, 'EXCLUDES').map(textOf),
     requires: elements(node, 'REQUIRES').map(textOf),
+    // Senses and sense groups: the sense modifiers they have built in, the group a sense is in,
+    // whether it may be in another, and whether it's Active (and may be made Passive)
+    provides: elements(node, 'PROVIDES').map(textOf),
+    isSenseGroup: tag === 'SENSEGROUP' || undefined,
+    senseGroup: a.SENSEGROUP,
+    allowAnyGroup: bool(a.ALLOWANYGROUP),
+    active: bool(a.ACTIVE),
+    activeSelect: bool(a.ACTIVESELECT),
     options: elements(node, 'OPTION').map(option),
     adders: elements(node, 'ADDER').map(adder),
     // Modifiers only this power can take (e.g. Hand-To-Hand Attack's mandatory limitation)
@@ -413,6 +421,16 @@ export interface CatalogEntry {
   types?: string[];
   excludes?: string[];
   requires?: string[];
+  /** Senses and sense groups: the sense modifiers built in (RANGE, MAKEASENSE, TARGETINGSENSE...) */
+  provides?: string[];
+  /** A sense group (Sight Group...), rather than a power */
+  isSenseGroup?: boolean;
+  /** A sense's group (SIGHTGROUP, UNUSUALGROUP...), and whether it may be bought in another */
+  senseGroup?: string;
+  allowAnyGroup?: boolean;
+  /** Whether a sense is Active (Radar, Detect), and whether that can be changed */
+  active?: boolean;
+  activeSelect?: boolean;
   options?: CatalogOption[];
   adders?: CatalogAdder[];
 }

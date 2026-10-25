@@ -79,6 +79,16 @@ export interface CatalogEntry {
   types?: string[];
   excludes?: string[];
   requires?: string[];
+  /** Senses and sense groups: the sense modifiers built in (RANGE, MAKEASENSE, TARGETINGSENSE...) */
+  provides?: string[];
+  /** A sense group (Sight Group...), rather than a power */
+  isSenseGroup?: boolean;
+  /** A sense's group (SIGHTGROUP, UNUSUALGROUP...), and whether it may be bought in another */
+  senseGroup?: string;
+  allowAnyGroup?: boolean;
+  /** Whether a sense is Active (Radar, Detect), and whether that can be changed */
+  active?: boolean;
+  activeSelect?: boolean;
   options?: CatalogOption[];
   adders?: CatalogAdder[];
 }
@@ -2129,59 +2139,122 @@ export const POWER_CATALOG_6E: CatalogEntry[] = [
   },
   {
     "xmlId": "HEARINGGROUP",
-    "display": "Hearing Group"
+    "display": "Hearing Group",
+    "provides": [
+      "RANGE",
+      "MAKEASENSE"
+    ],
+    "isSenseGroup": true
   },
   {
     "xmlId": "MENTALGROUP",
-    "display": "Mental Group"
+    "display": "Mental Group",
+    "provides": [
+      "RANGE"
+    ],
+    "isSenseGroup": true
   },
   {
     "xmlId": "RADIOGROUP",
-    "display": "Radio Group"
+    "display": "Radio Group",
+    "provides": [
+      "RANGE",
+      "MAKEASENSE"
+    ],
+    "isSenseGroup": true
   },
   {
     "xmlId": "SIGHTGROUP",
-    "display": "Sight Group"
+    "display": "Sight Group",
+    "provides": [
+      "RANGE",
+      "MAKEASENSE",
+      "TARGETINGSENSE"
+    ],
+    "isSenseGroup": true
   },
   {
     "xmlId": "SMELLGROUP",
-    "display": "Smell/Taste Group"
+    "display": "Smell/Taste Group",
+    "provides": [
+      "MAKEASENSE"
+    ],
+    "isSenseGroup": true
   },
   {
     "xmlId": "TOUCHGROUP",
-    "display": "Touch Group"
+    "display": "Touch Group",
+    "provides": [
+      "MAKEASENSE"
+    ],
+    "isSenseGroup": true
   },
   {
     "xmlId": "NORMALHEARING",
-    "display": "Normal Hearing"
+    "display": "Normal Hearing",
+    "provides": [
+      "INCREASEDARC240",
+      "INCREASEDARC360"
+    ],
+    "senseGroup": "HEARINGGROUP"
   },
   {
     "xmlId": "NORMALSIGHT",
-    "display": "Normal Sight"
+    "display": "Normal Sight",
+    "senseGroup": "SIGHTGROUP"
   },
   {
     "xmlId": "NORMALSMELL",
-    "display": "Normal Smell"
+    "display": "Normal Smell",
+    "provides": [
+      "RANGE",
+      "INCREASEDARC240",
+      "INCREASEDARC360"
+    ],
+    "senseGroup": "SMELLGROUP"
   },
   {
     "xmlId": "NORMALTASTE",
-    "display": "Normal Taste"
+    "display": "Normal Taste",
+    "senseGroup": "SMELLGROUP"
   },
   {
     "xmlId": "NORMALTOUCH",
-    "display": "Normal Touch"
+    "display": "Normal Touch",
+    "senseGroup": "TOUCHGROUP"
   },
   {
     "xmlId": "DANGER_SENSE",
-    "display": "Danger Sense"
+    "display": "Danger Sense",
+    "provides": [
+      "RANGE",
+      "INCREASEDARC240",
+      "INCREASEDARC360"
+    ],
+    "senseGroup": "UNUSUALGROUP"
   },
   {
     "xmlId": "COMBAT_SENSE",
-    "display": "Combat Sense"
+    "display": "Combat Sense",
+    "provides": [
+      "TARGETINGSENSE",
+      "RANGE",
+      "INCREASEDARC240",
+      "INCREASEDARC360"
+    ],
+    "senseGroup": "UNUSUALGROUP"
   },
   {
     "xmlId": "MINDSCAN",
-    "display": "Mind Scan"
+    "display": "Mind Scan",
+    "provides": [
+      "RANGE",
+      "INCREASEDARC240",
+      "INCREASEDARC360",
+      "TARGETINGSENSE",
+      "DISCRIMINATORY"
+    ],
+    "senseGroup": "MENTALGROUP"
   },
   {
     "xmlId": "DETECT",
@@ -2200,6 +2273,13 @@ export const POWER_CATALOG_6E: CatalogEntry[] = [
       "SPECIAL",
       "SENSORY"
     ],
+    "provides": [
+      "ENHANCEDPERCEPTION"
+    ],
+    "senseGroup": "UNUSUALGROUP",
+    "allowAnyGroup": true,
+    "active": true,
+    "activeSelect": true,
     "options": [
       {
         "xmlId": "SINGLE",
@@ -2244,7 +2324,14 @@ export const POWER_CATALOG_6E: CatalogEntry[] = [
     "types": [
       "SPECIAL",
       "SENSORY"
-    ]
+    ],
+    "provides": [
+      "TARGETINGSENSE"
+    ],
+    "senseGroup": "HEARINGGROUP",
+    "allowAnyGroup": true,
+    "active": true,
+    "activeSelect": false
   },
   {
     "xmlId": "HRRP",
@@ -2259,7 +2346,16 @@ export const POWER_CATALOG_6E: CatalogEntry[] = [
     "types": [
       "SPECIAL",
       "SENSORY"
-    ]
+    ],
+    "provides": [
+      "INCREASEDARC240",
+      "INCREASEDARC360",
+      "TRANSMIT"
+    ],
+    "senseGroup": "RADIOGROUP",
+    "allowAnyGroup": true,
+    "active": false,
+    "activeSelect": false
   },
   {
     "xmlId": "INFRAREDPERCEPTION",
@@ -2274,7 +2370,11 @@ export const POWER_CATALOG_6E: CatalogEntry[] = [
     "types": [
       "SPECIAL",
       "SENSORY"
-    ]
+    ],
+    "senseGroup": "SIGHTGROUP",
+    "allowAnyGroup": true,
+    "active": false,
+    "activeSelect": false
   },
   {
     "xmlId": "MENTALAWARENESS",
@@ -2288,7 +2388,14 @@ export const POWER_CATALOG_6E: CatalogEntry[] = [
     "types": [
       "SPECIAL",
       "SENSORY"
-    ]
+    ],
+    "provides": [
+      "MAKEASENSE"
+    ],
+    "senseGroup": "MENTALGROUP",
+    "allowAnyGroup": false,
+    "active": false,
+    "activeSelect": false
   },
   {
     "xmlId": "NIGHTVISION",
@@ -2302,7 +2409,11 @@ export const POWER_CATALOG_6E: CatalogEntry[] = [
     "types": [
       "SPECIAL",
       "SENSORY"
-    ]
+    ],
+    "senseGroup": "SIGHTGROUP",
+    "allowAnyGroup": false,
+    "active": false,
+    "activeSelect": false
   },
   {
     "xmlId": "RADAR",
@@ -2316,7 +2427,14 @@ export const POWER_CATALOG_6E: CatalogEntry[] = [
     "types": [
       "SPECIAL",
       "SENSORY"
-    ]
+    ],
+    "provides": [
+      "TARGETINGSENSE"
+    ],
+    "senseGroup": "RADIOGROUP",
+    "allowAnyGroup": true,
+    "active": true,
+    "activeSelect": false
   },
   {
     "xmlId": "RADIOPERCEPTION",
@@ -2330,7 +2448,15 @@ export const POWER_CATALOG_6E: CatalogEntry[] = [
     "types": [
       "SPECIAL",
       "SENSORY"
-    ]
+    ],
+    "provides": [
+      "INCREASEDARC240",
+      "INCREASEDARC360"
+    ],
+    "senseGroup": "RADIOGROUP",
+    "allowAnyGroup": false,
+    "active": false,
+    "activeSelect": false
   },
   {
     "xmlId": "RADIOPERCEIVETRANSMIT",
@@ -2344,7 +2470,16 @@ export const POWER_CATALOG_6E: CatalogEntry[] = [
     "types": [
       "SPECIAL",
       "SENSORY"
-    ]
+    ],
+    "provides": [
+      "INCREASEDARC240",
+      "INCREASEDARC360",
+      "TRANSMIT"
+    ],
+    "senseGroup": "RADIOGROUP",
+    "allowAnyGroup": true,
+    "active": false,
+    "activeSelect": false
   },
   {
     "xmlId": "SPATIALAWARENESS",
@@ -2358,7 +2493,16 @@ export const POWER_CATALOG_6E: CatalogEntry[] = [
     "types": [
       "SPECIAL",
       "SENSORY"
-    ]
+    ],
+    "provides": [
+      "TARGETINGSENSE",
+      "MAKEASENSE",
+      "PENETRATIVE"
+    ],
+    "senseGroup": "UNUSUALGROUP",
+    "allowAnyGroup": true,
+    "active": false,
+    "activeSelect": false
   },
   {
     "xmlId": "ULTRASONICPERCEPTION",
@@ -2372,7 +2516,11 @@ export const POWER_CATALOG_6E: CatalogEntry[] = [
     "types": [
       "SPECIAL",
       "SENSORY"
-    ]
+    ],
+    "senseGroup": "HEARINGGROUP",
+    "allowAnyGroup": true,
+    "active": false,
+    "activeSelect": false
   },
   {
     "xmlId": "ULTRAVIOLETPERCEPTION",
@@ -2387,7 +2535,11 @@ export const POWER_CATALOG_6E: CatalogEntry[] = [
     "types": [
       "SPECIAL",
       "SENSORY"
-    ]
+    ],
+    "senseGroup": "SIGHTGROUP",
+    "allowAnyGroup": true,
+    "active": false,
+    "activeSelect": false
   },
   {
     "xmlId": "ADJACENTFIXED",

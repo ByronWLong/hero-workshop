@@ -38,6 +38,7 @@ import {
   type ModifierDefinition,
 } from '../modifierDefinitions.js';
 import { calculateAdderCost, heroRoundCost } from '../utils.js';
+import { builtInSenseModifiers, defaultSenseGroup, isEnhancedSense, senseAdders, senseGroupChoices, senseModifierName } from '../senses.js';
 import { fractionText as fraction, modifierSummary } from './lists.js';
 import { skillRollCategory } from '../hdc/foundry.js';
 import { HdcDocument } from '../hdc/document.js';
@@ -188,6 +189,8 @@ export interface PowerDraft {
   customCost: number;
   affectsPrimary: boolean;
   affectsTotal: boolean;
+  /** An enhanced sense's group (Detect: Unusual Senses, or any group) */
+  senseGroup: string;
   barrier: { length: number; height: number; width: number; body: number; pd: number; ed: number; md: number; powd: number };
   adders: Adder[];
   modifiers: Modifier[];
@@ -225,6 +228,15 @@ function findPower(character: Character, section: PowerSection, id: string): Pow
     if (sub) return sub;
   }
   return undefined;
+}
+
+function senseView(draft: PowerDraft) {
+  // Hero Designer also writes NOGROUP for a sense in no group: that's Unusual Senses
+  const group = !draft.senseGroup || draft.senseGroup === 'NOGROUP' ? (defaultSenseGroup(draft.xmlId) ?? 'UNUSUALGROUP') : draft.senseGroup;
+  const groups = senseGroupChoices(draft.xmlId).map((g) => ({ ...g, selected: g.value === group }));
+  // A sense's own levels are its Enhanced Perception (Detect's PER bonus)
+  const builtIn = [...builtInSenseModifiers(draft.xmlId, group)].filter((id) => id !== 'ENHANCEDPERCEPTION').map(senseModifierName).sort();
+  return { groups: groups.length > 1 ? groups : undefined, builtIn: builtIn.join(', ') };
 }
 
 const CONTAINER_LABELS: Record<string, string> = { COMPOUNDPOWER: 'compound', LIST: 'list', MULTIPOWER: 'Multipower', VPP: 'power pool' };
@@ -282,6 +294,7 @@ export function powerDraft(character: Character, section: PowerSection, itemId?:
     customCost: p && !known ? (p.baseCost ?? 0) - calculateAdderCost(p.adders ?? []) : 0,
     affectsPrimary: p?.affectsPrimary ?? true,
     affectsTotal: p?.affectsTotal ?? true,
+    senseGroup: p?.senseGroup ?? '',
     barrier: {
       length: p?.lengthLevels ?? 1,
       height: p?.heightLevels ?? 1,
@@ -370,11 +383,39 @@ export function selectPower(draft: PowerDraft, xmlId: string): PowerDraft {
   return {
     ...draft,
     xmlId,
-    levels: def ? Math.max(def.minVal ?? 1, def.levelStart ?? 1, 1) : draft.levels,
+    // A sense's levels are a PER bonus, none to start with (Detect)
+    levels: def ? (isEnhancedSense(xmlId) ? (def.levelStart ?? 0) : Math.max(def.minVal ?? 1, def.levelStart ?? 1, 1)) : draft.levels,
     option: def?.options?.[0]?.xmlId ?? '',
     optionAlias: '',
+    senseGroup: defaultSenseGroup(xmlId) ?? '',
     adders: [],
   };
+}
+
+/** Moves an enhanced sense to another group; sense modifiers the group has built in are dropped */
+export function setSenseGroup(draft: PowerDraft, group: string): PowerDraft {
+  const builtIn = builtInSenseModifiers(draft.xmlId, group);
+  return { ...draft, senseGroup: group, adders: draft.adders.filter((a) => !builtIn.has(a.xmlId ?? '')) };
+}
+
+/** What a Detect detects (its OPTION_ALIAS, as Hero Designer prints it: "Detect Magic") */
+export function setDetects(draft: PowerDraft, text: string): PowerDraft {
+  return { ...draft, optionAlias: text.trim() };
+}
+
+/** Renames an adder (Detect's extra things: "Each Extra Thing" becomes "Gold") */
+export function setAdderAlias(draft: PowerDraft, id: string, alias: string): PowerDraft {
+  return { ...draft, adders: draft.adders.map((a) => (a.id === id ? { ...a, alias: alias.trim() || a.name } : a)) };
+}
+
+/** An adder's name in the template (before it's renamed) */
+const templateAdderName = (draft: PowerDraft, xmlId: string) => adderChoices(draft).find((a) => a.xmlId === xmlId)?.display;
+
+/** The power's adders, plus a sense's sense modifiers (those its group doesn't have built in) */
+function adderChoices(draft: PowerDraft, optionId = draft.option) {
+  const own = powerAdders(getPowerDefinition(draft.xmlId), optionId || undefined);
+  const chosen = draft.adders.map((a) => a.xmlId ?? '');
+  return [...own, ...senseAdders(draft.xmlId, draft.senseGroup, chosen).filter((a) => !own.some((o) => o.xmlId === a.xmlId))];
 }
 
 // =============================================================================
@@ -382,9 +423,9 @@ export function selectPower(draft: PowerDraft, xmlId: string): PowerDraft {
 // =============================================================================
 
 export function availableAdders(draft: PowerDraft) {
-  const def = getPowerDefinition(draft.xmlId);
-  const offered = powerAdders(def, draft.option || undefined);
-  const chosen = new Set(draft.adders.map((a) => a.xmlId));
+  const offered = adderChoices(draft);
+  // Generated files name Sense "SENSE"; Hero Designer's template calls it MAKEASENSE
+  const chosen = new Set(draft.adders.flatMap((a) => (a.xmlId === 'SENSE' ? ['SENSE', 'MAKEASENSE'] : [a.xmlId])));
   const excluded = new Set(
     draft.adders.flatMap((a) => offered.find((d) => d.xmlId === a.xmlId)?.excludes ?? []),
   );
@@ -396,11 +437,13 @@ export function setPowerOption(draft: PowerDraft, optionId: string): PowerDraft 
   const def = getPowerDefinition(draft.xmlId);
   const offered = new Set(powerAdders(def, optionId || undefined).map((a) => a.xmlId));
   const scoped = new Set((def?.options ?? []).flatMap((o) => o.adders ?? []).map((a) => a.xmlId));
-  return { ...draft, option: optionId, optionAlias: '', adders: draft.adders.filter((a) => !scoped.has(a.xmlId ?? '') || offered.has(a.xmlId ?? '')) };
+  // What a Detect detects stays (its option is only how broad that is)
+  const custom = draft.xmlId === 'DETECT' && !def?.options?.some((o) => o.display === draft.optionAlias);
+  return { ...draft, option: optionId, optionAlias: custom ? draft.optionAlias : '', adders: draft.adders.filter((a) => !scoped.has(a.xmlId ?? '') || offered.has(a.xmlId ?? '')) };
 }
 
 export function addAdder(draft: PowerDraft, xmlId: string): PowerDraft {
-  const def = powerAdders(getPowerDefinition(draft.xmlId), draft.option || undefined).find((a) => a.xmlId === xmlId);
+  const def = adderChoices(draft).find((a) => a.xmlId === xmlId);
   if (!def) return draft;
   const excludes = new Set(def.excludes ?? []);
   const adder: Adder = {
@@ -1006,6 +1049,12 @@ export function powerFormView(character: Character, section: PowerSection, draft
     isPower: draft.kind === 'power',
     isCustom: draft.kind === 'power' && !def,
     isBarrier: def?.xmlId === 'FORCEWALL',
+    // An enhanced sense: its group, and the sense modifiers it has built in
+    sense: def && isEnhancedSense(def.xmlId) ? senseView(draft) : undefined,
+    // What a Detect detects; the option is how broad that is
+    detects: def?.xmlId === 'DETECT'
+      ? { value: def.options?.some((o) => o.display === draft.optionAlias) ? '' : draft.optionAlias, placeholder: 'Magic, gold, minds…' }
+      : undefined,
     isDefenses: def?.xmlId === 'FORCEFIELD',
     isEquipment: section === 'equipment',
     draft,
@@ -1019,7 +1068,7 @@ export function powerFormView(character: Character, section: PowerSection, draft
       levelLabel: def.xmlId === 'NAKEDMODIFIER'
         ? 'The naked advantage costs its value on this many Active Points of the power it\'s for (6E1 315).'
         : def.lvlVal && def.lvlCost ? `${def.lvlCost} pts per ${def.lvlVal === 1 ? 'level' : `${def.lvlVal}`}` : undefined,
-      levelsTitle: def.xmlId === 'NAKEDMODIFIER' ? 'Up to Active Points' : undefined,
+      levelsTitle: def.xmlId === 'NAKEDMODIFIER' ? 'Up to Active Points' : isEnhancedSense(def.xmlId) ? 'PER bonus' : undefined,
       hasLevels: !!def.lvlCost || !!def.options?.some((o) => o.lvlCost),
       options: def.options?.map((o) => ({ value: o.xmlId, label: o.display, selected: o.xmlId === draft.option })),
     },
@@ -1030,6 +1079,8 @@ export function powerFormView(character: Character, section: PowerSection, draft
       name: a.alias ?? a.name,
       hasLevels: !!a.lvlCost,
       levels: a.levels ?? 0,
+      // Detect's extra things are named by their alias
+      rename: draft.xmlId === 'DETECT' && a.xmlId === 'EXTRA' ? { value: a.alias && a.alias !== templateAdderName(draft, 'EXTRA') ? a.alias : '' } : undefined,
       cost: (a.baseCost ?? 0) + (a.levels ?? 0) * (a.lvlCost ?? 0),
     })),
     availableAdders: availableAdders(draft).map((a) => ({
@@ -1201,6 +1252,7 @@ function buildPower(existing: PowerLike | undefined, draft: PowerDraft, costs: P
         : (def?.options?.find((o) => o.xmlId === draft.option)?.display ?? existing?.optionAlias)),
     affectsPrimary: draft.affectsPrimary,
     affectsTotal: draft.affectsTotal,
+    senseGroup: isEnhancedSense(def?.xmlId) ? draft.senseGroup || undefined : existing?.senseGroup,
     adders: draft.adders.length ? draft.adders : undefined,
     modifiers: draft.modifiers.length ? draft.modifiers : undefined,
     parentId: draft.parentId || undefined,

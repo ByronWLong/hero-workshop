@@ -30,6 +30,7 @@ import { generateId, heroRoundCost } from '../utils.js';
 import { perkTalentCosts, perkTalentEntry, perkXmlId, type PerkTalentPurchase } from '../perkTalentCosts.js';
 import { SKILL_CATALOG_6E } from '../generated/skillCatalog6e.js';
 import { skillLevelCost } from '../skillLevels.js';
+import { isEnhancedSense } from '../senses.js';
 
 const SKILL_CATALOG_BY_ID = new Map(SKILL_CATALOG_6E.map((s) => [s.xmlId, s]));
 import { flashDefenseLevels, getPowerDefinition, powerLevelsCost, steppedCost } from '../powerDefinitions.js';
@@ -1481,6 +1482,7 @@ function parsePower(obj: Record<string, unknown>): Power {
     optionAlias: optionAlias || undefined,
     affectsPrimary: affectsPrimary,
     affectsTotal: affectsTotal,
+    senseGroup: isEnhancedSense(xmlid) ? getAttr(obj, 'GROUP') || undefined : undefined,
     // Barrier-specific fields
     ...barrierFields,
   };
@@ -1781,8 +1783,8 @@ function parseEquipmentItem(obj: Record<string, unknown>): Equipment {
     const single = parsePower(obj);
     singleEnd = single.endCost;
     // A Barrier's size and defenses, Resistant Protection's defenses
-    const { pdLevels, edLevels, mdLevels, powdLevels, bodyLevels, lengthLevels, heightLevels, widthLevels } = single;
-    defenses = { pdLevels, edLevels, mdLevels, powdLevels, bodyLevels, lengthLevels, heightLevels, widthLevels };
+    const { pdLevels, edLevels, mdLevels, powdLevels, bodyLevels, lengthLevels, heightLevels, widthLevels, senseGroup } = single;
+    defenses = { pdLevels, edLevels, mdLevels, powdLevels, bodyLevels, lengthLevels, heightLevels, widthLevels, senseGroup };
     totalActiveCost = single.activeCost ?? 0;
     totalRealCost = single.realCost ?? 0;
   } else if (totalRealCost === 0) {

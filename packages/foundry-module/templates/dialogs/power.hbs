@@ -61,13 +61,30 @@
   {{/if}}
 
   {{#if isPower}}
+  {{#if detects}}
+  <div class="form-group">
+    <label>Detects</label>
+    <input type="text" data-field="detects" value="{{detects.value}}" placeholder="{{detects.placeholder}}">
+  </div>
+  {{/if}}
   {{#if definition.options}}
   <div class="form-group">
-    <label>Option</label>
+    <label>{{#if detects}}Breadth{{else}}Option{{/if}}</label>
     <select data-field="option">
       {{#each definition.options}}<option value="{{value}}" {{#if selected}}selected{{/if}}>{{label}}</option>{{/each}}
     </select>
   </div>
+  {{/if}}
+  {{#if sense}}
+  {{#if sense.groups}}
+  <div class="form-group">
+    <label>Sense group</label>
+    <select data-field="senseGroup">
+      {{#each sense.groups}}<option value="{{value}}" {{#if selected}}selected{{/if}}>{{label}}</option>{{/each}}
+    </select>
+  </div>
+  {{/if}}
+  {{#if sense.builtIn}}<p class="hint">Built in: {{sense.builtIn}}. Other sense modifiers are under Adders.</p>{{/if}}
   {{/if}}
   {{#if definition.hasLevels}}{{#unless isBarrier}}{{#unless isDefenses}}
   <div class="form-group">
@@ -151,7 +168,8 @@
     <legend>Adders</legend>
     {{#each adders}}
     <div class="hw-mod-row">
-      <span class="hw-mod-name">{{name}}</span>
+      <span class="hw-mod-name {{#if rename}}hw-mod-label{{/if}}">{{#if rename}}Also detects{{else}}{{name}}{{/if}}</span>
+      {{#if rename}}<input type="text" class="hw-mod-text" data-field="adderAlias.{{id}}" value="{{rename.value}}" placeholder="What else it detects" aria-label="What else it detects">{{/if}}
       {{#if hasLevels}}<input type="number" class="hw-small" data-field="adder.{{id}}" value="{{levels}}" min="0" data-tooltip="Levels">{{/if}}
       <span class="hw-mod-value">+{{cost}}</span>
       <a data-action="removeAdder" data-id="{{id}}" data-tooltip="Remove"><i class="fa-solid fa-xmark" inert></i></a>
