@@ -26,6 +26,58 @@ const SECTION_BY_ITEM_TYPE: Record<string, { section: HdcSection; tab: TabId }> 
   equipment: { section: 'EQUIPMENT', tab: 'equipment' },
 };
 
+/**
+ * Rebuilds an item from its XML (hero6e's restoreFromHdc) as the type it is. hero6e reads a lone
+ * fragment as a power, not knowing which section it came from, so equipment (and skills,
+ * perks...) would become powers, and Item Piles would no longer take them.
+ */
+async function restoreKeepingType(item: FoundryItem): Promise<void> {
+  const system = item.system as Record<string, unknown> & { hdcJson?: { type?: string } };
+  // The getter is on one of the data model's base classes
+  let getter: (() => Record<string, unknown>) | undefined;
+  for (let proto = Object.getPrototypeOf(system) as object | null; proto && !getter; proto = Object.getPrototypeOf(proto) as object | null) {
+    getter = Object.getOwnPropertyDescriptor(proto, 'hdcJson')?.get;
+  }
+  if (getter) {
+    const type = item.type;
+    // Read once by restoreFromHdc, before it replaces the system data (and this with it)
+    Object.defineProperty(system, 'hdcJson', { configurable: true, get: () => ({ ...getter.call(system), type }) });
+  }
+  await item.restoreFromHdc();
+}
+
+/**
+ * World items saved from Hero Workshop before 0.7.4 came back as powers even when they were
+ * equipment (see restoreKeepingType). Their XML still says so (only equipment is Carried or
+ * not), so they're made equipment again. Run by the GM once the world is ready.
+ */
+export async function repairEquipmentTurnedPower(): Promise<number> {
+  const broken = game.items.contents.filter((item) => {
+    if (item.type !== 'power' || typeof item.system._hdcXml !== 'string') return false;
+    try {
+      return parseXml(item.system._hdcXml.trim()).root.hasAttr('CARRIED');
+    } catch {
+      return false;
+    }
+  });
+  const ForcedReplacement = (foundry as unknown as { data: { operators: { ForcedReplacement: new (value: unknown) => unknown } } }).data.operators
+    .ForcedReplacement;
+  for (const item of broken) {
+    try {
+      await item.update({ type: 'equipment', system: new ForcedReplacement(item.toObject().system) });
+      await restoreKeepingType(item);
+    } catch (e) {
+      console.error(`${MODULE_ID} | making ${item.name} equipment again`, e);
+    }
+  }
+  if (broken.length) {
+    const names = broken.map((i) => i.name).join(', ');
+    console.info(`${MODULE_ID} | equipment saved as powers made equipment again: ${names}`);
+    ui.notifications.info(game.i18n.format('HERO_WORKSHOP.EquipmentRepaired', { count: broken.length, names }));
+  }
+  return broken.length;
+}
+
 /** The editor tab that shows items of this type, if Hero Workshop can edit them */
 export function tabForItem(item: FoundryItem): TabId | undefined {
   return SECTION_BY_ITEM_TYPE[item.type]?.tab;
@@ -105,7 +157,7 @@ export function createItemSession(item: FoundryItem, members: FoundryItem[] = [i
         }
         if (updated.toString() === before) continue;
         await member.update({ 'system._hdcXml': updated.toString() });
-        await member.restoreFromHdc();
+        await restoreKeepingType(member);
         const icon = getIcon(updated);
         if (icon && member.img !== icon) await member.update({ img: icon });
         await member.setFlag(MODULE_ID, 'syncedName', member.name);

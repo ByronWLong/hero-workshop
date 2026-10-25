@@ -34,6 +34,7 @@ import { getRaceLibrary, registerRaceSettings } from './races/library';
 import { MODULE_ID, createActorSession } from './sync/session';
 import { registerImportRepair, wrapHeroUploads } from './sync/importRepair';
 import { openHeroSheet, opensInWorkshop, registerItemSheetBypass, wrapItemSheets } from './apps/item-sheet-bypass';
+import { repairEquipmentTurnedPower } from './sync/itemSession';
 import { makeFamilyRowsDraggable, wrapActorSheetDrag } from './apps/actor-sheet-drag';
 import { registerKillingStunSettings, wrapKillingStunRule } from './combat/killingStunRule';
 import { registerCurrencySettings } from './integrations/currencies';
@@ -98,6 +99,7 @@ Hooks.once('setup', () => {
 Hooks.once('ready', () => {
   if (!isHeroSystem()) return;
   wrapActorSheetDrag();
+  if (game.user.isGM) void repairEquipmentTurnedPower().catch((e: unknown) => console.error(`${MODULE_ID} | repairing equipment`, e));
 });
 
 // Lists, frameworks and compounds can be dragged off actor sheets too

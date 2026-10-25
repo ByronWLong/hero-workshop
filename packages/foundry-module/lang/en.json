@@ -21,6 +21,7 @@
     "ManageCurrencies": "Manage currencies",
     "CurrenciesHint": "The money in this game (coins, dollars...), each kept as a piece of equipment whose quantity is how many a character has. Item Piles uses them as its currencies.",
     "CurrenciesSaved": "Currencies saved ({count}).",
+    "EquipmentRepaired": "Hero Workshop made {count} equipment items equipment again (an earlier version saved them as powers): {names}",
     "NewItem": "Hero Workshop Item",
     "ItemCreated": "{name} created with Hero Workshop.",
     "ItemsCopied": "Created {name} in the Items sidebar.",
