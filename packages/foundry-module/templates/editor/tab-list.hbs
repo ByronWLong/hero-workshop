@@ -22,6 +22,19 @@
     <i class="fa-solid fa-weight-hanging" inert></i> {{tab.load.text}}{{#if tab.load.stored}} · <i class="fa-solid fa-box-archive" inert></i> {{tab.load.stored}}{{/if}}
   </p>
   {{/if}}
+  {{#if tab.money}}
+  <div class="hw-money" data-no-steppers>
+    <span class="hint" data-tooltip="Coins are equipment: one item per currency, its quantity the count. The GM sets the currencies in Hero Workshop's settings."><i class="fa-solid fa-coins" inert></i> Money</span>
+    {{#each tab.money.rows as |coin|}}
+    <label class="hw-money-coin" data-tooltip="{{coin.tooltip}}">
+      {{#if coin.img}}<img src="{{coin.img}}" alt="">{{/if}}
+      <input type="number" min="0" step="1" data-field="money.{{coin.index}}" value="{{coin.count}}" aria-label="{{coin.name}}" {{#unless ../tab.money.editable}}disabled{{/unless}}>
+      <span>{{coin.abbreviation}}</span>
+    </label>
+    {{/each}}
+    {{#if tab.money.total}}<span class="hint hw-money-total">worth {{tab.money.total}}</span>{{/if}}
+  </div>
+  {{/if}}
   {{#if tab.rows.length}}
   <ol class="hw-items">
     {{#each tab.rows as |row|}}{{> "modules/hero-workshop/templates/editor/item-row.hbs" row=row section=../tab.section canCarry=../tab.canCarry canMove=../tab.canMove collapsible=../tab.canCollapse}}{{/each}}

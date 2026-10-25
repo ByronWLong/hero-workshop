@@ -1367,7 +1367,7 @@ const POWER_SPEC: ItemSpec<Power> = {
 
 const EQUIPMENT_SPEC: ItemSpec<Equipment> = {
   handled: new Set([
-    'name', 'levels', 'notes', 'price', 'weight', 'carried', 'subPowers',
+    'name', 'levels', 'notes', 'price', 'weight', 'carried', 'quantity', 'subPowers',
     'input', 'option', 'optionAlias', 'affectsPrimary', 'affectsTotal', 'slotFixed',
     'pdLevels','edLevels', 'mdLevels', 'powdLevels', 'bodyLevels', 'lengthLevels', 'heightLevels', 'widthLevels',
     'senseGroup',
@@ -1385,6 +1385,7 @@ const EQUIPMENT_SPEC: ItemSpec<Equipment> = {
     // Weight: kilograms in the model, pounds in the file
     if (!same(b.weight, a.weight)) el.setAttr('WEIGHT', String((a.weight ?? 0) / 0.453592));
     if (!same(b.carried, a.carried)) el.setAttr('CARRIED', yesNo(a.carried ?? true));
+    if (!same(b.quantity ?? 1, a.quantity ?? 1)) el.setAttr('QUANTITY', String(a.quantity ?? 1));
     const bp = b as Equipment & Partial<Power>;
     const ap = a as Equipment & Partial<Power>;
     if (!same(bp.input, ap.input) && ap.input) el.setAttr('INPUT', ap.input);
@@ -1409,6 +1410,7 @@ const EQUIPMENT_SPEC: ItemSpec<Equipment> = {
     el.setAttr('PRICE', hdCost(e.price));
     el.setAttr('WEIGHT', String((e.weight ?? 0) / 0.453592));
     el.setAttr('CARRIED', yesNo(e.carried ?? true));
+    el.setAttr('QUANTITY', String(e.quantity ?? 1));
     return el;
   },
 };

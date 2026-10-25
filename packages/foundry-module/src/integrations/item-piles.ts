@@ -16,11 +16,17 @@
 
 import { primaryCurrency } from '@hero-workshop/shared';
 import { MODULE_ID } from '../sync/session';
+import { itemFamily } from '../sync/worldItems';
 import { currencyItemData, getCurrencies, isCurrencyItem } from './currencies';
 
 const ITEM_PILES = 'item-piles';
 /** Flag on a compound's part or a framework's slot */
 const PART_FLAG = 'part';
+/**
+ * Flag (a UUID) on a list or framework that arrived from the Items sidebar or a compendium,
+ * where its members are separate items in its folder: they're brought over once it lands
+ */
+const FROM_FLAG = 'membersFrom';
 /** Flag (the HDC ID) on items Item Piles must never stack: lists, compounds and what's in them */
 const UNIQUE_FLAG = 'unique';
 /** What a part belongs to: it can't be taken out on its own */
@@ -88,7 +94,172 @@ async function markParts(actor: PileActor): Promise<void> {
     .filter((item) => item.type === 'equipment')
     .filter((item) => isPart(item) !== (item.getFlag(MODULE_ID, PART_FLAG) === true))
     .map((item) => ({ _id: item.id, [`flags.${MODULE_ID}.${PART_FLAG}`]: isPart(item) }));
-  if (updates.length) await actor.updateEmbeddedDocuments('Item', updates);
+  if (!updates.length) return;
+  await actor.updateEmbeddedDocuments('Item', updates);
+  refreshPileWindows(actor as unknown as FoundryActor);
+}
+
+/**
+ * Flags a part as it's created, when its compound is already there (Hero Workshop adding a
+ * dropped compound's parts), so an open pile window never lists it
+ */
+export function flagNewPart(item: PileItem & { parent?: PileActor | null; updateSource(data: Record<string, unknown>): void }): void {
+  if (!itemPilesActive() || item.type !== 'equipment') return;
+  const parentId = item.system.PARENTID;
+  if (parentId === undefined || parentId === null || parentId === '' || item.getFlag(MODULE_ID, PART_FLAG) === true) return;
+  const parent = item.parent?.items.contents.find((i) => String(i.system.ID) === String(parentId));
+  if (parent && WHOLES.has(String(parent.system.XMLID ?? ''))) item.updateSource({ [`flags.${MODULE_ID}.${PART_FLAG}`]: true });
+}
+
+// ---------------------------------------------------------------------------------------------
+// Open pile windows
+// ---------------------------------------------------------------------------------------------
+
+interface Readable<T> {
+  subscribe(run: (value: T) => void): () => void;
+  set(value: T): void;
+}
+
+interface PileStore {
+  allItems: Readable<{ unsubscribe?(): void }[]>;
+  attributes: Readable<{ unsubscribe?(): void }[]>;
+  populateItems(): void;
+  refreshItems(): void;
+}
+
+const read = <T>(store: Readable<T>): T => {
+  let value!: T;
+  store.subscribe((v) => (value = v))();
+  return value;
+};
+
+const refreshing = new Map<string, ReturnType<typeof setTimeout>>();
+
+/**
+ * Rebuilds the lists of any pile window open on an actor, as reopening it would. Item Piles
+ * adds a new item to an open window as it is (a coin as an item rather than a currency, a part
+ * before it's flagged) and only sorts that out when the window is next opened.
+ */
+export function refreshPileWindows(actor: FoundryActor | null | undefined): void {
+  const uuid = (actor as { uuid?: string } | null | undefined)?.uuid;
+  if (!uuid || !itemPilesActive()) return;
+  clearTimeout(refreshing.get(uuid));
+  refreshing.set(
+    uuid,
+    setTimeout(() => {
+      refreshing.delete(uuid);
+      const windows = Object.values((ui as unknown as { windows: Record<string, unknown> }).windows) as {
+        id?: string;
+        actor?: { uuid?: string };
+        svelte?: { applicationShell?: { store?: PileStore } };
+      }[];
+      for (const app of windows) {
+        const id = String(app.id ?? '');
+        if (!(id.startsWith('item-pile-inventory-') || id.startsWith('item-pile-vault-')) || app.actor?.uuid !== uuid) continue;
+        const store = app.svelte?.applicationShell?.store;
+        if (!store) continue;
+        for (const entry of [...read(store.allItems), ...read(store.attributes)]) entry.unsubscribe?.();
+        store.allItems.set([]);
+        store.attributes.set([]);
+        store.populateItems();
+        store.refreshItems();
+      }
+    }, 150),
+  );
+}
+
+// ---------------------------------------------------------------------------------------------
+// Looking at a pile's items
+// ---------------------------------------------------------------------------------------------
+
+let lastOpened: { uuid: string; at: number } | undefined;
+
+/** Opens a pile's item in Hero Workshop, read-only (a double-click also clicks, so once) */
+function openInWorkshop(item: PileItem & { uuid: string }): void {
+  const now = Date.now();
+  if (lastOpened?.uuid === item.uuid && now - lastOpened.at < 800) return;
+  lastOpened = { uuid: item.uuid, at: now };
+  const api = game.modules.get(MODULE_ID)?.api as { openItemEditor?(item: unknown, options?: Record<string, unknown>): void } | undefined;
+  api?.openItemEditor?.(item, { standalone: true, readOnly: true });
+}
+
+const hasHdc = (item: PileItem) => typeof item.system._hdcXml === 'string' && !!item.system._hdcXml.trim();
+
+/** Clicking a pile's item: Hero Workshop, if items open there (its setting), else hero6e's sheet */
+function previewItem(item: unknown): unknown {
+  if (!isItemDocument(item) || !hasHdc(item)) return item;
+  let inWorkshop = true;
+  try {
+    inWorkshop = game.settings.get(MODULE_ID, 'openItemsInWorkshop') !== false;
+  } catch {
+    // Setting not registered: Hero Workshop
+  }
+  if (!inWorkshop) return item;
+  openInWorkshop(item as PileItem & { uuid: string });
+  return false;
+}
+
+interface PileWindow {
+  id?: string;
+  actor?: PileActor;
+  recipient?: unknown;
+}
+
+/** The open pile or vault window an element is in */
+function windowOf(element: HTMLElement): PileWindow | undefined {
+  const id = element.closest<HTMLElement>('[id^="item-pile-inventory-"], [id^="item-pile-vault-"]')?.id;
+  if (!id) return undefined;
+  return (Object.values((ui as unknown as { windows: Record<string, unknown> }).windows) as PileWindow[]).find((app) => app.id === id);
+}
+
+/**
+ * The name of the item an element of a pile window shows: a vault square's tooltip, or the name
+ * in a list row (the nearest enclosing element holding just one)
+ */
+function itemNameAt(element: HTMLElement): string | undefined {
+  // A vault square, or the hover box around it (which takes its clicks)
+  const square =
+    element.closest<HTMLElement>('.grid-item[data-fast-tooltip]') ??
+    element.closest<HTMLElement>('.item-piles-grid-item-hover')?.querySelector<HTMLElement>('.grid-item[data-fast-tooltip]');
+  if (square) return square.dataset.fastTooltip;
+  for (let el: HTMLElement | null = element; el && !el.id?.startsWith('item-pile-'); el = el.parentElement) {
+    const names = el.querySelectorAll('.item-piles-name');
+    if (names.length === 1) return names[0]!.textContent?.trim();
+    if (names.length > 1) return undefined;
+  }
+  return undefined;
+}
+
+/**
+ * Double-clicking a pile's item opens it in Hero Workshop. (Item Piles' list does nothing on a
+ * double-click. Its vault takes the item when there's a character to take it, and otherwise,
+ * the GM looking in, does nothing; then Hero Workshop opens.) Item Piles' windows don't say
+ * which item a row is, so it's found by the name shown.
+ */
+function listenForDoubleClicks(): void {
+  document.addEventListener('dblclick', (event) => {
+    const target = event.target as HTMLElement | null;
+    const app = target && windowOf(target);
+    if (!target || !app?.actor) return;
+    if (app.id?.startsWith('item-pile-vault-') && app.recipient) return;
+    const name = itemNameAt(target);
+    const item = name ? app.actor.items.contents.find((i) => i.name === name && !isPart(i) && hasHdc(i)) : undefined;
+    if (item) openInWorkshop(item as PileItem & { uuid: string });
+  });
+}
+
+interface ContextMenuItem {
+  icon: string;
+  label: string;
+  onPress(): void;
+}
+
+/** A vault item's right-click menu: Hero Workshop, and hero6e's sheet for its owners */
+function addMenuEntries(item: unknown, menu: ContextMenuItem[]): void {
+  if (!isItemDocument(item) || !hasHdc(item)) return;
+  menu.push({ icon: 'fa-solid fa-user-pen', label: 'Hero Workshop', onPress: () => openInWorkshop(item as PileItem & { uuid: string }) });
+  const sheet = (item as unknown as { isOwner?: boolean; sheet?: { render(force: boolean): unknown } });
+  if (sheet.isOwner && sheet.sheet) menu.push({ icon: 'fa-solid fa-file-lines', label: 'hero6e sheet', onPress: () => void sheet.sheet!.render(true) });
 }
 
 const marking = new Map<string, ReturnType<typeof setTimeout>>();
@@ -136,12 +307,109 @@ function transformItem(itemData: ItemData): ItemData {
     itemData.flags ??= {};
     itemData.flags[MODULE_ID] = { ...itemData.flags[MODULE_ID], [UNIQUE_FLAG]: String(system.ID ?? '') };
   }
+  // A world or compendium list or framework comes alone: note where its members are
+  const xmlId = String(system.XMLID ?? '');
+  const from = CONTAINERS.has(xmlId) && xmlId !== 'COMPOUNDPOWER' && itemData._id ? sidebarItemUuid(itemData._id) : undefined;
+  if (from) itemData.flags![MODULE_ID] = { ...itemData.flags![MODULE_ID], [FROM_FLAG]: from };
   return itemData;
+}
+
+/** The UUID of a world or compendium item, by document id */
+function sidebarItemUuid(id: string): string | undefined {
+  const world = game.items.get(id);
+  if (world) return world.uuid;
+  for (const pack of game.packs.contents) {
+    const index = (pack as unknown as { documentName?: string; collection: string; index: { has(id: string): boolean } });
+    if (index.documentName === 'Item' && index.index.has(id)) return `Compendium.${index.collection}.Item.${id}`;
+  }
+  return undefined;
+}
+
+/**
+ * A list or framework that arrived alone (from the sidebar or a compendium): its members, from
+ * its folder there, follow it onto the actor
+ */
+export async function bringMembers(item: PileItem & { parent?: PileActor | null; unsetFlag?(scope: string, key: string): Promise<unknown> }): Promise<void> {
+  const from = item.getFlag(MODULE_ID, FROM_FLAG);
+  const actor = item.parent;
+  if (typeof from !== 'string' || !actor) return;
+  await item.unsetFlag?.(MODULE_ID, FROM_FLAG);
+  if (actor.items.contents.some((i) => i.parentItem?.id === item.id)) return;
+  const source = (await fromUuid(from)) as FoundryItem | null;
+  if (!source) return;
+  const members = (await itemFamily(source)).slice(1) as unknown as PileItem[];
+  if (!members.length) return;
+  const sourceId = String(source.system.ID ?? '');
+  const map: Record<string, { item: ItemData; items: ItemData[] }> = {};
+  for (const member of members) {
+    const data = member.toObject() as ItemData & { folder?: unknown; sort?: unknown };
+    delete data._id;
+    delete data.folder;
+    delete data.sort;
+    data.system ??= {};
+    // Its list or framework may have been given a new HDC ID on arrival
+    if (String(data.system.PARENTID ?? '') === sourceId) data.system.PARENTID = item.system.ID;
+    if (WHOLES.has(String(item.system.XMLID ?? '')) && data.system.PARENTID === item.system.ID) {
+      data.flags ??= {};
+      data.flags[MODULE_ID] = { ...data.flags[MODULE_ID], [PART_FLAG]: true };
+    }
+    map[member.id] = { item: data, items: [] };
+  }
+  fitItems({ actor, map });
+  const target = actor as unknown as { createEmbeddedDocuments(type: string, data: unknown[]): Promise<unknown> };
+  await target.createEmbeddedDocuments('Item', Object.values(map).map((e) => e.item));
+}
+
+/**
+ * A list's or framework's folder dropped on a vault, which only takes items: the list or
+ * framework itself is dropped instead (its members follow). Item Piles' list view takes folders.
+ */
+export function listenForFolderDrops(): void {
+  document.addEventListener(
+    'drop',
+    (event) => {
+      const vault = (event.target as HTMLElement | null)?.closest?.<HTMLElement>('[id^="item-pile-vault-"]');
+      if (!vault || !game.user.isGM) return;
+      let data: { type?: string; uuid?: string };
+      try {
+        data = JSON.parse(event.dataTransfer?.getData('text/plain') ?? '');
+      } catch {
+        return;
+      }
+      if (data.type !== 'Folder' || !data.uuid) return;
+      const folder = fromUuidSync(data.uuid) as { contents?: { uuid?: string; system?: Record<string, unknown> }[] } | null;
+      const contents = folder?.contents ?? [];
+      const ids = new Set(contents.map((i) => String(i.system?.ID ?? '')));
+      // The folder's list or framework: the item nothing else in the folder contains
+      const head = contents.find((i) => CONTAINERS.has(String(i.system?.XMLID ?? '')) && !ids.has(String(i.system?.PARENTID ?? '')));
+      if (!head?.uuid) return;
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      const app = (Object.values((ui as unknown as { windows: Record<string, unknown> }).windows) as {
+        id?: string;
+        svelte?: { applicationShell?: { store?: { onDrop(data: Record<string, unknown>): Promise<unknown> } } };
+      }[]).find((w) => w.id === vault.id);
+      void app?.svelte?.applicationShell?.store?.onDrop({ type: 'Item', uuid: head.uuid });
+    },
+    true,
+  );
 }
 
 /** An item's contents travel with it (and a dropped compound's parts with the compound) */
 function transferContents({ item, items, raw = false }: { item: PileItem; items: unknown[]; raw?: boolean }): unknown[] {
-  for (const child of descendants(item)) items.push(raw ? child : child.toObject());
+  for (const child of descendants(item)) {
+    if (raw) {
+      items.push(child);
+      continue;
+    }
+    // Flagged on the way, so the receiving window never lists it
+    const data = child.toObject();
+    if (isPart(child)) {
+      data.flags ??= {};
+      data.flags[MODULE_ID] = { ...data.flags[MODULE_ID], [PART_FLAG]: true };
+    }
+    items.push(data);
+  }
   return items;
 }
 
@@ -186,6 +454,18 @@ function keepPartsOfStaysBehind(actor: PileActor, itemsToUpdate: { _id?: string 
     let ancestor = actor.items.get(id)?.parentItem;
     for (; ancestor; ancestor = ancestor.parentItem) if (staying.has(ancestor.id)) break;
     if (ancestor) itemsToDelete.splice(itemsToDelete.indexOf(id), 1);
+  }
+}
+
+/**
+ * A compound joining a stack of the same (a second net on a pile of them): the stack grows, but
+ * its parts are one set for the whole stack, so their counts stay as they are
+ */
+function keepPartCounts(target: PileActor, itemsToUpdate: { _id?: string }[] | undefined): void {
+  if (!itemsToUpdate) return;
+  for (const update of [...itemsToUpdate]) {
+    const item = update._id ? target.items.get(update._id) : undefined;
+    if (item && isPart(item)) itemsToUpdate.splice(itemsToUpdate.indexOf(update), 1);
   }
 }
 
@@ -263,6 +543,7 @@ export function registerItemPiles(): void {
       ],
       ITEM_SIMILARITIES: ['name', 'type', 'system.XMLID', `flags.${MODULE_ID}.${UNIQUE_FLAG}`],
       ITEM_TRANSFORMER: transformItem,
+      PREVIEW_ITEM_TRANSFORMER: previewItem,
       ITEM_COST_TRANSFORMER: itemCost,
       CURRENCIES: currencies,
       CURRENCY_DECIMAL_DIGITS: 0.01,
@@ -279,8 +560,11 @@ export function registerItemPiles(): void {
       },
     });
 
-    Hooks.on('item-piles-preTransferItems', ((source: PileActor, sourceUpdates: { itemsToUpdate: { _id?: string }[]; itemsToDelete: string[] }) => {
+    Hooks.on('item-piles-preRightClickItem', addMenuEntries as (...args: never[]) => unknown);
+    type ItemUpdates = { itemsToUpdate: { _id?: string }[]; itemsToDelete: string[] };
+    Hooks.on('item-piles-preTransferItems', ((source: PileActor, sourceUpdates: ItemUpdates, target: PileActor, targetUpdates: ItemUpdates) => {
       keepPartsOfStaysBehind(source, sourceUpdates.itemsToUpdate, sourceUpdates.itemsToDelete);
+      keepPartCounts(target, targetUpdates?.itemsToUpdate);
     }) as (...args: never[]) => unknown);
     Hooks.on('item-piles-preRemoveItems', ((actor: PileActor, itemsToUpdate: { _id?: string }[], itemsToDelete: string[]) => {
       keepPartsOfStaysBehind(actor, itemsToUpdate, itemsToDelete);
@@ -296,6 +580,8 @@ export function registerItemPiles(): void {
       skipEmptyCoins(itemsToCreate);
     }) as (...args: never[]) => unknown);
 
+    listenForFolderDrops();
+    listenForDoubleClicks();
     if (game.user.isGM) await markAllParts();
   });
 }

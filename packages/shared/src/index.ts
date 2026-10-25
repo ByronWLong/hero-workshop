@@ -71,5 +71,6 @@ export * from './hdc/index.js';
 export * from './editor/characteristics.js';
 export * from './editor/lists.js';
 export * from './editor/equipment.js';
+export * from './editor/money.js';
 export * from './editor/items.js';
 export * from './editor/powers.js';

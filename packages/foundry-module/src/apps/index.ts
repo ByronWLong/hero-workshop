@@ -71,18 +71,28 @@ export function openEditor(actor: FoundryActor, view?: SessionView): void {
  * Items owned by an actor are part of the actor's HDC, so they open the actor's editor on
  * the item; world items are edited on their own.
  */
-export function openItemEditor(item: FoundryItem): void {
+export interface OpenItemOptions {
+  /**
+   * An actor's item on its own, not in the actor's editor: something lying in an Item Piles
+   * pile (the pile isn't a character)
+   */
+  standalone?: boolean;
+  /** Only to look at */
+  readOnly?: boolean;
+}
+
+export function openItemEditor(item: FoundryItem, options: OpenItemOptions = {}): void {
   const tab = tabForItem(item);
   if (!tab) {
     ui.notifications.warn(game.i18n.format('HERO_WORKSHOP.ItemNotEditable', { name: item.name }));
     return;
   }
-  if (item.actor) {
+  if (item.actor && !options.standalone) {
     const hdcId = item.system.ID;
     openEditor(item.actor, { initialTab: tab, focusItemId: hdcId ? String(hdcId) : undefined });
     return;
   }
-  const readOnly = viewOnly(item);
+  const readOnly = !!options.readOnly || viewOnly(item);
   if (!item.isOwner && !readOnly) {
     ui.notifications.warn(game.i18n.format('HERO_WORKSHOP.NotOwner', { name: item.name }));
     return;
@@ -90,7 +100,8 @@ export function openItemEditor(item: FoundryItem): void {
   // A list or framework opens with its members (e.g. a Multipower shield's slots) in the
   // editor window; anything else goes straight to its own dialog
   void itemFamily(item).then((members) => {
-    const windowId = `item-${item.pack ? `${item.pack}-` : ''}${item.id}`;
+    const where = item.actor ? `${item.actor.id}-` : item.pack ? `${item.pack}-` : '';
+    const windowId = `item-${where}${item.id}`;
     try {
       const session = createItemSession(item, members);
       if (readOnly) session.view = { ...session.view, readOnly };

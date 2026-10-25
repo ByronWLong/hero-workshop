@@ -37,7 +37,7 @@ import { openHeroSheet, opensInWorkshop, registerItemSheetBypass, wrapItemSheets
 import { makeFamilyRowsDraggable, wrapActorSheetDrag } from './apps/actor-sheet-drag';
 import { registerKillingStunSettings, wrapKillingStunRule } from './combat/killingStunRule';
 import { registerCurrencySettings } from './integrations/currencies';
-import { queuePartMarking, registerItemPiles } from './integrations/item-piles';
+import { bringMembers, flagNewPart, queuePartMarking, refreshPileWindows, registerItemPiles } from './integrations/item-piles';
 import { CurrencyWindow } from './apps/currencies';
 
 /** Lists Foundry-side edits not yet in an actor's stored HDC (for macros and debugging) */
@@ -386,8 +386,18 @@ Hooks.on('updateItem', ((item: FoundryItem, changes: { system?: Record<string, u
 }) as (...args: never[]) => unknown);
 
 // Item Piles: compound parts and framework slots are flagged so it leaves them off its lists
+// (as they're created where possible, else once the actor's items settle), and open pile
+// windows are rebuilt for new items (every user's: a player may be looking)
+Hooks.on('preCreateItem', ((item: Parameters<typeof flagNewPart>[0], _data: unknown, _options: unknown, userId: string) => {
+  if (isHeroSystem() && userId === game.user.id) flagNewPart(item);
+}) as (...args: never[]) => unknown);
 Hooks.on('createItem', ((item: FoundryItem, _options: unknown, userId: string) => {
-  if (isHeroSystem() && actsForUser(userId)) queuePartMarking(item.actor);
+  if (!isHeroSystem()) return;
+  if (actsForUser(userId)) {
+    queuePartMarking(item.actor);
+    void bringMembers(item as unknown as Parameters<typeof bringMembers>[0]).catch((e: unknown) => console.error(`${MODULE_ID} | adding ${item.name}'s members`, e));
+  }
+  refreshPileWindows(item.actor);
 }) as (...args: never[]) => unknown);
 Hooks.on('updateItem', ((item: FoundryItem, changes: { system?: Record<string, unknown> }, _options: unknown, userId: string) => {
   if (isHeroSystem() && actsForUser(userId) && changes.system && 'PARENTID' in changes.system) queuePartMarking(item.actor);

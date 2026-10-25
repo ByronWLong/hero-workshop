@@ -1824,7 +1824,8 @@ function parseEquipmentItem(obj: Record<string, unknown>): Equipment {
     price: getAttrNum(obj, 'PRICE') || undefined,
     weight: weightKg,
     carried: getAttrBool(obj, 'CARRIED', true),
-    quantity: getAttrNum(obj, 'QUANTITY', 1) > 1 ? getAttrNum(obj, 'QUANTITY', 1) : undefined,
+    // 1 unless it says otherwise (none left is 0: coins all spent)
+    quantity: getAttrNum(obj, 'QUANTITY', 1) !== 1 ? Math.max(0, getAttrNum(obj, 'QUANTITY', 1)) : undefined,
     input: getAttr(obj, 'INPUT') || undefined,
     option: getAttr(obj, 'OPTION') || undefined,
     optionAlias: getAttr(obj, 'OPTION_ALIAS') || undefined,

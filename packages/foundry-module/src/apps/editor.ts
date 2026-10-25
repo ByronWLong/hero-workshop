@@ -37,8 +37,11 @@ import {
   type ItemTransfer,
   type PowerKind,
   type SectionId,
+  moneyView,
+  setMoney,
 } from '@hero-workshop/shared';
 import type { TabId } from '../sync/tabs';
+import { getCurrencies } from '../integrations/currencies';
 import { applyDrift, type DriftChange } from '../sync/drift';
 import { DEFAULT_ICON } from '../sync/icons';
 import type { ActorSession, AppliedDocument } from '../sync/session';
@@ -281,6 +284,8 @@ export class HeroWorkshopEditor extends HeroWorkshopApplication {
 
   #equipmentContext() {
     const load = equipmentLoad(this.#character);
+    const currencies = getCurrencies();
+    const money = moneyView(this.#character, currencies);
     const penalty = load.dcv ? `${load.dcv} DCV and DEX Rolls${load.move ? `, ${load.move}m movement` : ''}` : 'no penalty';
     return {
       canCarry: !this.readOnly && !this.session.view?.visibleTabs,
@@ -290,6 +295,21 @@ export class HeroWorkshopEditor extends HeroWorkshopApplication {
         text: `Carrying ${load.carried} kg of ${load.lift} kg (${load.percent}%): ${penalty}`,
         stored: load.stored ? `${load.stored} kg stored` : '',
       },
+      // Money, per currency (the world's currencies, set by the GM); not for a single world item
+      money: currencies.length && !this.session.view?.visibleTabs
+        ? {
+            editable: !this.readOnly,
+            rows: money.rows.map((r, index) => ({
+              index,
+              name: r.currency.name,
+              abbreviation: r.currency.abbreviation,
+              img: r.currency.img,
+              count: r.count,
+              tooltip: r.stacks > 1 ? `${r.currency.name}: ${r.count} in ${r.stacks} stacks` : r.currency.name,
+            })),
+            total: money.primary && currencies.length > 1 ? `${money.total} ${money.primary.abbreviation}` : '',
+          }
+        : undefined,
     };
   }
 
@@ -374,6 +394,15 @@ export class HeroWorkshopEditor extends HeroWorkshopApplication {
 
     if (kind === 'addType') {
       void this.editItem(key as SectionId, undefined, undefined, value);
+      return;
+    }
+
+    // Coins: how many of a currency, in all
+    if (kind === 'money') {
+      const currency = getCurrencies()[Number(key)];
+      const n = Number(value);
+      if (!currency || !Number.isFinite(n)) return;
+      this.setCharacter(setMoney(character, currency, n));
       return;
     }
 

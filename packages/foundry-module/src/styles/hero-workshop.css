@@ -469,6 +469,31 @@
   margin: 0 0 0.5rem;
 }
 
+/* Money: a count box per currency */
+.hero-workshop .hw-money {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.25rem 1rem;
+  margin: 0 0 0.5rem;
+}
+
+.hero-workshop .hw-money-coin {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+.hero-workshop .hw-money-coin img {
+  width: 20px;
+  height: 20px;
+  border: none;
+}
+
+.hero-workshop .hw-money-coin input {
+  width: 5.5em;
+}
+
 /* ---------------------------------------------------------------- drag and drop */
 
 .hero-workshop .hw-item-row.hw-dragging {
