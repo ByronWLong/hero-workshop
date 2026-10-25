@@ -1,9 +1,15 @@
-<li class="hw-item {{#if row.isGroup}}hw-item-group{{/if}} {{#if (eq row.carried false)}}hw-stored{{/if}}">
+<li class="hw-item {{#if row.isGroup}}hw-item-group{{/if}} {{#if (eq row.carried false)}}hw-stored{{/if}} {{#if row.collapsed}}hw-collapsed{{/if}}">
   <div class="hw-item-row" draggable="true" tabindex="0" role="button" data-action="editItem" data-section="{{section}}"
     data-item-id="{{row.id}}" {{#if row.acceptsChildren}}data-accepts-children{{/if}} {{#if row.acceptsParts}}data-accepts-parts{{/if}}>
+    {{#if row.children.length}}
+    <a class="hw-item-collapse" data-action="toggleCollapse" data-section="{{section}}" data-item-id="{{row.id}}" data-tooltip="{{#if row.collapsed}}Open{{else}}Close{{/if}}"
+      aria-expanded="{{#if row.collapsed}}false{{else}}true{{/if}}" aria-label="Open or close {{row.name}}"><i class="fa-solid fa-chevron-down" inert></i></a>
+    {{else if collapsible}}
+    <span class="hw-item-collapse-spacer"></span>
+    {{/if}}
     <img class="hw-item-icon" src="{{row.img}}" alt="" loading="lazy">
     <div class="hw-item-text">
-      <span class="hw-item-name">{{row.name}}{{#if row.free}} <span class="hw-tag hw-tag-free" data-tooltip="Given by the GM: costs no points">Free</span>{{/if}}</span>
+      <span class="hw-item-name">{{row.name}}{{#if row.children.length}} <span class="hw-item-inside hint" data-tooltip="Items in it">({{row.inside}})</span>{{/if}}{{#if row.free}} <span class="hw-tag hw-tag-free" data-tooltip="Given by the GM: costs no points">Free</span>{{/if}}</span>
       {{#if row.detail}}<span class="hint hw-item-detail">{{row.detail}}</span>{{/if}}
     </div>
     {{#if (eq section "skills")}}
@@ -30,7 +36,7 @@
   </div>
   {{#if row.children.length}}
   <ol class="hw-items hw-children">
-    {{#each row.children as |child|}}{{> "modules/hero-workshop/templates/editor/item-row.hbs" row=child section=../section canCarry=../canCarry canMove=../canMove}}{{/each}}
+    {{#each row.children as |child|}}{{> "modules/hero-workshop/templates/editor/item-row.hbs" row=child section=../section canCarry=../canCarry canMove=../canMove collapsible=../collapsible}}{{/each}}
   </ol>
   {{/if}}
 </li>

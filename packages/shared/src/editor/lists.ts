@@ -198,7 +198,8 @@ export function buildItemTree(character: Character, section: SectionId): ItemRow
       ...(section === 'equipment' && (kind === 'LIST' || item.isContainer) ? { contents: contentsWeight(children) } : {}),
       isGroup,
       icon: item.icon,
-      acceptsChildren: !!item.isGroup || item.type === 'LIST' || FRAMEWORKS.includes(item.xmlId ?? item.type ?? ''),
+      // Equipment lists have xmlId LIST (other sections' lists have type LIST)
+      acceptsChildren: !!item.isGroup || kind === 'LIST' || FRAMEWORKS.includes(kind),
       acceptsParts:
         (section === 'powers' || section === 'equipment') &&
         (isPart || kind === 'COMPOUNDPOWER' || !!item.subPowers?.length ||

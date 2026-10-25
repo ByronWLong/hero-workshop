@@ -1604,7 +1604,7 @@ function parseEquipmentList(container: unknown): Equipment[] {
         ...container,
         xmlId: tag,
         price: getAttrNum(obj, 'PRICE') || undefined,
-        weight: weightLbs ? Math.round(weightLbs * 0.453592 * 10) / 10 : undefined,
+        weight: weightLbs ? Math.round(weightLbs * 0.453592 * 1000) / 1000 : undefined,
         carried: getAttrBool(obj, 'CARRIED', true),
       });
     }
@@ -1808,7 +1808,7 @@ function parseEquipmentItem(obj: Record<string, unknown>): Equipment {
   
   // Convert weight from lbs (HDC file) to kg (UI)
   const weightLbs = getAttrNum(obj, 'WEIGHT');
-  const weightKg = weightLbs ? Math.round(weightLbs * 0.453592 * 10) / 10 : undefined;
+  const weightKg = weightLbs ? Math.round(weightLbs * 0.453592 * 1000) / 1000 : undefined;
   
   return {
     id: getAttr(obj, 'ID') || generateId(),

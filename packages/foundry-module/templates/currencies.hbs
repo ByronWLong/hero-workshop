@@ -1,0 +1,38 @@
+<div class="hw-scroll standard-form hw-currencies">
+  <p class="hint">
+    The money in this game. Each currency is a piece of equipment: a character's coins are one item whose quantity is how many they have,
+    priced (in hero6e's dollars) and weighed per coin, so they count toward encumbrance.
+    {{#if itemPiles}}Item Piles uses these as its currencies{{#if primary}}, counting in {{primary}}{{/if}}.{{else}}With Item Piles active, it uses these as its currencies.{{/if}}
+  </p>
+
+  <div class="hw-toolbar">
+    <button type="button" data-action="addCurrency"><i class="fa-solid fa-plus" inert></i> Add currency</button>
+    <span class="hw-toolbar-gap"></span>
+    <select data-field="preset" aria-label="Preset">
+      {{#each presets}}<option value="{{id}}" {{#if selected}}selected{{/if}}>{{label}}</option>{{/each}}
+    </select>
+    <button type="button" data-action="usePreset" data-tooltip="Replaces the list below (until you save)"><i class="fa-solid fa-list" inert></i> Use preset</button>
+  </div>
+
+  {{#if currencies.length}}
+  <table class="hw-currency-table" data-no-steppers>
+    <thead>
+      <tr><th></th><th>Name</th><th>Short</th><th data-tooltip="What one is worth, in dollars (hero6e's price unit)">Worth ($)</th><th>Weight (g)</th><th></th></tr>
+    </thead>
+    <tbody>
+      {{#each currencies as |c|}}
+      <tr>
+        <td><a data-action="pickIcon" data-index="{{c.index}}" data-tooltip="Choose icon"><img class="hw-item-icon" src="{{#if c.img}}{{c.img}}{{else}}icons/svg/coins.svg{{/if}}" alt=""></a></td>
+        <td><input type="text" data-field="currency.{{c.index}}.name" value="{{c.name}}" placeholder="Gold piece">{{#if c.isPrimary}} <span class="hw-tag" data-tooltip="Amounts are counted in this">Primary</span>{{/if}}</td>
+        <td><input type="text" data-field="currency.{{c.index}}.abbreviation" value="{{c.abbreviation}}" placeholder="gp"></td>
+        <td><input type="number" step="any" min="0" data-field="currency.{{c.index}}.value" value="{{c.value}}"></td>
+        <td><input type="number" step="any" min="0" data-field="currency.{{c.index}}.grams" value="{{c.grams}}"></td>
+        <td><a data-action="deleteCurrency" data-index="{{c.index}}" data-tooltip="Delete currency"><i class="fa-solid fa-trash" inert></i></a></td>
+      </tr>
+      {{/each}}
+    </tbody>
+  </table>
+  {{else}}
+  <p class="hint hw-empty">No currencies: money isn't tracked as items.</p>
+  {{/if}}
+</div>

@@ -1,6 +1,10 @@
 <section class="tab hw-list-tab {{tab.cssClass}}" data-group="primary" data-tab="{{tab.id}}">
   <div class="hw-list-toolbar">
     <span class="hint">{{tab.count}} {{#if (eq tab.count 1)}}entry{{else}}entries{{/if}} · {{tab.points}} pts</span>
+    {{#if tab.canCollapse}}
+    <a class="hw-collapse-all" data-action="collapseAll" data-section="{{tab.section}}" data-tooltip="{{#if tab.allCollapsed}}Open every list{{else}}Close every list, compound and framework{{/if}}">
+      <i class="fa-solid {{#if tab.allCollapsed}}fa-folder-open{{else}}fa-folder-closed{{/if}}" inert></i> {{#if tab.allCollapsed}}Open all{{else}}Close all{{/if}}</a>
+    {{/if}}
     {{#if tab.canAdd}}
     <div class="hw-inline-buttons hw-add-bar">
       {{#if tab.addChoices}}
@@ -20,7 +24,7 @@
   {{/if}}
   {{#if tab.rows.length}}
   <ol class="hw-items">
-    {{#each tab.rows as |row|}}{{> "modules/hero-workshop/templates/editor/item-row.hbs" row=row section=../tab.section canCarry=../tab.canCarry canMove=../tab.canMove}}{{/each}}
+    {{#each tab.rows as |row|}}{{> "modules/hero-workshop/templates/editor/item-row.hbs" row=row section=../tab.section canCarry=../tab.canCarry canMove=../tab.canMove collapsible=../tab.canCollapse}}{{/each}}
   </ol>
   {{else}}
   <p class="hint hw-empty">Nothing here yet. Add one, or drag items in from the Items sidebar.</p>

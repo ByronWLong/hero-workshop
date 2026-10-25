@@ -120,6 +120,8 @@ export class HeroWorkshopEditor extends HeroWorkshopApplication {
       deleteItem: HeroWorkshopEditor.#onDeleteItem,
       toggleCarried: HeroWorkshopEditor.#onToggleCarried,
       moveToActor: HeroWorkshopEditor.#onMoveToActor,
+      toggleCollapse: HeroWorkshopEditor.#onToggleCollapse,
+      collapseAll: HeroWorkshopEditor.#onCollapseAll,
     },
   };
 
@@ -146,6 +148,8 @@ export class HeroWorkshopEditor extends HeroWorkshopApplication {
   #imported: string[] = [];
   /** Edits folded into the base document before a drop rearranged it, for the review */
   #folded?: Pick<HdcWriteReport, 'changes' | 'warnings'>;
+  /** Lists, compounds and frameworks shown closed ("section:id"), remembered per actor */
+  #collapsed: Set<string>;
 
   constructor(options: EditorOptions) {
     super({
@@ -168,6 +172,7 @@ export class HeroWorkshopEditor extends HeroWorkshopApplication {
     this.#stage = this.#drift.some((c) => c.recommended) && !this.readOnly ? 'drift' : 'edit';
     const view = options.session.view;
     if (view?.initialTab) this.tabGroups.primary = view.initialTab;
+    this.#collapsed = new Set(readCollapsed(this.session.actorId));
   }
 
   get character(): Character {
@@ -197,15 +202,28 @@ export class HeroWorkshopEditor extends HeroWorkshopApplication {
     const tabs = base.tabs as Record<string, { id: string; cssClass?: string; active: boolean }>;
     // Rows show the item's custom icon, else its icon in Foundry
     type Row = ReturnType<typeof buildItemTree>[number];
-    type ImageRow = Omit<Row, 'children'> & { img: string; children: ImageRow[] };
-    const withImages = (rows: Row[]): ImageRow[] =>
-      rows.map((r) => ({ ...r, img: r.icon ?? this.session.itemImage?.(r.id) ?? DEFAULT_ICON, children: withImages(r.children) }));
+    type ImageRow = Omit<Row, 'children'> & { img: string; collapsed: boolean; inside: number; children: ImageRow[] };
+    const count = (list: Row[]): number => list.reduce((n, r) => n + (r.isGroup ? 0 : 1) + count(r.children), 0);
+    const withImages = (rows: Row[], section: SectionId): ImageRow[] =>
+      rows.map((r) => ({
+        ...r,
+        img: r.icon ?? this.session.itemImage?.(r.id) ?? DEFAULT_ICON,
+        collapsed: r.children.length > 0 && this.#collapsed.has(`${section}:${r.id}`),
+        // What a closed row has in it
+        inside: count(r.children),
+        children: withImages(r.children, section),
+      }));
     const listTab = (id: SectionId) => {
-      const rows = withImages(buildItemTree(character, id));
-      const count = (list: typeof rows): number => list.reduce((n, r) => n + (r.isGroup ? 0 : 1) + count(r.children), 0);
+      const rows = withImages(buildItemTree(character, id), id);
+      const containers = rows.flatMap(function open(r): ImageRow[] {
+        return r.children.length ? [r, ...r.children.flatMap(open)] : [];
+      });
       return {
         ...tabs[id],
         rows,
+        // Rows with something in them open and close; the toolbar does them all
+        canCollapse: containers.length > 0,
+        allCollapsed: containers.length > 0 && containers.every((r) => r.collapsed),
         section: id,
         noun: SECTION_NOUNS[id],
         count: count(rows),
@@ -589,12 +607,29 @@ export class HeroWorkshopEditor extends HeroWorkshopApplication {
     if (canInto && y > 0.25 && y < 0.75) return { row, mode: 'into' };
     if (y < 0.5) return { row, mode: 'before' };
     // Just under an open list's or compound's heading is the top of what's in it
-    const first = row.nextElementSibling?.querySelector<HTMLElement>(':scope > .hw-item > .hw-item-row');
+    const open = !row.parentElement?.classList.contains('hw-collapsed');
+    const first = open ? row.nextElementSibling?.querySelector<HTMLElement>(':scope > .hw-item > .hw-item-row') : null;
     return first && canInto ? { row: first, mode: 'before' } : { row, mode: 'after' };
+  }
+
+  /** A closed list held under a drag for a moment opens, so the item can go anywhere in it */
+  #openTimer?: { row: HTMLElement; timer: ReturnType<typeof setTimeout> };
+
+  #openWhileDragging(row: HTMLElement | undefined): void {
+    if (this.#openTimer?.row === row) return;
+    if (this.#openTimer) clearTimeout(this.#openTimer.timer);
+    this.#openTimer = undefined;
+    if (!row?.parentElement?.classList.contains('hw-collapsed')) return;
+    const timer = setTimeout(() => {
+      this.#openTimer = undefined;
+      this.#setCollapsed(row.dataset.section!, row.dataset.itemId!, false);
+    }, 700);
+    this.#openTimer = { row, timer };
   }
 
   #highlightDropTarget(event?: DragEvent): void {
     const target = event && this.#dropTarget(event);
+    this.#openWhileDragging(target?.mode === 'into' ? target.row : undefined);
     const cls = target && (target.mode === 'into' ? 'hw-drop-target' : `hw-drop-${target.mode}`);
     for (const name of ['hw-drop-target', 'hw-drop-before', 'hw-drop-after']) {
       this.element.querySelectorAll(`.${name}`).forEach((r) => (r !== target?.row || name !== cls) && r.classList.remove(name));
@@ -809,6 +844,46 @@ export class HeroWorkshopEditor extends HeroWorkshopApplication {
     if (confirmed) this.setCharacter(removeItem(this.#character, section, id));
   }
 
+  /**
+   * Opens or closes a row in place (re-rendering would lose the scroll position and any
+   * drag in progress), and remembers it for this actor
+   */
+  #setCollapsed(section: string, id: string, collapsed: boolean): void {
+    const key = `${section}:${id}`;
+    if (collapsed) this.#collapsed.add(key);
+    else this.#collapsed.delete(key);
+    writeCollapsed(this.session.actorId, this.#collapsed);
+    const row = this.element.querySelector<HTMLElement>(`.hw-item-row[data-section="${section}"][data-item-id="${CSS.escape(id)}"]`);
+    const item = row?.parentElement;
+    if (!row || !item) return;
+    item.classList.toggle('hw-collapsed', collapsed);
+    const toggle = row.querySelector<HTMLElement>('.hw-item-collapse');
+    toggle?.setAttribute('aria-expanded', String(!collapsed));
+    toggle?.setAttribute('data-tooltip', collapsed ? 'Open' : 'Close');
+  }
+
+  static #onToggleCollapse(this: HeroWorkshopEditor, event: Event, target: HTMLElement) {
+    event.stopPropagation();
+    const section = target.dataset.section!;
+    const id = target.dataset.itemId!;
+    this.#setCollapsed(section, id, !this.#collapsed.has(`${section}:${id}`));
+  }
+
+  /** Closes every row with something in it, or opens them all if they're all closed */
+  static #onCollapseAll(this: HeroWorkshopEditor, _event: Event, target: HTMLElement) {
+    const section = target.dataset.section as SectionId;
+    const ids = buildItemTree(this.#character, section).flatMap(function open(r): string[] {
+      return r.children.length ? [r.id, ...r.children.flatMap(open)] : [];
+    });
+    const close = !ids.every((id) => this.#collapsed.has(`${section}:${id}`));
+    for (const id of ids) {
+      if (close) this.#collapsed.add(`${section}:${id}`);
+      else this.#collapsed.delete(`${section}:${id}`);
+    }
+    writeCollapsed(this.session.actorId, this.#collapsed);
+    void this.render();
+  }
+
   static #onToggleCarried(this: HeroWorkshopEditor, event: Event, target: HTMLElement) {
     event.stopPropagation();
     const id = target.dataset.itemId!;
@@ -854,3 +929,23 @@ export class HeroWorkshopEditor extends HeroWorkshopApplication {
   }
 }
 
+/** Which rows an actor's editor shows closed, kept in this browser (a convenience only) */
+const collapsedKey = (actorId: string | undefined) => `hero-workshop.collapsed.${actorId ?? 'new'}`;
+
+function readCollapsed(actorId: string | undefined): string[] {
+  try {
+    const stored = JSON.parse(localStorage.getItem(collapsedKey(actorId)) ?? '[]') as unknown;
+    return Array.isArray(stored) ? stored.filter((k): k is string => typeof k === 'string') : [];
+  } catch {
+    return [];
+  }
+}
+
+function writeCollapsed(actorId: string | undefined, keys: Set<string>): void {
+  try {
+    if (keys.size) localStorage.setItem(collapsedKey(actorId), JSON.stringify([...keys]));
+    else localStorage.removeItem(collapsedKey(actorId));
+  } catch {
+    // Storage blocked: rows still open and close, just not remembered
+  }
+}

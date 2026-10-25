@@ -51,6 +51,9 @@ Shared must build first as it provides type definitions consumed by the Foundry 
 - `src/sync/session.ts` - Applies edited HDC through hero6e's `actor.uploadFromXml` (keeps damage, charges, item IDs)
 - `src/sync/move.ts` - Moves an item to another actor (editor "Move to…", Shift-drop between sheets, `api.moveItem`): copies it on, then removes it from the source's items and HDC
 - `src/sync/carried.ts` - A list's Carried toggled on hero6e's sheet goes to its contents and into the stored HDC (shared `editor/equipment.ts` has the carry and encumbrance rules)
+- `src/sync/actorItems.ts` - Items created or deleted on an actor in Foundry, and QUANTITY changes, are written into its stored HDC as they happen
+- `src/integrations/item-piles.ts` - Item Piles integration for hero6e: equipment only, compound parts/framework slots flagged (`flags.hero-workshop.part`) and hidden, contents travel with lists/compounds, PARENTID/ID fix-ups on arrival
+- `src/integrations/currencies.ts` + `apps/currencies.ts` - The world's currencies (GM setting with presets from shared `currency.ts`); each is an equipment item whose QUANTITY is the coin count, and Item Piles' currencies
 
 ## HDC Writing Rules
 

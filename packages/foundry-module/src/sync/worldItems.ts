@@ -82,6 +82,12 @@ async function heroJsonFromXml(xml: string): Promise<Record<string, unknown>> {
   return json;
 }
 
+/** Item data for a document's items, as hero6e makes it on upload (nothing is created) */
+export async function itemDataFromXml(xml: string): Promise<HeroItemData[]> {
+  const ItemClass = CONFIG.Item.documentClass as unknown as HeroItemClass;
+  return ItemClass.parseItemsFromHeroJsonToItemDataArray(await heroJsonFromXml(xml));
+}
+
 /** Above every world item's HDC ID (and Hero Designer's timestamp IDs), so PARENTID links stay unambiguous */
 function worldIdFloor(): number {
   let max = Date.now();

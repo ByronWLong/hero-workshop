@@ -111,6 +111,49 @@ async function writeAddedItems(actor: FoundryActor, itemIds: Set<string>): Promi
 }
 
 /**
+ * Items deleted from an actor in Foundry, and stack sizes changed there (coins spent, two of six
+ * nets dropped on the ground with Item Piles), go into the actor's HDC as they happen. They're
+ * the changes the editor's "Changes made in Foundry" review would offer, picked by key.
+ */
+const pendingChanges = new Map<string, { actor: FoundryActor; keys: Set<string>; timer: ReturnType<typeof setTimeout> }>();
+
+function queueChanges(actor: FoundryActor, keys: string[]): void {
+  if (!actor.system._hdcXml) return;
+  const entry = pendingChanges.get(actor.id) ?? { actor, keys: new Set<string>(), timer: undefined as unknown as ReturnType<typeof setTimeout> };
+  clearTimeout(entry.timer);
+  for (const key of keys) entry.keys.add(key);
+  entry.timer = setTimeout(() => {
+    pendingChanges.delete(actor.id);
+    enqueue(actor.id, () => writeChanges(actor, entry.keys));
+  }, 100);
+  pendingChanges.set(actor.id, entry);
+}
+
+async function writeChanges(actor: FoundryActor, keys: Set<string>): Promise<void> {
+  const xml = actor.system._hdcXml;
+  if (!xml) return;
+  const doc = HdcDocument.parse(xml);
+  const changes = createActorSession(actor)
+    .detectDrift(doc)
+    .filter((c) => keys.has(c.key));
+  if (!changes.length) return;
+  applyDrift(doc, changes);
+  await actor.update({ 'system._hdcXml': doc.toString() });
+}
+
+/** Queues an item just deleted from an actor for removal from the actor's HDC */
+export function queueDeletedItem(item: FoundryItem): void {
+  const id = item.system.ID;
+  if (item.actor && id !== undefined && id !== null && id !== '') queueChanges(item.actor, [`removed:${String(id)}`]);
+}
+
+/** Queues an item's new quantity for the actor's HDC */
+export function queueQuantityChange(item: FoundryItem): void {
+  const id = item.system.ID;
+  if (item.actor && id !== undefined && id !== null && id !== '') queueChanges(item.actor, [`item:${String(id)}:QUANTITY`]);
+}
+
+/**
  * Records an icon changed on an item's Foundry sheet in its Hero Designer data: the actor's
  * HDC for an owned item, the item's own XML for a world item. A default icon clears it.
  */

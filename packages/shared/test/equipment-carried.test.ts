@@ -88,4 +88,12 @@ describe('carried and stored equipment', () => {
     const carried = insertItems(xml, extractItems(stored, '9004')!, { parentId: '9001' });
     expect(HdcDocument.parse(carried.xml).findById(carried.id!)!.getAttr('CARRIED')).toBe('Yes');
   });
+
+  it('takes drops into an Equipment list, as into a compound', () => {
+    const rows = buildItemTree(character, 'equipment');
+    const flat = (r: typeof rows): typeof rows => r.flatMap((x) => [x, ...flat(x.children)]);
+    const row = (id: string) => flat(rows).find((r) => r.id === id)!;
+    expect([row('9001').acceptsChildren, row('9001').acceptsParts]).toEqual([true, false]);
+    expect([row('9003').acceptsChildren, row('9005').acceptsChildren, row('9005').acceptsParts]).toEqual([true, false, true]);
+  });
 });

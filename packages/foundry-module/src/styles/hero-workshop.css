@@ -314,6 +314,35 @@
   border-left: 2px solid var(--hw-rule);
 }
 
+/* Lists, compounds and frameworks open and close */
+.hero-workshop .hw-item-collapse,
+.hero-workshop .hw-item-collapse-spacer {
+  flex: 0 0 1rem;
+  width: 1rem;
+  text-align: center;
+}
+
+.hero-workshop .hw-item-collapse i {
+  transition: transform 0.15s ease;
+}
+
+.hero-workshop .hw-collapsed > .hw-item-row .hw-item-collapse i {
+  transform: rotate(-90deg);
+}
+
+.hero-workshop .hw-collapsed > .hw-children {
+  display: none;
+}
+
+.hero-workshop .hw-item-inside {
+  font-weight: normal;
+}
+
+.hero-workshop .hw-collapse-all {
+  margin-right: auto;
+  white-space: nowrap;
+}
+
 .hero-workshop .hw-item-row {
   display: flex;
   align-items: center;

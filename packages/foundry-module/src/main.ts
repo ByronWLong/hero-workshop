@@ -17,7 +17,7 @@ import {
   refreshOpenWindows,
 } from './apps';
 import { preloadTemplates } from './apps/base';
-import { queueCreatedItem, recordIconChange } from './sync/actorItems';
+import { queueCreatedItem, queueDeletedItem, queueQuantityChange, recordIconChange } from './sync/actorItems';
 import { carriedChanged } from './sync/carried';
 import { moveItemToActor } from './sync/move';
 import { openNewItem } from './apps/new-item';
@@ -36,6 +36,9 @@ import { registerImportRepair, wrapHeroUploads } from './sync/importRepair';
 import { openHeroSheet, opensInWorkshop, registerItemSheetBypass, wrapItemSheets } from './apps/item-sheet-bypass';
 import { makeFamilyRowsDraggable, wrapActorSheetDrag } from './apps/actor-sheet-drag';
 import { registerKillingStunSettings, wrapKillingStunRule } from './combat/killingStunRule';
+import { registerCurrencySettings } from './integrations/currencies';
+import { queuePartMarking, registerItemPiles } from './integrations/item-piles';
+import { CurrencyWindow } from './apps/currencies';
 
 /** Lists Foundry-side edits not yet in an actor's stored HDC (for macros and debugging) */
 function driftReport(actor: FoundryActor): { item: string; kind: string; summary: string }[] {
@@ -78,6 +81,8 @@ Hooks.once('init', () => {
   registerImportRepair();
   registerItemSheetBypass();
   registerKillingStunSettings();
+  registerCurrencySettings(() => void new CurrencyWindow().render({ force: true }));
+  registerItemPiles();
   void preloadTemplates();
 });
 
@@ -364,4 +369,26 @@ Hooks.on('updateItem', ((item: FoundryItem, changes: Record<string, unknown>, op
   if (!isHeroSystem() || !actsForUser(userId)) return;
   if (item.actor?.getFlag(HERO_SYSTEM_ID, 'uploading')) return;
   carriedChanged(item, changes, options);
+}) as (...args: never[]) => unknown);
+
+// Deleted on a sheet, or by Item Piles (dropped on the ground, given away): out of the HDC too
+Hooks.on('deleteItem', ((item: FoundryItem, _options: unknown, userId: string) => {
+  if (!isHeroSystem() || !actsForUser(userId) || !item.actor) return;
+  if (item.actor.getFlag(HERO_SYSTEM_ID, 'uploading')) return;
+  queueDeletedItem(item);
+}) as (...args: never[]) => unknown);
+
+// A stack's size changed (coins spent, some of a stack taken): the HDC's QUANTITY too
+Hooks.on('updateItem', ((item: FoundryItem, changes: { system?: Record<string, unknown> }, _options: unknown, userId: string) => {
+  if (!isHeroSystem() || !actsForUser(userId) || !item.actor) return;
+  if (item.actor.getFlag(HERO_SYSTEM_ID, 'uploading')) return;
+  if (changes.system && 'QUANTITY' in changes.system) queueQuantityChange(item);
+}) as (...args: never[]) => unknown);
+
+// Item Piles: compound parts and framework slots are flagged so it leaves them off its lists
+Hooks.on('createItem', ((item: FoundryItem, _options: unknown, userId: string) => {
+  if (isHeroSystem() && actsForUser(userId)) queuePartMarking(item.actor);
+}) as (...args: never[]) => unknown);
+Hooks.on('updateItem', ((item: FoundryItem, changes: { system?: Record<string, unknown> }, _options: unknown, userId: string) => {
+  if (isHeroSystem() && actsForUser(userId) && changes.system && 'PARENTID' in changes.system) queuePartMarking(item.actor);
 }) as (...args: never[]) => unknown);

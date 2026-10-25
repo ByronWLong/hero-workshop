@@ -11,6 +11,7 @@ export * from './characteristics.js';
 export * from './skillLevels.js';
 export * from './frameworks.js';
 export * from './senses.js';
+export * from './currency.js';
 
 // Export power definitions, but rename conflicting types
 export { 

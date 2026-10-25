@@ -71,7 +71,7 @@ declare const game: {
   actors: { get(id: string): FoundryActor | undefined; contents: FoundryActor[] };
   items: { get(id: string): FoundryItem | undefined; contents: FoundryItem[] };
   packs: { get(id: string): CompendiumPack | undefined; contents: CompendiumPack[] };
-  modules: Map<string, { api?: unknown }> & { get(id: string): { api?: unknown } | undefined };
+  modules: Map<string, { api?: unknown; active?: boolean }> & { get(id: string): { api?: unknown; active?: boolean } | undefined };
   i18n: { localize(key: string): string; format(key: string, data: Record<string, unknown>): string };
   settings: {
     register(namespace: string, key: string, data: Record<string, unknown>): void;
