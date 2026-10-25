@@ -157,8 +157,9 @@
 
   {{#if isEquipment}}
   <div class="hw-equipment-grid">
-    <label>Price<input type="number" data-field="price" value="{{draft.price}}" min="0"></label>
-    <label>Weight (kg)<input type="number" step="0.1" data-field="weight" value="{{draft.weight}}" min="0"></label>
+    <label data-tooltip="Each">Price<input type="number" step="any" data-field="price" value="{{draft.price}}" min="0"></label>
+    <label data-tooltip="Each">Weight (kg)<input type="number" step="any" data-field="weight" value="{{draft.weight}}" min="0"></label>
+    {{#unless (eq draft.kind "list")}}<label>Quantity<input type="number" step="1" data-field="quantity" value="{{draft.quantity}}" min="0"></label>{{/unless}}
     <label class="checkbox"><input type="checkbox" data-field="carried" {{checked draft.carried}}> Carried</label>
   </div>
   {{/if}}

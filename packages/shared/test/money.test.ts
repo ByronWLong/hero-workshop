@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { CURRENCY_PRESETS, HdcDocument, getIcon, blankHdc, equipmentLoad, moneyView, parseHdcFile, setMoney, updateHdc } from '../src/index.js';
+import { CURRENCY_PRESETS, HdcDocument, getIcon, blankHdc, powerDraft, savePowerDraft, equipmentLoad, moneyView, parseHdcFile, setMoney, updateHdc } from '../src/index.js';
 
 // A character's money, set in the editor: coins are equipment named after the currency, the
 // count in QUANTITY, possibly in several stacks
@@ -59,5 +59,13 @@ describe('money', () => {
     expect(HdcDocument.parse(written).findById('9802')!.getAttr('QUANTITY')).toBe('80');
     expect(HdcDocument.parse(written).findById('9803')).toBeUndefined();
     expect(parseHdcFile(xml.replace('QUANTITY="30"', 'QUANTITY="0"')).equipment!.find((e) => e.id === '9803')!.quantity).toBe(0);
+  });
+
+  it("edits a coin's stack in its form: a weight in grams, a price in cents, how many", () => {
+    const draft = powerDraft(character, 'equipment', '9803');
+    expect([draft.weight, draft.price, draft.quantity]).toEqual([0.02, 1, 30]);
+    const saved = savePowerDraft(character, 'equipment', '9803', { ...draft, quantity: 45 });
+    const el = HdcDocument.parse(updateHdc(xml, saved).xml).findById('9803')!;
+    expect([el.getAttr('QUANTITY'), el.getAttr('WEIGHT'), el.getAttr('PRICE')]).toEqual(['45', '0.0440924', '1']);
   });
 });

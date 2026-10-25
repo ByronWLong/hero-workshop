@@ -208,7 +208,9 @@ export interface PowerDraft {
   free: boolean;
   // Equipment
   price: number;
+  /** Per item: weight in kg, how many there are */
   weight: number;
+  quantity: number;
   carried: boolean;
 }
 
@@ -337,6 +339,7 @@ export function powerDraft(character: Character, section: PowerSection, itemId?:
     free: p?.multiplier === 0,
     price: p?.price ?? 0,
     weight: p?.weight ?? 0,
+    quantity: p?.quantity ?? 1,
     carried: p?.carried ?? true,
   };
 }
@@ -1444,6 +1447,7 @@ export function savePowerDraft(character: Character, section: PowerSection, item
               : (top?.xmlId ?? 'CUSTOMPOWER'),
     price: draft.price,
     weight: draft.weight,
+    quantity: Math.max(0, Math.floor(draft.quantity ?? 1)),
     carried: draft.carried,
     subPowers: draft.kind === 'compound' ? draft.subPowers.map((p) => ({ ...p, parentId: undefined })) : top?.subPowers,
   };
