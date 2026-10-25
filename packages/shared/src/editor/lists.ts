@@ -3,10 +3,11 @@
  * independent of any UI framework.
  */
 
-import type { Character, Modifier, Adder } from '../types.js';
+import type { Character, Modifier, Adder, Skill } from '../types.js';
 import type { HdcItemSection } from '../hdc/document.js';
 import { isFramework } from '../frameworks.js';
 import { calculateCostBreakdown, calculateDisadvantageTotal } from '../utils.js';
+import { effectiveCharacteristics, skillRoll } from './characteristics.js';
 
 export type SectionId = 'skills' | 'perks' | 'talents' | 'martialarts' | 'powers' | 'disadvantages' | 'equipment';
 
@@ -29,6 +30,8 @@ export interface ItemRowView {
   free: boolean;
   /** Cost before any multiplier (what a list's own figure includes for this row) */
   rawCost: number;
+  /** Skills: the roll ("12-"), when the skill has one */
+  roll?: string;
   /** Equipment: what it costs to buy and what it weighs (kg), when set */
   price?: number;
   weight?: number;
@@ -89,7 +92,8 @@ function detailFor(section: SectionId, item: ListItem): string {
   if (section === 'disadvantages') return item.alias ?? '';
   const parts: string[] = [];
   if (item.alias && item.alias !== item.name && section !== 'equipment') parts.push(item.alias);
-  if (item.roll) parts.push(`${item.roll}-`);
+  // Skills show their roll in its own column
+  if (item.roll && section !== 'skills') parts.push(`${item.roll}-`);
   const adders = (item.adders ?? []).map((a) => a.optionAlias ?? a.name).filter(Boolean);
   if (adders.length && section !== 'equipment') parts.push(adders.join(', '));
   const mods = modifierSummary(item.modifiers);
@@ -118,6 +122,7 @@ function rowCost(section: SectionId, own: number, isGroup: boolean, children: It
 export function buildItemTree(character: Character, section: SectionId): ItemRowView[] {
   const items = sectionItems(character, section);
   const ids = new Set(items.map((i) => i.id));
+  const characteristics = section === 'skills' ? effectiveCharacteristics(character) : undefined;
   const toRow = (item: ListItem, inherited = 1, isPart = false): ItemRowView => {
     // Hero Designer: an item without its own multiplier takes its list's/compound's
     const multiplier = (item.multiplier ?? 1) !== 1 ? item.multiplier! : inherited;
@@ -154,6 +159,7 @@ export function buildItemTree(character: Character, section: SectionId): ItemRow
       id: item.id,
       name: item.name,
       detail: detailFor(section, item),
+      ...(characteristics ? { roll: skillRoll(item as Skill, characteristics, character.rules) } : {}),
       cost: Math.round(cost * 2) / 2 || 0, // no "-0" for a free penalty
       free: section !== 'disadvantages' && multiplier === 0,
       rawCost,

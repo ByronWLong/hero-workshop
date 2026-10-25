@@ -377,6 +377,7 @@
   flex: 1;
 }
 
+.hero-workshop .hw-item-roll,
 .hero-workshop .hw-item-price,
 .hero-workshop .hw-item-weight {
   color: var(--color-text-secondary);

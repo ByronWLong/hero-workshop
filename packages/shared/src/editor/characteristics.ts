@@ -3,7 +3,7 @@
  * Used by the Foundry module's Handlebars editor (and available to the web app).
  */
 
-import type { Character, CharacteristicType, Rules } from '../types.js';
+import type { Character, CharacteristicType, Rules, Skill } from '../types.js';
 import {
   characteristicCost,
   characteristicRulesFor,
@@ -11,6 +11,7 @@ import {
   type CharacteristicMaxima,
 } from '../characteristics.js';
 import { calculateStatModifications, getStatModificationTotal } from '../utils.js';
+import { SKILL_CATALOG_6E } from '../generated/skillCatalog6e.js';
 
 export interface CharacteristicGroupDefinition {
   id: string;
@@ -102,7 +103,49 @@ export function hthDamageFor(str: number): string {
   return `${fullDice + 1}d6-1`;
 }
 
-export const characteristicRoll = (value: number) => `${9 + Math.floor(value / 5)}-`;
+/** Hero Designer's Rounder.roundHalfUp */
+const roundHalfUp = (n: number) => Math.floor(n + 0.5);
+
+/** A characteristic roll: 9 + CHAR/5, rounded half up (Hero Designer's Characteristic.getRoll), e.g. DEX 13 is 12- */
+export const characteristicRoll = (value: number, rules?: Pick<Rules, 'charRollBase' | 'charRollDenominator'>) =>
+  `${(rules?.charRollBase ?? 9) + roundHalfUp(value / (rules?.charRollDenominator || 5))}-`;
+
+/** Each characteristic's value with what powers and equipment add (what rolls are made against) */
+export function effectiveCharacteristics(character: Character): Map<CharacteristicType, number> {
+  const rules = characteristicRulesFor(character.hdcTemplate);
+  const modifications = calculateStatModifications(character);
+  const values = new Map<CharacteristicType, number>();
+  for (const type of Object.keys(rules) as CharacteristicType[]) {
+    const value = character.characteristics.find((c) => c.type === type)?.totalValue ?? rules[type]!.base;
+    values.set(type, value + getStatModificationTotal(modifications, type));
+  }
+  return values;
+}
+
+const SKILLS_BY_ID = new Map(SKILL_CATALOG_6E.map((s) => [s.xmlId, s]));
+
+/**
+ * A skill's roll, as Hero Designer works it out (Skill.getRollValue) and hero6e rolls it: 9 +
+ * CHAR/5 (rounded half up) + levels; a General skill 11- + levels; a Familiarity 8-, a
+ * Proficiency 11-, an Everyman skill 8- (an Everyman PS 11-); a custom skill its own ROLL.
+ * Skills without a roll (Skill Levels, Languages, Weapon Familiarity...) have none.
+ */
+export function skillRoll(skill: Skill, characteristics: Map<CharacteristicType, number>, rules?: Rules): string | undefined {
+  if (skill.isGroup || skill.isEnhancer) return undefined;
+  const xmlId = skill.xmlid ?? '';
+  if (xmlId === 'CUSTOMSKILL') return skill.roll ? `${skill.roll}-` : undefined;
+  const entry = SKILLS_BY_ID.get(xmlId);
+  if (entry ? !entry.characteristicChoices?.length : !skill.characteristic) return undefined;
+  if (skill.everyman) return xmlId === 'PROFESSIONAL_SKILL' ? '11-' : '8-';
+  if (skill.familiarity && !skill.proficiency) return '8-';
+  if (skill.proficiency) return '11-';
+  const base = rules?.skillRollBase ?? 9;
+  const denominator = rules?.skillRollDenominator || 5;
+  const characteristic = skill.characteristic ?? entry?.characteristicChoices?.[0]?.characteristic;
+  // General: Hero Designer's general level is 10, so 11-
+  const value = !characteristic || characteristic === 'GENERAL' ? 10 : (characteristics.get(characteristic as CharacteristicType) ?? 10);
+  return `${base + roundHalfUp(value / denominator) + (skill.levels ?? 0)}-`;
+}
 
 // -----------------------------------------------------------------------------
 // Operations
@@ -187,7 +230,7 @@ export function buildCharacteristicsView(character: Character): CharacteristicsV
       value,
       bonus,
       effective: value + bonus,
-      roll: showRoll ? characteristicRoll(value + bonus) : undefined,
+      roll: showRoll ? characteristicRoll(value + bonus, character.rules) : undefined,
       unit,
       cost,
       maximum,
