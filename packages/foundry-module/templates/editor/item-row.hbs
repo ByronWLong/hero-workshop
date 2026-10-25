@@ -1,6 +1,6 @@
 <li class="hw-item {{#if row.isGroup}}hw-item-group{{/if}} {{#if (eq row.carried false)}}hw-stored{{/if}} {{#if row.collapsed}}hw-collapsed{{/if}}">
   <div class="hw-item-row" draggable="true" tabindex="0" role="button" data-action="editItem" data-section="{{section}}"
-    data-item-id="{{row.id}}" {{#if row.acceptsChildren}}data-accepts-children{{/if}} {{#if row.acceptsParts}}data-accepts-parts{{/if}}>
+    data-item-id="{{row.id}}" {{#if row.acceptsChildren}}data-accepts-children{{/if}} {{#if row.container}}data-container="{{row.container}}"{{/if}} {{#if row.acceptsParts}}data-accepts-parts{{/if}}>
     {{#if row.children.length}}
     <a class="hw-item-collapse" data-action="toggleCollapse" data-section="{{section}}" data-item-id="{{row.id}}" data-tooltip="{{#if row.collapsed}}Open{{else}}Close{{/if}}"
       aria-expanded="{{#if row.collapsed}}false{{else}}true{{/if}}" aria-label="Open or close {{row.name}}"><i class="fa-solid fa-chevron-down" inert></i></a>

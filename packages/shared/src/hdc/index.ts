@@ -15,6 +15,8 @@ export {
   removeItems,
   placementParent,
   isContainerTransfer,
+  fitsInside,
+  transferToSection,
   type Placement,
   type ItemTransfer,
   type InsertOptions,

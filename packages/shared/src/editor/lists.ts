@@ -20,6 +20,11 @@ export interface ItemRowView {
   /** A list or framework other items can be put in */
   acceptsChildren: boolean;
   /**
+   * What kind of container it is: a list can hold a Multipower or a compound, while a framework
+   * or Variable Power Pool holds no list or framework, and lists and pools go in nothing
+   */
+  container?: 'list' | 'framework' | 'pool';
+  /**
    * Powers dropped on it become compound parts: a compound or one of its parts, or (in
    * Equipment) a single item, which becomes a compound
    */
@@ -203,6 +208,13 @@ export function buildItemTree(character: Character, section: SectionId): ItemRow
       icon: item.icon,
       // Equipment lists have xmlId LIST (other sections' lists have type LIST)
       acceptsChildren: !!item.isGroup || kind === 'LIST' || FRAMEWORKS.includes(kind),
+      ...(item.isGroup || kind === 'LIST'
+        ? { container: 'list' as const }
+        : kind === 'VPP'
+          ? { container: 'pool' as const }
+          : FRAMEWORKS.includes(kind)
+            ? { container: 'framework' as const }
+            : {}),
       acceptsParts:
         (section === 'powers' || section === 'equipment') &&
         (isPart || kind === 'COMPOUNDPOWER' || !!item.subPowers?.length ||

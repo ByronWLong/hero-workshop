@@ -148,9 +148,10 @@ export function insertItems(
     else top.removeAttr('PARENTID');
   }
   const parent = top?.getAttr('PARENTID') ? doc.findById(top.getAttr('PARENTID')!) : undefined;
-  if (top && parent && isContainerElement(top) && (isContainerElement(parent) || isCompoundElement(parent))) {
+  if (top && parent && isContainerElement(top) && !canHold(parent, top)) {
     const name = top.getAttr('NAME') || top.getAttr('ALIAS') || 'A list or framework';
-    throw new Error(`${name} is a list or framework, which can't go inside a list, framework or compound.`);
+    const kind = isListElement(top) ? 'a list' : isPoolElement(top) ? 'a Variable Power Pool' : 'a framework';
+    throw new Error(`${name} is ${kind}, which can't go inside ${isListElement(parent) ? 'a list' : 'a framework or compound'}.`);
   }
   if (top && parent && top.getAttr('XMLID') === 'COMPOUNDPOWER' && isCompoundElement(parent)) {
     throw new Error(`${top.getAttr('NAME') || top.getAttr('ALIAS') || 'A compound power'} is a compound power; drop it on the compound to add its parts.`);
@@ -224,6 +225,41 @@ export function isContainerTransfer(transfer: ItemTransfer): boolean {
   return !!first && isContainerElement(parseXml(first.trim()).root);
 }
 
+/**
+ * Whether a copied item can go inside the list, framework or compound with this HDC ID. As in
+ * Hero Designer, a list can hold a Multipower or a compound but not another list or a Variable
+ * Power Pool, and frameworks and compounds hold no lists or frameworks.
+ */
+export function fitsInside(xml: string, transfer: ItemTransfer, parentId: string): boolean {
+  const first = transfer.fragments[0];
+  const parent = HdcDocument.parse(xml).findById(parentId);
+  if (!first || !parent) return false;
+  const top = parseXml(first.trim()).root;
+  return !isContainerElement(top) || canHold(parent, top);
+}
+
+/**
+ * The copy as items of another section: powers dropped among equipment become equipment (with a
+ * price, weight and Carried), and equipment dropped among powers loses them. Only powers and
+ * equipment change places; anything else comes back as it is.
+ */
+export function transferToSection(transfer: ItemTransfer, section: HdcItemSection): ItemTransfer {
+  const kinds: HdcItemSection[] = ['POWERS', 'EQUIPMENT'];
+  if (transfer.section === section || !kinds.includes(transfer.section) || !kinds.includes(section)) return transfer;
+  const fragments = transfer.fragments.map((fragment) => {
+    const el = parseXml(fragment.trim()).root;
+    if (section === 'EQUIPMENT') {
+      if (!el.hasAttr('PRICE')) el.setAttr('PRICE', '0.0');
+      if (!el.hasAttr('WEIGHT')) el.setAttr('WEIGHT', '0.0');
+      if (!el.hasAttr('CARRIED')) el.setAttr('CARRIED', 'Yes');
+    } else {
+      for (const attr of EQUIPMENT_ONLY) el.removeAttr(attr);
+    }
+    return el.toString();
+  });
+  return { section, fragments };
+}
+
 // -----------------------------------------------------------------------------
 // Compound parts
 // -----------------------------------------------------------------------------
@@ -237,6 +273,15 @@ const isContainerElement = (el: XmlElement) => {
 };
 
 const isCompoundElement = (el: XmlElement) => el.getAttr('XMLID') === 'COMPOUNDPOWER' || el.elements().some(isItemChild);
+
+const isListElement = (el: XmlElement) => el.name === 'LIST' || el.getAttr('XMLID') === 'LIST';
+
+const isPoolElement = (el: XmlElement) => el.name === 'VPP' || el.getAttr('XMLID') === 'VPP';
+
+/** Whether a list or framework can go inside `parent`: only a Multipower, and only in a list */
+function canHold(parent: XmlElement, container: XmlElement): boolean {
+  return isListElement(parent) && !isListElement(container) && !isPoolElement(container);
+}
 
 /** The item a nested element (a compound's part) belongs to; the element itself otherwise */
 function itemOf(el: XmlElement): XmlElement {

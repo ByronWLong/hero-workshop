@@ -16,12 +16,13 @@ import {
   extractItems,
   insertItems,
   insertParts,
-  isContainerTransfer,
+  fitsInside,
   moveItem,
   parseHdcFile,
   placementParent,
   powerTypeChoices,
   removeItem,
+  transferToSection,
   equipmentLoad,
   setCarried,
   setCharacteristicValue,
@@ -37,6 +38,7 @@ import {
   type ItemTransfer,
   type PowerKind,
   type SectionId,
+  type HdcItemSection,
   moneyView,
   setMoney,
 } from '@hero-workshop/shared';
@@ -558,7 +560,7 @@ export class HeroWorkshopEditor extends HeroWorkshopApplication {
   #focusHandled = false;
   #dragListening = false;
   /** The row being dragged, when it's one of this editor's */
-  #dragging?: { itemId: string; section: string; container: boolean };
+  #dragging?: { itemId: string; section: string; container?: string };
 
   _onRender(context: unknown, options: unknown): void {
     super._onRender(context, options);
@@ -594,7 +596,7 @@ export class HeroWorkshopEditor extends HeroWorkshopApplication {
       event.dataTransfer.setData('text/plain', JSON.stringify(data));
       event.dataTransfer.effectAllowed = 'copyMove';
       row.classList.add('hw-dragging');
-      this.#dragging = { itemId: row.dataset.itemId!, section: row.dataset.section!, container: row.dataset.acceptsChildren !== undefined };
+      this.#dragging = { itemId: row.dataset.itemId!, section: row.dataset.section!, container: row.dataset.container };
     });
     el.addEventListener('dragend', () => {
       this.#dragging = undefined;
@@ -619,16 +621,18 @@ export class HeroWorkshopEditor extends HeroWorkshopApplication {
 
   /**
    * Where a drop lands: on a row's top or bottom edge, beside it (reordering); in the middle of a
-   * list or framework (members) or a compound or piece of equipment (parts), inside it. Lists and
-   * frameworks can't go inside anything.
+   * list or framework (members) or a compound or piece of equipment (parts), inside it. As in
+   * Hero Designer, a Multipower can only go inside a list, and lists and pools inside nothing.
    */
   #dropTarget(event: DragEvent): { row: HTMLElement; mode: 'before' | 'after' | 'into' } | undefined {
     const row = (event.target as HTMLElement).closest?.<HTMLElement>('.hw-item-row');
     if (!row) return undefined;
     const dragging = this.#dragging;
     if (dragging && dragging.itemId === row.dataset.itemId && dragging.section === row.dataset.section) return undefined;
-    const container = dragging?.container ?? false;
-    const canInto = !container && (row.dataset.acceptsChildren !== undefined || row.dataset.acceptsParts !== undefined);
+    const container = dragging?.container;
+    const canInto = !container
+      ? row.dataset.acceptsChildren !== undefined || row.dataset.acceptsParts !== undefined
+      : container === 'framework' && row.dataset.container === 'list';
     // Rows only reorder within their own section
     if (dragging && dragging.section !== row.dataset.section) return canInto ? { row, mode: 'into' } : undefined;
     const { top, height } = row.getBoundingClientRect();
@@ -738,6 +742,10 @@ export class HeroWorkshopEditor extends HeroWorkshopApplication {
       return;
     }
     if (!transfer) return;
+    // A power dropped among equipment becomes equipment, and the other way round
+    const rowSection = target?.row.dataset.section;
+    const hdcSection = rowSection && (Object.keys(SECTION_FOR_HDC) as HdcItemSection[]).find((s) => SECTION_FOR_HDC[s] === rowSection);
+    if (hdcSection) transfer = transferToSection(transfer, hdcSection);
 
     try {
       const beside = target && target.mode !== 'into' && target.row.dataset.section === SECTION_FOR_HDC[transfer.section];
@@ -823,7 +831,7 @@ export class HeroWorkshopEditor extends HeroWorkshopApplication {
     }
     const where = placementParent(this.#baseXml, at.id);
     if (!where) return void this.render();
-    const parentAt = where.parentId && isContainerTransfer(transfer) ? { id: where.parentId, after: at.after } : at;
+    const parentAt = where.parentId && !fitsInside(this.#baseXml, transfer, where.parentId) ? { id: where.parentId, after: at.after } : at;
     const parentId = parentAt === at ? (where.compound ?? where.parentId) : undefined;
     // Not beside (and so inside) itself
     if (source && parentId) {

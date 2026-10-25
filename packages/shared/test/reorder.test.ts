@@ -4,7 +4,10 @@ import {
   blankHdc,
   buildItemTree,
   extractItems,
+  fitsInside,
   insertItems,
+  parseXml,
+  transferToSection,
   insertParts,
   itemForm,
   itemFormValues,
@@ -85,6 +88,48 @@ describe('placing copies', () => {
     const other = withPowers(`    <LIST XMLID="GENERIC_OBJECT" ID="8010" POSITION="0" ALIAS="Gifts" NAME="" />`);
     expect(() => insertItems(source, extractItems(other, '8010')!, { parentId: '9010' })).toThrow(/can't go inside/);
     expect(() => insertItems(source, extractItems(other, '8010')!, { at: { id: '9011', after: false } })).toThrow(/can't go inside/);
+  });
+
+  // Hero Designer: "You cannot add a VPP into a List", but a Multipower or compound may go in one
+  const frameworks = withPowers(`    <MULTIPOWER XMLID="GENERIC_OBJECT" ID="8020" POSITION="0" BASECOST="30.0" ALIAS="Multipower" NAME="Shield" />
+    <POWER XMLID="ENERGYBLAST" ID="8021" PARENTID="8020" POSITION="1" LEVELS="4" NAME="Bash" />
+    <VPP XMLID="GENERIC_OBJECT" ID="8030" POSITION="2" LEVELS="20" ALIAS="Variable Power Pool" NAME="Pool" />`);
+
+  it('puts a Multipower in a list, with its slots', () => {
+    const transfer = extractItems(frameworks, '8020')!;
+    expect(fitsInside(source, transfer, '9010')).toBe(true);
+    const { xml, id } = insertItems(source, transfer, { parentId: '9010' });
+    const list = buildItemTree(parseHdcFile(xml), 'powers')[1]!;
+    const shield = list.children.find((c) => c.id === id)!;
+    expect(shield.children.map((c) => c.name)).toEqual(['Bash']);
+  });
+
+  it('puts a compound in a list', () => {
+    const { xml, id } = insertItems(source, extractItems(source, '9020')!, { parentId: '9010' });
+    expect(HdcDocument.parse(xml).findById(id!)!.getAttr('PARENTID')).toBe('9010');
+  });
+
+  it('keeps a Multipower out of frameworks and compounds, and a pool out of lists', () => {
+    const withShield = insertItems(source, extractItems(frameworks, '8020')!).xml;
+    const shieldId = HdcDocument.parse(withShield).section('POWERS')!.elements().find((el) => el.name === 'MULTIPOWER')!.getAttr('ID')!;
+    expect(fitsInside(withShield, extractItems(frameworks, '8020')!, shieldId)).toBe(false);
+    expect(() => insertItems(withShield, extractItems(frameworks, '8020')!, { parentId: shieldId })).toThrow(/framework, which can't go inside a framework/);
+    expect(fitsInside(source, extractItems(frameworks, '8030')!, '9010')).toBe(false);
+    expect(() => insertItems(source, extractItems(frameworks, '8030')!, { parentId: '9010' })).toThrow(/Variable Power Pool, which can't go inside a list/);
+  });
+
+  it('turns powers into equipment and back', () => {
+    const asEquipment = transferToSection(extractItems(source, '9020')!, 'EQUIPMENT');
+    expect(asEquipment.section).toBe('EQUIPMENT');
+    const sword = parseXml(asEquipment.fragments[0]!).root;
+    expect([sword.getAttr('PRICE'), sword.getAttr('WEIGHT'), sword.getAttr('CARRIED')]).toEqual(['0.0', '0.0', 'Yes']);
+    // The compound's parts stay as they are
+    expect(sword.elements().some((el) => el.hasAttr('CARRIED'))).toBe(false);
+    const back = transferToSection(asEquipment, 'POWERS');
+    expect(back.section).toBe('POWERS');
+    expect(parseXml(back.fragments[0]!).root.hasAttr('CARRIED')).toBe(false);
+    const skill = { section: 'SKILLS' as const, fragments: ['<SKILL XMLID="STEALTH" ID="1" />'] };
+    expect(transferToSection(skill, 'EQUIPMENT')).toBe(skill);
   });
 });
 
