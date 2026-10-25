@@ -76,4 +76,25 @@ describe('enhanced senses', () => {
     expect(setPowerOption(setDetects(detect(), 'Gold'), 'LARGECLASS').optionAlias).toBe('Gold');
     expect(setPowerOption(detect(), 'LARGECLASS').optionAlias).toBe('');
   });
+
+  it('buys Flash Defense, Flash and Images for a sense group, at its price', () => {
+    const options = (xmlId: string) => powerFormView(character, 'powers', selectPower(powerDraft(character, 'powers'), xmlId)).definition?.options;
+    expect(options('FLASHDEFENSE')?.map((o) => o.value)).toEqual(['SIGHTGROUP', 'HEARINGGROUP', 'MENTALGROUP', 'RADIOGROUP', 'SMELLGROUP', 'TOUCHGROUP']);
+    // A new one starts on Sight
+    expect(options('FLASHDEFENSE')?.find((o) => o.selected)?.value).toBe('SIGHTGROUP');
+    // 5 points of Flash Defense; Flash 2d6 vs Sight 10, vs Hearing 6; Images vs Hearing 5
+    const priced = (xmlId: string, option: string, levels: number) =>
+      powerCosts({ ...setPowerOption(selectPower(powerDraft(character, 'powers'), xmlId), option), levels }).base;
+    expect([priced('FLASHDEFENSE', 'HEARINGGROUP', 5), priced('FLASH', 'SIGHTGROUP', 2), priced('FLASH', 'HEARINGGROUP', 2), priced('IMAGES', 'HEARINGGROUP', 0)]).toEqual([5, 10, 6, 5]);
+    const { xml } = updateHdc(base, savePowerDraft(character, 'powers', undefined, setPowerOption(selectPower(powerDraft(character, 'powers'), 'FLASHDEFENSE'), 'HEARINGGROUP')));
+    const el = HdcDocument.parse(xml).section('POWERS')!.elements()[0]!;
+    expect(['OPTIONID', 'OPTION_ALIAS'].map((a) => el.getAttr(a))).toEqual(['HEARINGGROUP', 'Hearing Group']);
+  });
+
+  it('asks for the sense group of a Flash Defense written without one', () => {
+    const xml = base.replace('<POWERS />', '<POWERS><POWER XMLID="FLASHDEFENSE" ID="9701" BASECOST="0.0" LEVELS="5" ALIAS="Flash Defense" POSITION="0" NAME="" QUANTITY="1" /></POWERS>');
+    const c = parseHdcFile(xml);
+    const view = powerFormView(c, 'powers', powerDraft(c, 'powers', '9701'), '9701');
+    expect(view.definition?.options?.[0]).toEqual({ value: '', label: 'Choose…', selected: true });
+  });
 });

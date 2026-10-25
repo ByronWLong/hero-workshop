@@ -1139,7 +1139,16 @@ export function powerFormView(character: Character, section: PowerSection, draft
         : def.lvlVal && def.lvlCost ? `${def.lvlCost} pts per ${def.lvlVal === 1 ? 'level' : `${def.lvlVal}`}` : undefined,
       levelsTitle: def.xmlId === 'NAKEDMODIFIER' ? 'Up to Active Points' : isEnhancedSense(def.xmlId) ? 'PER bonus' : undefined,
       hasLevels: !!def.lvlCost || !!def.options?.some((o) => o.lvlCost),
-      options: def.options?.map((o) => ({ value: o.xmlId, label: o.display, selected: o.xmlId === draft.option })),
+      options: def.options?.length
+        ? [
+            // Files written without one (a Flash Defense with no sense group) choose one here
+            // (one the template doesn't have stays as it is)
+            ...(!def.options.some((o) => o.xmlId === draft.option)
+              ? [{ value: draft.option, label: draft.option ? draft.optionAlias || draft.option : 'Choose…', selected: true }]
+              : []),
+            ...def.options.map((o) => ({ value: o.xmlId, label: o.display, selected: o.xmlId === draft.option })),
+          ]
+        : undefined,
     },
     powerChoices: powerChoices(draft.xmlId),
     containers: powerContainers(character, section, itemId).map((c) => ({ ...c, selected: c.id === draft.parentId })),

@@ -109,6 +109,12 @@ function scopeCosts(a) {
   return Object.keys(costs).length ? costs : undefined;
 }
 
+/** Sense-affecting powers: what one sense group costs, a targeting one (Sight) or another */
+function senseGroupCosts(a) {
+  const costs = compact({ targeting: num(a.TARGETINGCOST), nontargeting: num(a.NONTARGETINGCOST) });
+  return Object.keys(costs).length ? costs : undefined;
+}
+
 function entry(node) {
   const a = attrsOf(node);
   const tag = tagOf(node);
@@ -127,6 +133,8 @@ function entry(node) {
     minCost: num(a.MINCOST),
     maxCost: num(a.MAXCOST),
     scopeCosts: scopeCosts(a),
+    // Sense-affecting powers priced by the group they're bought for (a targeting one or not)
+    senseGroupCosts: senseGroupCosts(a),
     exclusive: bool(a.EXCLUSIVE ?? a.EXLUSIVE),
     isLimitation: bool(a.ISLIMITATION),
     inputLabel: a.INPUTLABEL,
@@ -394,6 +402,8 @@ export interface CatalogEntry {
   maxCost?: number;
   /** Sense modifiers: the cost (per level, if leveled) for all senses, a sense group or a single sense */
   scopeCosts?: { all?: number; group?: number; sense?: number };
+  /** Sense-affecting powers: the price (per level, if leveled) for a targeting sense group and for another */
+  senseGroupCosts?: { targeting?: number; nontargeting?: number };
   exclusive?: boolean;
   /** Powers: modifiers only this power can take */
   modifiers?: CatalogEntry[];

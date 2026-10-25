@@ -52,6 +52,8 @@ export interface CatalogEntry {
   maxCost?: number;
   /** Sense modifiers: the cost (per level, if leveled) for all senses, a sense group or a single sense */
   scopeCosts?: { all?: number; group?: number; sense?: number };
+  /** Sense-affecting powers: the price (per level, if leveled) for a targeting sense group and for another */
+  senseGroupCosts?: { targeting?: number; nontargeting?: number };
   exclusive?: boolean;
   /** Powers: modifiers only this power can take */
   modifiers?: CatalogEntry[];
@@ -1551,6 +1553,10 @@ export const POWER_CATALOG_6E: CatalogEntry[] = [
     "lvlVal": 1,
     "minVal": 1,
     "levelStart": 1,
+    "senseGroupCosts": {
+      "targeting": 5,
+      "nontargeting": 3
+    },
     "exclusive": false,
     "duration": "CONSTANT",
     "range": "Yes",
@@ -3492,6 +3498,10 @@ export const POWER_CATALOG_6E: CatalogEntry[] = [
     "lvlVal": 1,
     "minVal": 0,
     "levelStart": 1,
+    "senseGroupCosts": {
+      "targeting": 5,
+      "nontargeting": 3
+    },
     "duration": "INSTANT",
     "range": "Yes",
     "target": "DCV",
@@ -3541,6 +3551,10 @@ export const POWER_CATALOG_6E: CatalogEntry[] = [
     "lvlVal": 1,
     "minVal": 1,
     "levelStart": 1,
+    "senseGroupCosts": {
+      "targeting": 1,
+      "nontargeting": 1
+    },
     "duration": "PERSISTENT",
     "range": "SELF",
     "target": "SELFONLY",
@@ -3872,6 +3886,10 @@ export const POWER_CATALOG_6E: CatalogEntry[] = [
     "display": "Images",
     "description": "A character with Images can create images which other characters can perceive with their appropriate Sense (usually Sight Sense Group). Some examples of Images include spells of illusion, holograms, and sound synthesizers.",
     "baseCost": 10,
+    "senseGroupCosts": {
+      "targeting": 10,
+      "nontargeting": 5
+    },
     "duration": "CONSTANT",
     "range": "Yes",
     "target": "HEX",
@@ -3949,6 +3967,10 @@ export const POWER_CATALOG_6E: CatalogEntry[] = [
     "display": "Invisibility",
     "description": "A character with Invisibility can become invisible to one Sense Group (usually the Sight Sense Group). Some examples of Invisibility include a \"stealth plane\" which cannot be detected by radar, the ability to move absolutely quietly or to hide effortlessly in shadows, or a superhero's ability to fade from sight. Invisibility has a Fringe which others may perceive with a normal PER Roll at a range of 1\" or less.",
     "baseCost": 20,
+    "senseGroupCosts": {
+      "targeting": 20,
+      "nontargeting": 10
+    },
     "duration": "CONSTANT",
     "range": "SELF",
     "target": "SELFONLY",
@@ -5834,6 +5856,10 @@ export const POWER_CATALOG_6E: CatalogEntry[] = [
     "display": "Shape Shift",
     "description": "A character with Shape Shift can change his form as perceived by one or more Sense Groups without altering his Powers or other abilities.",
     "baseCost": 0,
+    "senseGroupCosts": {
+      "targeting": 8,
+      "nontargeting": 5
+    },
     "duration": "CONSTANT",
     "range": "No",
     "target": "SELFONLY",

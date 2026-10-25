@@ -6,7 +6,7 @@
  */
 
 import { POWER_CATALOG_6E, type CatalogEntry } from './generated/catalog6e.js';
-import type { PowerAdder } from './powerDefinitions.js';
+import type { PowerAdder, PowerOption } from './powerDefinitions.js';
 
 /** Enhanced senses: powers with a sense group (the template's SENSE elements have no duration) */
 const SENSES = new Map(POWER_CATALOG_6E.filter((e) => e.senseGroup && e.duration).map((e) => [e.xmlId, e]));
@@ -47,6 +47,25 @@ export function builtInSenseModifiers(xmlId: string, group?: string): Set<string
   const groupId = group || sense?.senseGroup;
   const fromGroup = GROUPS.find((g) => g.xmlId === groupId)?.provides ?? [];
   return new Set([...(sense?.provides ?? []), ...fromGroup]);
+}
+
+/**
+ * The sense groups a sense-affecting power (Flash, Flash Defense, Images) can be bought for, as
+ * Hero Designer offers them (SenseAffectingPower.getOptions): every group but Unusual, a
+ * targeting one (Sight) at one price and the rest at another; per level for a leveled power.
+ * Targeting groups come first, so a new power starts on Sight
+ */
+export function senseGroupOptions(costs: { targeting?: number; nontargeting?: number }, lvlVal?: number): PowerOption[] {
+  const options: PowerOption[] = [];
+  for (const group of GROUPS) {
+    const targeting = !!group.provides?.includes('TARGETINGSENSE');
+    const cost = targeting ? costs.targeting : costs.nontargeting;
+    if (cost === undefined || cost < 0) continue;
+    const price = lvlVal && lvlVal > 0 ? { baseCost: 0, lvlCost: cost, lvlVal } : { baseCost: cost };
+    options.push({ xmlId: group.xmlId, display: group.display, ...price });
+  }
+  const isTargeting = (o: PowerOption) => !!GROUPS.find((g) => g.xmlId === o.xmlId)?.provides?.includes('TARGETINGSENSE');
+  return [...options.filter(isTargeting), ...options.filter((o) => !isTargeting(o))];
 }
 
 /** A sense modifier's name (RANGE: "Range") */

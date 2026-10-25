@@ -6,6 +6,7 @@
  */
 
 import { POWER_CATALOG_6E, type CatalogAdder, type CatalogEntry } from './generated/catalog6e.js';
+import { senseGroupOptions } from './senses.js';
 import { SKILL_CATALOG_6E } from './generated/skillCatalog6e.js';
 
 // ============================================================================
@@ -2009,6 +2010,9 @@ for (const entry of POWER_CATALOG_6E) {
   const known = new Set((existing.adders ?? []).map((a) => a.xmlId));
   const extraAdders = (fromCatalog.adders ?? []).filter((a) => !known.has(a.xmlId));
   if (extraAdders.length) existing.adders = [...(existing.adders ?? []), ...extraAdders];
+  // A sense-affecting power is bought for a sense group (Flash Defense for Sight, Hearing...),
+  // at its own price per level if it has levels
+  if (!existing.options?.length && entry.senseGroupCosts) existing.options = senseGroupOptions(entry.senseGroupCosts, existing.lvlVal);
   if (!existing.options?.length && fromCatalog.options?.length) existing.options = fromCatalog.options;
   for (const option of existing.options ?? []) {
     option.adders ??= fromCatalog.options?.find((o) => o.xmlId === option.xmlId)?.adders;
@@ -2052,7 +2056,9 @@ function powerFromCatalog(e: CatalogEntry): PowerDefinition {
     adders: e.adders?.map(powerAdderFromCatalog),
     options: e.scopeCosts
       ? senseScopeOptions(e.scopeCosts, e.lvlVal !== undefined || e.minVal !== undefined ? (e.lvlVal ?? 1) : undefined)
-      : e.options?.map((o) => ({
+      : !e.options?.length && e.senseGroupCosts
+        ? senseGroupOptions(e.senseGroupCosts, e.lvlVal)
+        : e.options?.map((o) => ({
           xmlId: o.xmlId,
           display: o.display,
           baseCost: o.baseCost,

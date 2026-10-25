@@ -233,6 +233,7 @@ export class PowerDialog extends HeroWorkshopApplication {
       case 'option': {
         // A new option has its own wording, except that Skill Levels keep naming their skills
         const skills = this.#targetsField();
+        if (!value) return;
         const changed = setPowerOption(draft, value);
         if (skills?.name !== 'skills') return this.#update(changed);
         const item = { xmlid: changed.xmlId, option: value, adders: changed.adders, optionAlias: '' };

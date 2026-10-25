@@ -155,6 +155,10 @@ export function insertItems(
   if (top && parent && top.getAttr('XMLID') === 'COMPOUNDPOWER' && isCompoundElement(parent)) {
     throw new Error(`${top.getAttr('NAME') || top.getAttr('ALIAS') || 'A compound power'} is a compound power; drop it on the compound to add its parts.`);
   }
+  // Equipment put in a list is where the list is: carried, or stored with it (and so are the
+  // members it brings, e.g. a pouch's contents)
+  const carried = transfer.section === 'EQUIPMENT' && parent?.name === 'LIST' ? parent.getAttr('CARRIED') : undefined;
+  if (carried) for (const el of elements) if (el.hasAttr('CARRIED') && el.getAttr('CARRIED') !== carried) el.setAttr('CARRIED', carried);
   const anchor = beside && beside.parent === section ? anchorBeside(section, beside, options.at!.after) : undefined;
   for (const el of elements) section.appendElement(el, anchor);
   if (beside && beside.parent === section) renumber(section);

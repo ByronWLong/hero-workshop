@@ -4,6 +4,8 @@ import {
   blankHdc,
   buildItemTree,
   equipmentLoad,
+  extractItems,
+  insertItems,
   parseHdcFile,
   powerDraft,
   removeItems,
@@ -71,5 +73,19 @@ describe('carried and stored equipment', () => {
     const removed = removeItems(xml, '9001')!;
     expect(removed.removedIds.sort()).toEqual(['9001', '9002', '9003', '9004']);
     expect(parseHdcFile(removed.xml).equipment!.map((e) => e.id)).toEqual(['9005']);
+  });
+
+  it('stores an item dragged into a stored list, or beside an item in one', () => {
+    const stored = updateHdc(xml, setCarried(character, '9001', false)).xml;
+    const into = insertItems(stored, extractItems(xml, '9005')!, { parentId: '9001' });
+    expect(HdcDocument.parse(into.xml).findById(into.id!)!.getAttr('CARRIED')).toBe('No');
+    const beside = insertItems(stored, extractItems(xml, '9005')!, { at: { id: '9002', after: true } });
+    expect(HdcDocument.parse(beside.xml).findById(beside.id!)!.getAttr('CARRIED')).toBe('No');
+    // Out of a list, it keeps what it had
+    const top = insertItems(stored, extractItems(stored, '9004')!);
+    expect(HdcDocument.parse(top.xml).findById(top.id!)!.getAttr('CARRIED')).toBe('No');
+    // And into a carried list, it's carried
+    const carried = insertItems(xml, extractItems(stored, '9004')!, { parentId: '9001' });
+    expect(HdcDocument.parse(carried.xml).findById(carried.id!)!.getAttr('CARRIED')).toBe('Yes');
   });
 });

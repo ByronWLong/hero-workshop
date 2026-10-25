@@ -708,11 +708,14 @@ export class HeroWorkshopEditor extends HeroWorkshopApplication {
   /** Adds copied items to the character, keeping their Hero Designer data intact */
   addItems(transfer: ItemTransfer, name: string, parentId?: string): void {
     const section = SECTION_FOR_HDC[transfer.section];
-    const { xml } = insertItems(this.#baseXml, transfer, { parentId });
+    const { xml, id } = insertItems(this.#baseXml, transfer, { parentId });
     const before = this.#original;
     this.#baseXml = xml;
     this.#original = parseHdcFile(xml);
     this.#character = withInsertedItems(this.#character, before, this.#original, section);
+    // Put in a list, it's carried or stored as the list now is in the editor
+    const list = parentId && section === 'equipment' ? this.#character.equipment?.find((e) => e.id === parentId) : undefined;
+    if (list && id) this.#character = setCarried(this.#character, id, list.carried ?? true);
     this.#imported.push(`Added ${name}`);
     this.changeTab(section, 'primary');
     void this.render();
