@@ -1376,6 +1376,17 @@ function parsePower(obj: Record<string, unknown>): Power {
     // Base cost of 3 CP is in hdcBaseCost
     trueBaseCost = hdcBaseCost + defenseCost + dimensionCost + bodyCost + adderCost;
   }
+
+  // Resistant Protection: its levels are its defenses' (ForceField.getLevels); hero6e reads the
+  // defenses, not LEVELS. A file without them keeps them unset, so the editor can fall back to LEVELS
+  if (xmlid === 'FORCEFIELD' && ['PDLEVELS', 'EDLEVELS', 'MDLEVELS', 'POWDLEVELS'].some((a) => getAttr(obj, a) !== '')) {
+    barrierFields = {
+      pdLevels: getAttrNum(obj, 'PDLEVELS', 0),
+      edLevels: getAttrNum(obj, 'EDLEVELS', 0),
+      mdLevels: getAttrNum(obj, 'MDLEVELS', 0),
+      powdLevels: getAttrNum(obj, 'POWDLEVELS', 0),
+    };
+  }
   
   // Calculate advantage total (positive modifiers)
   const advantageTotal = modifiers
@@ -1765,9 +1776,13 @@ function parseEquipmentItem(obj: Record<string, unknown>): Equipment {
   // An item that is one power is priced as the powers section prices it (a Barrier's size and
   // defenses, an Endurance Reserve's Recovery, a negative characteristic's lack of refund)
   let singleEnd: number | undefined;
+  let defenses: Partial<Power> = {};
   if (subPowers.length === 0 && xmlid !== 'COMPOUNDPOWER') {
     const single = parsePower(obj);
     singleEnd = single.endCost;
+    // A Barrier's size and defenses, Resistant Protection's defenses
+    const { pdLevels, edLevels, mdLevels, powdLevels, bodyLevels, lengthLevels, heightLevels, widthLevels } = single;
+    defenses = { pdLevels, edLevels, mdLevels, powdLevels, bodyLevels, lengthLevels, heightLevels, widthLevels };
     totalActiveCost = single.activeCost ?? 0;
     totalRealCost = single.realCost ?? 0;
   } else if (totalRealCost === 0) {
@@ -1818,6 +1833,7 @@ function parseEquipmentItem(obj: Record<string, unknown>): Equipment {
     adders: adders,
     parentId: getAttr(obj, 'PARENTID', '') || undefined,
     slotFixed: getAttr(obj, 'ULTRA_SLOT') === 'Yes' || undefined,
+    ...Object.fromEntries(Object.entries(defenses).filter(([, v]) => v !== undefined)),
   };
 }
 

@@ -74,7 +74,9 @@ describe('power drafts', () => {
     // Parts are added with the ordinary power form, on a scratch character holding just the parts
     for (const [xmlId, levels] of [['HKA', 1], ['FORCEFIELD', 2]] as const) {
       const scratch = compoundPartsCharacter(character, compound);
-      const part = { ...selectPower(powerDraft(scratch, 'powers'), xmlId), levels };
+      const picked = selectPower(powerDraft(scratch, 'powers'), xmlId);
+      // Resistant Protection's levels are its defenses
+      const part = { ...picked, levels, barrier: { ...picked.barrier, pd: levels / 2, ed: levels / 2 } };
       compound = setSubPowers(compound, savePowerDraft(scratch, 'powers', undefined, part).powers);
     }
     expect(powerCosts(compound).real).toBe(compound.subPowers.reduce((n, p) => n + (p.realCost ?? 0), 0));
@@ -96,5 +98,32 @@ describe('power drafts', () => {
     const trimmed = setSubPowers(reopened, reopened.subPowers.slice(0, 1));
     const after = HdcDocument.parse(updateHdc(xml, savePowerDraft(reparsed, section, id, trimmed)).xml);
     expect(after.findById(id)!.elements('POWER').map((el) => el.getAttr('XMLID'))).toEqual(['HKA']);
+  });
+
+  it.each(['powers', 'equipment'] as const)('prices and writes Resistant Protection by its defenses (%s)', (section) => {
+    const base = blankHdc();
+    const character = parseHdcFile(base);
+    const picked = selectPower(powerDraft(character, section), 'FORCEFIELD');
+    const draft = { ...picked, barrier: { ...picked.barrier, pd: 8, ed: 6, md: 1 } };
+    // 15 points of defense at 3 per 2, a part pair costing a whole one
+    expect(powerCosts(draft).base).toBe(24);
+    const { xml } = updateHdc(base, savePowerDraft(character, section, undefined, draft));
+    const el = HdcDocument.parse(xml).section(section === 'powers' ? 'POWERS' : 'EQUIPMENT')!.elements()[0]!;
+    expect(['LEVELS', 'PDLEVELS', 'EDLEVELS', 'MDLEVELS', 'POWDLEVELS'].map((a) => el.getAttr(a))).toEqual(['15', '8', '6', '1', '0']);
+
+    // Reopened, it shows its defenses; changing one rewrites both it and LEVELS
+    const reparsed = parseHdcFile(xml);
+    const id = (section === 'powers' ? reparsed.powers[0]! : reparsed.equipment![0]!).id;
+    const reopened = powerDraft(reparsed, section, id);
+    expect(reopened.barrier).toMatchObject({ pd: 8, ed: 6, md: 1, powd: 0 });
+    const more = { ...reopened, barrier: { ...reopened.barrier, ed: 8 } };
+    const after = HdcDocument.parse(updateHdc(xml, savePowerDraft(reparsed, section, id, more)).xml).findById(id)!;
+    expect([after.getAttr('LEVELS'), after.getAttr('EDLEVELS')]).toEqual(['17', '8']);
+  });
+
+  it('splits the levels of Resistant Protection written without its defenses', () => {
+    const xml = blankHdc().replace('<POWERS />', '<POWERS><POWER XMLID="FORCEFIELD" ID="1" BASECOST="0.0" LEVELS="10" ALIAS="Resistant Protection" POSITION="0" NAME="" QUANTITY="1" /></POWERS>');
+    const character = parseHdcFile(xml);
+    expect(powerDraft(character, 'powers', '1').barrier).toMatchObject({ pd: 5, ed: 5 });
   });
 });

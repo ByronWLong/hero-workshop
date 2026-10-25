@@ -287,8 +287,9 @@ export function powerDraft(character: Character, section: PowerSection, itemId?:
       height: p?.heightLevels ?? 1,
       width: p?.widthLevels ?? 0.5,
       body: p?.bodyLevels ?? 0,
-      pd: p?.pdLevels ?? 0,
-      ed: p?.edLevels ?? 0,
+      // Resistant Protection written without its defenses splits its levels between PD and ED
+      pd: p?.pdLevels ?? (xmlId === 'FORCEFIELD' ? Math.ceil((p?.levels ?? 0) / 2) : 0),
+      ed: p?.edLevels ?? (xmlId === 'FORCEFIELD' ? Math.floor((p?.levels ?? 0) / 2) : 0),
       md: p?.mdLevels ?? 0,
       powd: p?.powdLevels ?? 0,
     },
@@ -833,6 +834,13 @@ export function barrierBaseCost(b: PowerDraft['barrier']): number {
   return 3 + dimensions + b.body + defense;
 }
 
+/** Resistant Protection's levels are its defenses' (ForceField.getLevels) */
+export function powerLevels(draft: PowerDraft): number {
+  if (draft.xmlId !== 'FORCEFIELD') return draft.levels;
+  const b = draft.barrier;
+  return b.pd + b.ed + b.md + b.powd;
+}
+
 export interface PowerCosts {
   base: number;
   active: number;
@@ -869,7 +877,7 @@ export function powerCosts(draft: PowerDraft, inherited: Modifier[] = []): Power
     ? draft.customCost + adders
     : def.xmlId === 'FORCEWALL'
       ? barrierBaseCost(draft.barrier) + adders
-      : calculatePowerBaseCost(def, draft.levels + flash, draft.option || undefined) + ownAdders;
+      : calculatePowerBaseCost(def, powerLevels(draft) + flash, draft.option || undefined) + ownAdders;
   const all = [...draft.modifiers, ...inherited];
   const advantages = all.filter((m) => m.value > 0).reduce((s, m) => s + m.value, 0);
   const limitations = all.filter((m) => m.value < 0).reduce((s, m) => s + Math.abs(m.value), 0);
@@ -990,6 +998,7 @@ export function powerFormView(character: Character, section: PowerSection, draft
     isPower: draft.kind === 'power',
     isCustom: draft.kind === 'power' && !def,
     isBarrier: def?.xmlId === 'FORCEWALL',
+    isDefenses: def?.xmlId === 'FORCEFIELD',
     isEquipment: section === 'equipment',
     draft,
     definition: def && {
@@ -1077,7 +1086,7 @@ export function powerFormView(character: Character, section: PowerSection, draft
     powerNotes: powerBookNotes({
       ...facts,
       input: draft.input,
-      levels: draft.levels,
+      levels: powerLevels(draft),
       framework: parentType === 'MULTIPOWER' || parentType === 'VPP' ? parentType : undefined,
     }).map((n) => `${n.text} (6E1 ${n.page})`),
     /** Custom "Spell" modifiers elsewhere in the character (see convertCustomSpells) */
@@ -1172,7 +1181,7 @@ function buildPower(existing: PowerLike | undefined, draft: PowerDraft, costs: P
     type: (def ? draft.xmlId : (existing?.type && !getPowerDefinition(existing.type) ? existing.type : 'GENERIC')) as Power['type'],
     input: draft.input.trim() || undefined,
     notes: draft.notes || undefined,
-    levels: def ? draft.levels : (existing?.levels ?? 0),
+    levels: def ? powerLevels(draft) : (existing?.levels ?? 0),
     option: draft.option || undefined,
     // An unchanged option keeps its label (Hero Designer users often write their own)
     optionAlias:
@@ -1197,7 +1206,9 @@ function buildPower(existing: PowerLike | undefined, draft: PowerDraft, costs: P
           bodyLevels: draft.barrier.body, pdLevels: draft.barrier.pd, edLevels: draft.barrier.ed,
           mdLevels: draft.barrier.md, powdLevels: draft.barrier.powd,
         }
-      : {}),
+      : def?.xmlId === 'FORCEFIELD'
+        ? { pdLevels: draft.barrier.pd, edLevels: draft.barrier.ed, mdLevels: draft.barrier.md, powdLevels: draft.barrier.powd }
+        : {}),
   } as Power;
 }
 

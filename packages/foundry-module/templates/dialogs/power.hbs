@@ -69,13 +69,13 @@
     </select>
   </div>
   {{/if}}
-  {{#if definition.hasLevels}}{{#unless isBarrier}}
+  {{#if definition.hasLevels}}{{#unless isBarrier}}{{#unless isDefenses}}
   <div class="form-group">
     <label>{{#if definition.levelsTitle}}{{definition.levelsTitle}}{{else}}Dice / levels{{/if}}</label>
     <input type="number" data-field="levels" value="{{draft.levels}}">
     {{#if definition.levelLabel}}<p class="hint">{{definition.levelLabel}}</p>{{/if}}
   </div>
-  {{/unless}}{{/if}}
+  {{/unless}}{{/unless}}{{/if}}
   {{/if}}
 
   {{#if targets}}
@@ -101,6 +101,19 @@
       <label>MD<input type="number" data-field="barrier.md" value="{{draft.barrier.md}}" min="0"></label>
       <label>Power Defense<input type="number" data-field="barrier.powd" value="{{draft.barrier.powd}}" min="0"></label>
     </div>
+  </fieldset>
+  {{/if}}
+
+  {{#if isDefenses}}
+  <fieldset>
+    <legend>Resistant defenses</legend>
+    <div class="hw-barrier-grid">
+      <label>PD<input type="number" data-field="barrier.pd" value="{{draft.barrier.pd}}" min="0"></label>
+      <label>ED<input type="number" data-field="barrier.ed" value="{{draft.barrier.ed}}" min="0"></label>
+      <label>Mental Defense<input type="number" data-field="barrier.md" value="{{draft.barrier.md}}" min="0"></label>
+      <label>Power Defense<input type="number" data-field="barrier.powd" value="{{draft.barrier.powd}}" min="0"></label>
+    </div>
+    {{#if definition.levelLabel}}<p class="hint">{{definition.levelLabel}} of defense</p>{{/if}}
   </fieldset>
   {{/if}}
 

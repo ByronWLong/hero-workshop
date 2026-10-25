@@ -1327,6 +1327,13 @@ function createPower(ctx: WriteContext, p: Power, section: HdcItemSection): XmlE
       : {}),
   });
   if (xmlId === 'FORCEWALL') writeBarrierFields(el, {}, p);
+  // Resistant Protection: Hero Designer writes all four defenses, and hero6e reads them (not LEVELS)
+  if (el.getAttr('XMLID') === 'FORCEFIELD') {
+    el.setAttr('PDLEVELS', hdInt(p.pdLevels ?? 0));
+    el.setAttr('EDLEVELS', hdInt(p.edLevels ?? 0));
+    el.setAttr('MDLEVELS', hdInt(p.mdLevels ?? 0));
+    el.setAttr('POWDLEVELS', hdInt(p.powdLevels ?? 0));
+  }
   appendChildren(ctx, el, p);
   return el;
 }
@@ -1349,6 +1356,7 @@ const EQUIPMENT_SPEC: ItemSpec<Equipment> = {
   handled: new Set([
     'name', 'levels', 'notes', 'price', 'weight', 'carried', 'subPowers',
     'input', 'option', 'optionAlias', 'affectsPrimary', 'affectsTotal', 'slotFixed',
+    'pdLevels','edLevels', 'mdLevels', 'powdLevels', 'bodyLevels', 'lengthLevels', 'heightLevels', 'widthLevels',
   ]),
   derived: new Set([...POWER_DERIVED, 'alias', 'xmlId']),
   nested: (e) => e.subPowers,
@@ -1373,6 +1381,7 @@ const EQUIPMENT_SPEC: ItemSpec<Equipment> = {
     if (!same(bp.optionAlias, ap.optionAlias)) el.setAttr('OPTION_ALIAS', ap.optionAlias ?? '');
     if (!same(bp.affectsPrimary, ap.affectsPrimary)) el.setAttr('AFFECTS_PRIMARY', yesNo(ap.affectsPrimary ?? true));
     if (!same(bp.affectsTotal, ap.affectsTotal)) el.setAttr('AFFECTS_TOTAL', yesNo(ap.affectsTotal ?? true));
+    writeBarrierFields(el, bp, ap);
   },
 
   create(ctx, e, section) {
