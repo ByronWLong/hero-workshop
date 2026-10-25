@@ -12,7 +12,7 @@
     {{#if field.hint}}<p class="hint">{{field.hint}}</p>{{/if}}
   </div>
   {{else}}
-  <div class="form-group {{#if (or (eq field.type "textarea") (eq field.type "attacks"))}}stacked{{/if}}">
+  <div class="form-group {{#if (or (eq field.type "textarea") (eq field.type "attacks") (eq field.type "checklist"))}}stacked{{/if}}">
     <label for="hw-field-{{field.name}}">{{field.label}}</label>
     <div class="form-fields">
       {{#if (eq field.type "select")}}
@@ -21,6 +21,15 @@
       </select>
       {{else if (eq field.type "attacks")}}
       {{> "modules/hero-workshop/templates/partials/targets.hbs" field=field.name groups=field.groups picks=field.picks}}
+      {{else if (eq field.type "checklist")}}
+      <div class="hw-attacks" data-checklist="{{field.name}}">
+        {{#each field.groups as |group|}}
+        {{#if group.name}}<h4 class="hw-attack-group">{{group.name}}</h4>{{/if}}
+        {{#each group.options}}
+        <label class="checkbox"><input type="checkbox" data-value="{{value}}" {{checked selected}} {{#if disabled}}disabled{{/if}}> {{label}}{{#if detail}} <span class="hint">({{detail}})</span>{{/if}}</label>
+        {{/each}}
+        {{/each}}
+      </div>
       {{else if (eq field.type "checkbox")}}
       <input id="hw-field-{{field.name}}" type="checkbox" name="{{field.name}}" data-field="{{field.name}}" {{checked field.value}}>
       {{else if (eq field.type "textarea")}}

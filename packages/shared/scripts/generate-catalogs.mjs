@@ -164,6 +164,18 @@ const entries = (sectionName) =>
 // Skills (kept in their own file; the writer's skill creation reads it)
 // -----------------------------------------------------------------------------
 
+/** A skill's subjects (Weapon Familiarity's weapon groups, Survival's environments), with any they group */
+function skillAdder(node) {
+  const a = attrsOf(node);
+  return compact({
+    xmlId: a.XMLID ?? tagOf(node),
+    display: a.DISPLAY || a.XMLID,
+    baseCost: num(a.BASECOST) ?? 0,
+    maxCost: num(a.MAXCOST),
+    adders: elements(node, 'ADDER').map(skillAdder),
+  });
+}
+
 const skills = elements(sectionOf('SKILLS')).map((node) => {
   const a = attrsOf(node);
   const choices = elements(node, 'CHARACTERISTIC_CHOICE')
@@ -187,6 +199,8 @@ const skills = elements(sectionOf('SKILLS')).map((node) => {
     characteristicChoices: choices.length ? choices : undefined,
     // Breadth options priced per level (Combat/Skill Levels: single attack, HTH, all...)
     options: elements(node, 'OPTION').length ? elements(node, 'OPTION').map(option) : undefined,
+    // Languages' one adder (literacy) has its own field
+    adders: tagOf(node) === 'LANGUAGES' ? undefined : elements(node, 'ADDER').map(skillAdder),
   });
 });
 
@@ -227,6 +241,18 @@ export interface SkillCatalogEntry {
   lvlCost?: number;
   characteristicChoices?: SkillCatalogChoice[];
   options?: SkillCatalogOption[];
+  /** Subjects bought with the skill (weapon groups, environments, animals) */
+  adders?: SkillCatalogAdder[];
+}
+
+export interface SkillCatalogAdder {
+  xmlId: string;
+  display: string;
+  baseCost: number;
+  /** A group's members together cost no more than the group */
+  maxCost?: number;
+  /** The group's members, bought one by one instead of the whole group */
+  adders?: SkillCatalogAdder[];
 }
 
 export interface SkillCatalogOption {

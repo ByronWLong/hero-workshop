@@ -409,6 +409,8 @@ export interface Adder {
   includeInBase?: boolean;
   selected?: boolean; // True if this adder is selected (for weapon elements, etc.)
   adders?: Adder[];   // Nested adders (for category/weapon hierarchy)
+  /** XMLID of the adder it's listed under, when flattened (a Weapon Familiarity's Staffs under Uncommon Melee Weapons) */
+  group?: string;
 }
 
 // ============================================================================

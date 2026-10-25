@@ -1,4 +1,4 @@
-import { LABELLED_SKILL_XMLIDS, skillItemName } from './foundry.js';
+import { LABELLED_SKILL_XMLIDS, isGeneralProficiency, skillItemName } from './foundry.js';
 /**
  * HDC -> Character view-model parsing.
  *
@@ -970,6 +970,10 @@ function parseSkill(obj: Record<string, unknown>): Skill {
   const levels = getAttrNum(obj, 'LEVELS', 0);
   const adderCost = calculateAdderCost(adders);
   const familiarity = getAttrBool(obj, 'FAMILIARITY');
+  // A Proficiency hero6e can roll is stored as a General skill (isGeneralProficiency)
+  const generalProficiency = isGeneralProficiency({
+    xmlId: xmlid, characteristic: getAttr(obj, 'CHARACTERISTIC'), levels, baseCost, familiarity, proficiency: getAttrBool(obj, 'PROFICIENCY'),
+  });
   const everyman = getAttrBool(obj, 'EVERYMAN');
   const option = getAttr(obj, 'OPTION', '');
 
@@ -981,12 +985,15 @@ function parseSkill(obj: Record<string, unknown>): Skill {
   const choice = choices.find((c) => c.characteristic === getAttr(obj, 'CHARACTERISTIC', '')) ?? choices[0];
   const lvlCost = choice?.lvlCost ?? entry?.lvlCost;
   const lvlVal = choice?.lvlVal ?? 1;
-  const proficiency = getAttrBool(obj, 'PROFICIENCY');
+  const proficiency = getAttrBool(obj, 'PROFICIENCY') || generalProficiency;
   let totalCost: number;
   if (!entry || xmlid === 'CUSTOMSKILL' || lvlCost === undefined) {
     totalCost = Math.ceil(baseCost + levels + adderCost);
   } else if (familiarity && !proficiency) {
     totalCost = Math.max(entry.familiarityCost ?? 1, adderCost);
+  } else if (proficiency) {
+    // A Proficiency (11-): 2 points (less for a cheaper skill), no levels
+    totalCost = Math.ceil(Math.min(2, choice?.baseCost ?? entry.baseCost ?? baseCost) + adderCost);
   } else {
     let levelCost = (levels / lvlVal) * lvlCost;
     if (lvlCost < lvlVal) levelCost = levelCost > 0 && levelCost < 1 ? 1 : Math.round(levelCost - 1e-9);
@@ -1047,9 +1054,10 @@ function parseSkill(obj: Record<string, unknown>): Skill {
     realCost: realCost,
     notes: getAttr(obj, 'NOTES') || undefined,
     type: 'GENERAL',
-    characteristic: getAttr(obj, 'CHARACTERISTIC') as CharacteristicType || undefined,
+    // A General Proficiency shows the skill's own characteristic, which it goes back to as a full skill
+    characteristic: (generalProficiency ? choices[0]?.characteristic : getAttr(obj, 'CHARACTERISTIC')) as CharacteristicType || undefined,
     roll: getAttrNum(obj, 'ROLL') || undefined,
-    proficiency: getAttrBool(obj, 'PROFICIENCY'),
+    proficiency,
     familiarity: familiarity,
     everyman: everyman,
     nativeTongue: nativeTongue || undefined,
@@ -1991,7 +1999,8 @@ function parseAdders(obj: Record<string, unknown>, preserveHierarchy: boolean = 
       
       // If not preserving hierarchy, flatten nested adders into the list
       if (!preserveHierarchy) {
-        adders.push(...nestedAdders);
+        const xmlId = getAttr(add, 'XMLID', '');
+        adders.push(...nestedAdders.map((n) => (n.group || !xmlId ? n : { ...n, group: xmlId })));
       }
     }
   }

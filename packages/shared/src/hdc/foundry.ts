@@ -15,6 +15,7 @@
 import type { HdcDocument } from './document.js';
 import type { XmlElement } from './xml.js';
 import { pslOptionAlias, pslPenaltyInName, skillLevelOption } from '../skillLevels.js';
+import { SKILL_CATALOG_6E } from '../generated/skillCatalog6e.js';
 
 export const CHARACTERISTIC_TAGS = [
   'STR', 'DEX', 'CON', 'INT', 'EGO', 'PRE',
@@ -51,6 +52,37 @@ export const REQUIRED_COMPLICATION_ADDERS: Record<string, string[]> = {
 };
 
 const SKILL_ROLL_OPTION = /^(SKILL|PS|KS|SS)(1PER(?:5|20))?$/;
+
+const SKILLS_BY_ID = new Map(SKILL_CATALOG_6E.map((s) => [s.xmlId, s]));
+
+/**
+ * A Proficiency (11-, 2 points) as hero6e rolls it. hero6e rolls PROFICIENCY="Yes" at 10-, but a
+ * General (no characteristic) skill with no levels at 11-, priced from its BASECOST. So Hero Workshop
+ * writes a Proficiency that way and reads it back as one: General, no levels, at the Proficiency's
+ * 2 points (a General skill at another price was bought as something else). Background skills
+ * (KS, PS, SS) are General anyway and keep their own meaning.
+ */
+export function isGeneralProficiency(skill: {
+  xmlId: string; characteristic?: string; levels?: number; baseCost?: number; familiarity?: boolean; proficiency?: boolean;
+}): boolean {
+  if (skill.familiarity || skill.proficiency || skill.characteristic !== 'GENERAL' || skill.levels || skill.baseCost !== 2) return false;
+  if (LABELLED_SKILL_XMLIDS.includes(skill.xmlId)) return false;
+  const entry = SKILLS_BY_ID.get(skill.xmlId);
+  const choices = entry?.characteristicChoices ?? [];
+  return entry?.familiarityCost !== undefined && choices.length > 0 && !choices.some((c) => c.characteristic === 'GENERAL');
+}
+
+/** Rewrites a PROFICIENCY="Yes" skill as hero6e rolls a Proficiency (isGeneralProficiency); true if it did */
+export function proficiencyAsGeneral(el: XmlElement): boolean {
+  if (el.name !== 'SKILL' || el.getAttr('PROFICIENCY')?.toUpperCase().startsWith('Y') !== true) return false;
+  el.setAttr('CHARACTERISTIC', 'GENERAL');
+  el.setAttr('PROFICIENCY', 'No');
+  el.setAttr('FAMILIARITY', 'No');
+  el.setAttr('LEVELS', '0');
+  const base = SKILLS_BY_ID.get(el.getAttr('XMLID') ?? '')?.characteristicChoices?.[0]?.baseCost;
+  el.setAttr('BASECOST', `${Math.min(2, base ?? 2).toFixed(1)}`);
+  return true;
+}
 
 export function isCharacteristicTag(name: string): boolean {
   return CHARACTERISTIC_TAG_SET.has(name);
@@ -170,6 +202,10 @@ export function normalizeForFoundry(
   if (lacksPslOption(item)) {
     fixPslOption(item);
     notes.push(`${label}: Penalty Skill Levels ${item.getAttr('OPTION_ALIAS')}`);
+  }
+
+  if (options.section === 'SKILLS' && proficiencyAsGeneral(item)) {
+    notes.push(`${label}: Proficiency written as a General 11- skill, which hero6e rolls at 11-`);
   }
 
   return notes;

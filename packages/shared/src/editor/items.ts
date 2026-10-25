@@ -34,7 +34,7 @@ import {
   type PerkTalentKind,
   type PerkTalentPurchase,
 } from '../perkTalentCosts.js';
-import { SKILL_CATALOG_6E } from '../generated/skillCatalog6e.js';
+import { SKILL_CATALOG_6E, type SkillCatalogAdder, type SkillCatalogEntry } from '../generated/skillCatalog6e.js';
 import { calculateAdderCost } from '../utils.js';
 import { getPowerDefinition } from '../powerDefinitions.js';
 import {
@@ -61,13 +61,15 @@ export interface FieldOption {
   group?: string;
   /** Extra context shown after the label, e.g. the item a compound part belongs to */
   detail?: string;
+  /** Shown but not choosable (a group's member, when the group is bought whole) */
+  disabled?: boolean;
 }
 
 export interface FormField {
   name: string;
   label: string;
-  /** "attacks": a checklist of the character's attacks (Combat Skill Levels and the like) */
-  type: 'text' | 'number' | 'select' | 'checkbox' | 'textarea' | 'attacks';
+  /** "attacks": a checklist of the character's attacks (Combat Skill Levels and the like); "checklist": choices ticked under their groups' headings */
+  type: 'text' | 'number' | 'select' | 'checkbox' | 'textarea' | 'attacks' | 'checklist';
   value: string | number | boolean | string[];
   options?: FieldOption[];
   hint?: string;
@@ -385,8 +387,8 @@ const pslPenaltyOf = (skill: Skill | undefined) =>
 function otherSkillValues(skill: Skill | undefined, xmlid: string): FormValues {
   const values = otherSkillFields(skill, xmlid);
   if (xmlid === 'PENALTY_SKILL_LEVELS') values.penalty = pslPenaltyOf(skill);
-  // A Weapon Familiarity costs what its weapon groups do (its adders)
-  if (xmlid === 'WEAPON_FAMILIARITY' && skill) values.weaponCost = calculateAdderCost(skill.adders ?? []);
+  const entry = SKILLS_BY_ID.get(xmlid);
+  if (entry?.adders?.length) values.subjects = subjectKeys(entry, skill?.adders);
   if (ATTACK_LINKED_SKILLS.includes(xmlid)) return { ...values, attacks: (skill?.adders ?? []).filter(isLinkAdder).map((a) => a.alias ?? a.name) };
   // Skill Levels' skills are read from the option text when the form is shown (it needs the character's skills)
   if (xmlid === 'SKILL_LEVELS') return { ...values, optionAlias: skill?.optionAlias ?? '' };
@@ -408,6 +410,7 @@ function otherSkillFields(skill: Skill | undefined, xmlid: string): FormValues {
     levels: skill?.levels ?? 0,
     familiarity: !!skill?.familiarity,
     proficiency: !!skill?.proficiency,
+    training: skill?.proficiency ? 'proficiency' : skill?.familiarity ? 'familiarity' : '',
     everyman: !!skill?.everyman,
     option: skill?.option ?? '',
     nativeTongue: !!skill?.nativeTongue,
@@ -417,12 +420,128 @@ function otherSkillFields(skill: Skill | undefined, xmlid: string): FormValues {
   };
 }
 
-function skillCost(v: FormValues): number {
+// -----------------------------------------------------------------------------
+// Subjects: what some skills are bought for (Weapon Familiarity's weapon groups, Survival's
+// environments). A group is bought whole, or member by member; Hero Designer keeps the members
+// inside the unselected group, which the parser flattens (Adder.group)
+// -----------------------------------------------------------------------------
+
+interface SubjectChoice {
+  key: string;
+  def: SkillCatalogAdder;
+  group?: SkillCatalogAdder;
+}
+
+function subjectChoices(entry: SkillCatalogEntry | undefined): SubjectChoice[] {
+  return (entry?.adders ?? []).flatMap((def) => [
+    // A group with no price of its own (Uncommon Melee Weapons) is bought only member by member
+    ...(def.adders?.length && !def.baseCost ? [] : [{ key: def.xmlId, def }]),
+    ...(def.adders ?? []).map((member) => ({ key: `${def.xmlId}/${member.xmlId}`, def: member, group: def })),
+  ]);
+}
+
+const subjectKey = (a: Adder) => (a.group ? `${a.group}/${a.xmlId}` : (a.xmlId ?? ''));
+
+/** The subjects an item has (an unselected group only holds members) */
+function subjectKeys(entry: SkillCatalogEntry, adders: Adder[] | undefined): string[] {
+  const keys = new Set(subjectChoices(entry).map((c) => c.key));
+  return (adders ?? []).filter((a) => a.selected !== false && keys.has(subjectKey(a))).map(subjectKey);
+}
+
+/** The subjects chosen, without members of a group bought whole */
+function chosenSubjects(entry: SkillCatalogEntry | undefined, keys: string[]): SubjectChoice[] {
+  const chosen = new Set(keys);
+  return subjectChoices(entry).filter((c) => chosen.has(c.key) && !(c.group && chosen.has(c.group.xmlId)));
+}
+
+/** A skill's adders with the form's subjects; adders that aren't subjects (a custom one) stay */
+function subjectAdders(entry: SkillCatalogEntry | undefined, v: FormValues, existing: Adder[] | undefined): Adder[] | undefined {
+  if (!entry?.adders?.length || !Array.isArray(v.subjects)) return existing;
+  const keys = new Set(subjectChoices(entry).map((c) => c.key));
+  const others = (existing ?? []).filter((a) => !keys.has(subjectKey(a)));
+  const subjects = chosenSubjects(entry, list(v.subjects)).map(
+    (c): Adder =>
+      existing?.find((a) => subjectKey(a) === c.key) ?? {
+        id: newId(),
+        xmlId: c.def.xmlId,
+        name: c.def.display,
+        alias: c.def.display,
+        baseCost: c.def.baseCost,
+        selected: true,
+        group: c.group?.xmlId,
+      },
+  );
+  return [...others, ...subjects];
+}
+
+function subjectsField(entry: SkillCatalogEntry, v: FormValues): FormField {
+  const chosen = new Set(list(v.subjects));
+  const options: FieldOption[] = subjectChoices(entry).map((c) => {
+    const bought = c.group && chosen.has(c.group.xmlId);
+    const whole = !c.group && !!c.def.adders?.length;
+    return {
+      value: c.key,
+      label: `${whole ? `All ${c.def.display}` : c.def.display} (${c.def.baseCost})`,
+      selected: chosen.has(c.key) || !!bought,
+      group: (c.group ?? (whole ? c.def : undefined))?.display ?? '',
+      disabled: bought || undefined,
+    };
+  });
+  const over = subjectChoices(entry)
+    .filter((c) => c.def.adders?.length && c.def.maxCost !== undefined && !chosen.has(c.key))
+    .find((c) => chosenSubjects(entry, list(v.subjects)).filter((m) => m.group === c.def).reduce((n, m) => n + m.def.baseCost, 0) > c.def.maxCost!);
+  return {
+    name: 'subjects',
+    label: entry.xmlId === 'WEAPON_FAMILIARITY' ? 'Weapons' : 'Subjects',
+    type: 'checklist',
+    value: list(v.subjects),
+    options,
+    hint: over
+      ? `All ${over.def.display} costs ${over.def.baseCost}, less than its members bought one by one.`
+      : options.some((o) => o.disabled)
+        ? 'A group bought whole includes everything in it.'
+        : undefined,
+  };
+}
+
+function skillCost(v: FormValues, existing?: Skill): number {
+  return baseSkillCost(v) + (bool(v.everyman) ? 0 : subjectsCost(v, existing));
+}
+
+function subjectsCost(v: FormValues, existing: Skill | undefined): number {
+  const entry = SKILLS_BY_ID.get(str(v.xmlid));
+  if (!entry?.adders?.length) return 0;
+  const adders = subjectAdders(entry, v, existing?.xmlid === entry.xmlId ? existing.adders : undefined);
+  return calculateAdderCost((adders ?? []).filter((a) => a.selected !== false));
+}
+
+/** Hero Designer's Proficiency (11-) cost (Skill.proficiencyCost; no 6E skill sets its own) */
+const PROFICIENCY_COST = 2;
+
+/** How a skill is bought: in full, as a Familiarity (8-) or as a Proficiency (11-) */
+type Training = '' | 'familiarity' | 'proficiency';
+
+function trainingOf(v: FormValues): Training {
+  if (v.training !== undefined) return str(v.training) === 'familiarity' || str(v.training) === 'proficiency' ? (str(v.training) as Training) : '';
+  return bool(v.proficiency) ? 'proficiency' : bool(v.familiarity) ? 'familiarity' : '';
+}
+
+/** What the form saves for how it's bought; a Familiarity or Proficiency has no levels (as Hero Designer writes it) */
+function trainingFields(v: FormValues, existing: Skill | undefined) {
+  const training = trainingOf(v);
+  const was: Training = existing?.proficiency ? 'proficiency' : existing?.familiarity ? 'familiarity' : '';
+  return {
+    familiarity: training === 'familiarity',
+    proficiency: training === 'proficiency',
+    levels: training && (!existing || training !== was) ? 0 : num(v.levels),
+  };
+}
+
+function baseSkillCost(v: FormValues): number {
   const xmlid = str(v.xmlid);
   const levels = num(v.levels);
   if (bool(v.everyman)) return 0;
   if (xmlid === 'CUSTOMSKILL') return num(v.cost);
-  if (xmlid === 'WEAPON_FAMILIARITY' && v.weaponCost !== undefined) return num(v.weaponCost);
   const breadth = skillLevelCost(xmlid, str(v.option) || skillLevelOptions(xmlid)?.[0]?.xmlId, levels);
   if (breadth !== undefined) return breadth;
   if (xmlid === 'LANGUAGES') {
@@ -430,9 +549,11 @@ function skillCost(v: FormValues): number {
     return (LANGUAGE_OPTIONS.find((o) => o.value === v.option)?.cost ?? 2) + (bool(v.literate) ? 1 : 0);
   }
   const entry = SKILLS_BY_ID.get(xmlid);
-  if (bool(v.familiarity)) return entry?.familiarityCost ?? 1;
+  const training = trainingOf(v);
+  if (training === 'familiarity') return entry?.familiarityCost ?? 1;
   const choices = entry?.characteristicChoices ?? [];
   const choice = choices.find((c) => c.characteristic === v.characteristic) ?? choices[0];
+  if (training === 'proficiency') return Math.min(PROFICIENCY_COST, choice?.baseCost ?? entry?.baseCost ?? 3);
   return Math.ceil((choice?.baseCost ?? entry?.baseCost ?? 3) + levels * (choice?.lvlCost ?? entry?.lvlCost ?? 2));
 }
 
@@ -501,18 +622,32 @@ function skillForm(v: FormValues, isNew: boolean, character?: Character): ItemFo
     Array.isArray(v.attacks) ? list(v.attacks) : Array.isArray(v.skills) ? list(v.skills) : undefined,
   );
   if (targets) fields.push(targets);
+  if (entry?.adders?.length) fields.push(subjectsField(entry, v));
   if (xmlid === 'CUSTOMSKILL') {
     fields.push({ name: 'cost', label: 'Cost', type: 'number', value: num(v.cost) });
   }
   if (xmlid !== 'LANGUAGES') {
-    fields.push({ name: 'levels', label: 'Levels', type: 'number', value: num(v.levels) });
+    // Hero Designer offers a Proficiency wherever it offers a Familiarity; either has a fixed roll and no levels
+    const training = entry?.familiarityCost !== undefined ? trainingOf(v) : '';
     if (entry?.familiarityCost !== undefined) {
-      fields.push({ name: 'familiarity', label: 'Familiarity only (8-)', type: 'checkbox', value: bool(v.familiarity) });
+      const choices = [
+        { value: '', label: 'Full skill' },
+        { value: 'familiarity', label: `Familiarity (8-, ${entry.familiarityCost} pt${entry.familiarityCost === 1 ? '' : 's'})` },
+        { value: 'proficiency', label: `Proficiency (11-, ${PROFICIENCY_COST} pts)` },
+        // A background skill's General 11- is already its Proficiency
+      ].filter((c) => c.value !== 'proficiency' || training === 'proficiency' || !LABELLED_SKILL_XMLIDS.includes(xmlid));
+      fields.push({
+        name: 'training', label: 'Bought as', type: 'select', value: training, options: options(choices, training),
+        hint: training ? "A fixed roll: the characteristic and levels don't change it" : undefined,
+      });
     }
+    if (!training) fields.push({ name: 'levels', label: 'Levels', type: 'number', value: num(v.levels) });
     fields.push({ name: 'everyman', label: 'Everyman skill', type: 'checkbox', value: bool(v.everyman) });
+    if (training) fields.splice(0, fields.length, ...fields.filter((f) => f.name !== 'characteristic'));
   }
   fields.push({ name: 'notes', label: 'Notes', type: 'textarea', value: str(v.notes) });
-  return { title: isNew ? 'Add skill' : 'Edit skill', fields, cost: skillCost(v), costLabel: 'pts' };
+  const existing = v.itemId ? character?.skills.find((s) => s.id === v.itemId) : undefined;
+  return { title: isNew ? 'Add skill' : 'Edit skill', fields, cost: skillCost(v, existing), costLabel: 'pts' };
 }
 
 /** PS/KS/SS, area/city knowledge and Power skills: "Label: Subject", or a custom name */
@@ -525,7 +660,7 @@ function saveLabelledSkill(existing: Skill | undefined, v: FormValues, position:
   const alias = (typed && !(retyped && standard.includes(typed)) ? typed : BACKGROUND_ALIAS[xmlid]) || 'PS';
   const input = str(v.input).trim() || undefined;
   const customName = str(v.name).trim() || undefined;
-  const cost = skillCost(v);
+  const cost = skillCost(v, existing);
   const entry = SKILLS_BY_ID.get(xmlid);
   const characteristic = (str(v.characteristic) || entry?.characteristicChoices?.[0]?.characteristic) as Skill['characteristic'];
   return {
@@ -537,8 +672,7 @@ function saveLabelledSkill(existing: Skill | undefined, v: FormValues, position:
     xmlid,
     input,
     characteristic,
-    levels: num(v.levels),
-    familiarity: bool(v.familiarity),
+    ...trainingFields(v, existing),
     everyman: bool(v.everyman) || undefined,
     notes: str(v.notes) || undefined,
     baseCost: cost,
@@ -560,7 +694,7 @@ function saveSkill(existing: Skill | undefined, v: FormValues, position: number,
   const shownName = prefixed ? `${customName}: ${alias}` : customName;
   // Nothing to compose it from (e.g. a Weapon Familiarity listing its weapons as adders): keep the name it has
   const name = shownName || composed || (existing && existing.xmlid === xmlid ? existing.name : entry?.display ?? 'Skill');
-  const cost = skillCost(v);
+  const cost = skillCost(v, existing);
   // The form shows the first option until another is picked; save that one too
   const option = str(v.option) || skillLevelOptions(xmlid)?.[0]?.xmlId || (xmlid === 'LANGUAGES' ? 'FLUENT' : undefined);
   // Hero Designer's OPTION_ALIAS is the option's display ("with HTH Combat")
@@ -576,7 +710,7 @@ function saveSkill(existing: Skill | undefined, v: FormValues, position: number,
     : undefined;
   const characteristic = (str(v.characteristic) || entry?.characteristicChoices?.[0]?.characteristic) as Skill['characteristic'];
 
-  let adders = existing?.adders;
+  let adders = subjectAdders(entry, v, existing?.adders);
   if (showsAttacks(xmlid, str(v.option)) && Array.isArray(v.attacks)) adders = withAttackLinks(adders, v.attacks);
   // Skill Levels name their skills in OPTION_ALIAS (a broad option's skills, even if the form wasn't touched)
   const targets = showsSkills(xmlid, str(v.option))
@@ -598,9 +732,8 @@ function saveSkill(existing: Skill | undefined, v: FormValues, position: number,
     xmlid,
     input,
     characteristic,
-    levels: xmlid === 'LANGUAGES' ? 0 : num(v.levels),
-    familiarity: bool(v.familiarity),
-    proficiency: bool(v.proficiency),
+    ...trainingFields(v, existing),
+    ...(xmlid === 'LANGUAGES' ? { levels: 0 } : {}),
     everyman: bool(v.everyman) || undefined,
     option,
     // Keep the file's own wording (e.g. "with Demonic Claw") unless the option itself changed

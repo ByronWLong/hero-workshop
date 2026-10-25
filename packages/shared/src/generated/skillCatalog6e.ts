@@ -19,6 +19,18 @@ export interface SkillCatalogEntry {
   lvlCost?: number;
   characteristicChoices?: SkillCatalogChoice[];
   options?: SkillCatalogOption[];
+  /** Subjects bought with the skill (weapon groups, environments, animals) */
+  adders?: SkillCatalogAdder[];
+}
+
+export interface SkillCatalogAdder {
+  xmlId: string;
+  display: string;
+  baseCost: number;
+  /** A group's members together cost no more than the group */
+  maxCost?: number;
+  /** The group's members, bought one by one instead of the whole group */
+  adders?: SkillCatalogAdder[];
 }
 
 export interface SkillCatalogOption {
@@ -86,6 +98,78 @@ export const SKILL_CATALOG_6E: SkillCatalogEntry[] = [
         "baseCost": 0,
         "lvlCost": 2,
         "lvlVal": 1
+      }
+    ],
+    "adders": [
+      {
+        "xmlId": "AQUATIC",
+        "display": "Aquatic Animals",
+        "baseCost": 2
+      },
+      {
+        "xmlId": "BIRDS",
+        "display": "Birds",
+        "baseCost": 2
+      },
+      {
+        "xmlId": "BOVINES",
+        "display": "Bovines",
+        "baseCost": 2
+      },
+      {
+        "xmlId": "CAMELS",
+        "display": "Camels",
+        "baseCost": 2
+      },
+      {
+        "xmlId": "CANINES",
+        "display": "Canines",
+        "baseCost": 2
+      },
+      {
+        "xmlId": "DRAGONS",
+        "display": "Dragons",
+        "baseCost": 2
+      },
+      {
+        "xmlId": "ELEPHANTS",
+        "display": "Elephants",
+        "baseCost": 2
+      },
+      {
+        "xmlId": "EQUINES",
+        "display": "Equines",
+        "baseCost": 2
+      },
+      {
+        "xmlId": "FELINES",
+        "display": "Felines",
+        "baseCost": 2
+      },
+      {
+        "xmlId": "INSECTS",
+        "display": "Insects & Anthropods",
+        "baseCost": 2
+      },
+      {
+        "xmlId": "RAPTORS",
+        "display": "Raptors",
+        "baseCost": 2
+      },
+      {
+        "xmlId": "REPTILES",
+        "display": "Reptiles & Amphibians",
+        "baseCost": 2
+      },
+      {
+        "xmlId": "URSINES",
+        "display": "Ursines",
+        "baseCost": 2
+      },
+      {
+        "xmlId": "OTHER",
+        "display": "Other",
+        "baseCost": 2
       }
     ]
   },
@@ -488,6 +572,115 @@ export const SKILL_CATALOG_6E: SkillCatalogEntry[] = [
         "lvlCost": 2,
         "lvlVal": 1
       }
+    ],
+    "adders": [
+      {
+        "xmlId": "DOCUMENTS",
+        "display": "Documents",
+        "baseCost": 2,
+        "maxCost": 2,
+        "adders": [
+          {
+            "xmlId": "PAPERS",
+            "display": "Papers",
+            "baseCost": 1
+          },
+          {
+            "xmlId": "IDS",
+            "display": "Identity Cards",
+            "baseCost": 1
+          }
+        ]
+      },
+      {
+        "xmlId": "MONEY",
+        "display": "Money (Counterfeiting)",
+        "baseCost": 2,
+        "maxCost": 2,
+        "adders": [
+          {
+            "xmlId": "COINS",
+            "display": "Coins",
+            "baseCost": 1
+          },
+          {
+            "xmlId": "PAPERMONEY",
+            "display": "Paper Money",
+            "baseCost": 1
+          }
+        ]
+      },
+      {
+        "xmlId": "ART",
+        "display": "Art Objects",
+        "baseCost": 2,
+        "maxCost": 2,
+        "adders": [
+          {
+            "xmlId": "PAINTINGS",
+            "display": "Paintings",
+            "baseCost": 1
+          },
+          {
+            "xmlId": "SCULPTURE",
+            "display": "Sculpture",
+            "baseCost": 1
+          },
+          {
+            "xmlId": "METALWORK",
+            "display": "Metalwork",
+            "baseCost": 1
+          },
+          {
+            "xmlId": "JEWELRY",
+            "display": "Jewelry",
+            "baseCost": 1
+          },
+          {
+            "xmlId": "LICENSEPLATES",
+            "display": "Vehicle License Plates",
+            "baseCost": 1
+          }
+        ]
+      },
+      {
+        "xmlId": "COMMERCIALGOODS",
+        "display": "Commercial Goods",
+        "baseCost": 2,
+        "maxCost": 2,
+        "adders": [
+          {
+            "xmlId": "CLOTHING",
+            "display": "Clothing",
+            "baseCost": 1
+          },
+          {
+            "xmlId": "CREDITCARDS",
+            "display": "Credit Cards",
+            "baseCost": 1
+          },
+          {
+            "xmlId": "MACHINEPARTS",
+            "display": "Machine/Vehicle Parts",
+            "baseCost": 1
+          },
+          {
+            "xmlId": "MEDICINES",
+            "display": "Medicines",
+            "baseCost": 1
+          }
+        ]
+      },
+      {
+        "xmlId": "OTHERGENERAL",
+        "display": "Other (General)",
+        "baseCost": 2
+      },
+      {
+        "xmlId": "OTHER",
+        "display": "Other",
+        "baseCost": 1
+      }
     ]
   },
   {
@@ -499,6 +692,151 @@ export const SKILL_CATALOG_6E: SkillCatalogEntry[] = [
         "baseCost": 0,
         "lvlCost": 2,
         "lvlVal": 1
+      }
+    ],
+    "adders": [
+      {
+        "xmlId": "CARDGAMES",
+        "display": "Card Games",
+        "baseCost": 2,
+        "maxCost": 2,
+        "adders": [
+          {
+            "xmlId": "BACCARAT",
+            "display": "Baccarat",
+            "baseCost": 1
+          },
+          {
+            "xmlId": "BLACKJACK",
+            "display": "Blackjack",
+            "baseCost": 1
+          },
+          {
+            "xmlId": "BRIDGE",
+            "display": "Bridge",
+            "baseCost": 1
+          },
+          {
+            "xmlId": "FARO",
+            "display": "Faro",
+            "baseCost": 1
+          },
+          {
+            "xmlId": "POKER",
+            "display": "Poker",
+            "baseCost": 1
+          }
+        ]
+      },
+      {
+        "xmlId": "DICEGAMES",
+        "display": "Dice Games",
+        "baseCost": 2,
+        "maxCost": 2,
+        "adders": [
+          {
+            "xmlId": "CRAPS",
+            "display": "Craps",
+            "baseCost": 1
+          }
+        ]
+      },
+      {
+        "xmlId": "BOARDGAMES",
+        "display": "Board Games",
+        "baseCost": 2,
+        "maxCost": 2,
+        "adders": [
+          {
+            "xmlId": "BACKGAMMON",
+            "display": "Backgammon",
+            "baseCost": 1
+          },
+          {
+            "xmlId": "CHESS",
+            "display": "Chess",
+            "baseCost": 1
+          },
+          {
+            "xmlId": "DOMINOES",
+            "display": "Dominoes",
+            "baseCost": 1
+          },
+          {
+            "xmlId": "GOMOKU",
+            "display": "Go-Moku",
+            "baseCost": 1
+          },
+          {
+            "xmlId": "SHOGI",
+            "display": "Hasami Shogi",
+            "baseCost": 1
+          },
+          {
+            "xmlId": "MAHJONGG",
+            "display": "Mahjongg",
+            "baseCost": 1
+          },
+          {
+            "xmlId": "SIANG",
+            "display": "Siang K'i",
+            "baseCost": 1
+          },
+          {
+            "xmlId": "WEICHI",
+            "display": "Wei-Ch'i",
+            "baseCost": 1
+          }
+        ]
+      },
+      {
+        "xmlId": "ROULETTE",
+        "display": "Roulette",
+        "baseCost": 2,
+        "maxCost": 2
+      },
+      {
+        "xmlId": "SPORTSBETTING",
+        "display": "Sports Betting",
+        "baseCost": 2,
+        "maxCost": 2,
+        "adders": [
+          {
+            "xmlId": "BASEBALL",
+            "display": "Baseball",
+            "baseCost": 1
+          },
+          {
+            "xmlId": "BASKETBALL",
+            "display": "Basketball",
+            "baseCost": 1
+          },
+          {
+            "xmlId": "DOGRACING",
+            "display": "Dog Racing",
+            "baseCost": 1
+          },
+          {
+            "xmlId": "FOOTBALL",
+            "display": "Football",
+            "baseCost": 1
+          },
+          {
+            "xmlId": "HORSERACING",
+            "display": "Horse Racing",
+            "baseCost": 1
+          }
+        ]
+      },
+      {
+        "xmlId": "OTHERGENERAL",
+        "display": "Other (General)",
+        "baseCost": 2
+      },
+      {
+        "xmlId": "OTHER",
+        "display": "Other",
+        "baseCost": 1
       }
     ]
   },
@@ -654,6 +992,48 @@ export const SKILL_CATALOG_6E: SkillCatalogEntry[] = [
         "baseCost": 0,
         "lvlCost": 2,
         "lvlVal": 1
+      }
+    ],
+    "adders": [
+      {
+        "xmlId": "LAND",
+        "display": "Land",
+        "baseCost": 2
+      },
+      {
+        "xmlId": "MARINE",
+        "display": "Marine",
+        "baseCost": 2
+      },
+      {
+        "xmlId": "AIR",
+        "display": "Air",
+        "baseCost": 2
+      },
+      {
+        "xmlId": "SPACE",
+        "display": "Space",
+        "baseCost": 2
+      },
+      {
+        "xmlId": "DIMENSIONAL",
+        "display": "Dimensional",
+        "baseCost": 2
+      },
+      {
+        "xmlId": "ASTRAL",
+        "display": "Astral",
+        "baseCost": 2
+      },
+      {
+        "xmlId": "TEMPORAL",
+        "display": "Temporal",
+        "baseCost": 2
+      },
+      {
+        "xmlId": "OTHER",
+        "display": "Other",
+        "baseCost": 2
       }
     ]
   },
@@ -1133,6 +1513,119 @@ export const SKILL_CATALOG_6E: SkillCatalogEntry[] = [
         "lvlCost": 2,
         "lvlVal": 1
       }
+    ],
+    "adders": [
+      {
+        "xmlId": "ARCTIC",
+        "display": "Arctic/Subarctic",
+        "baseCost": 2,
+        "maxCost": 2,
+        "adders": [
+          {
+            "xmlId": "ARCTICCOAST",
+            "display": "Arctic/Subarctic Coasts",
+            "baseCost": 1
+          },
+          {
+            "xmlId": "ARCTICPLAINS",
+            "display": "Arctic/Subarctic Plains",
+            "baseCost": 1
+          },
+          {
+            "xmlId": "ARCTICFOREST",
+            "display": "Arctic/Subarctic Forests",
+            "baseCost": 1
+          }
+        ]
+      },
+      {
+        "xmlId": "DESERT",
+        "display": "Desert",
+        "baseCost": 2,
+        "maxCost": 2
+      },
+      {
+        "xmlId": "MARINE",
+        "display": "Marine",
+        "baseCost": 2,
+        "maxCost": 2,
+        "adders": [
+          {
+            "xmlId": "MARINESURFACE",
+            "display": "Marine Surface",
+            "baseCost": 1
+          },
+          {
+            "xmlId": "MARINEUNDERWATER",
+            "display": "Marine Underwater",
+            "baseCost": 1
+          }
+        ]
+      },
+      {
+        "xmlId": "MOUNTAIN",
+        "display": "Mountain",
+        "baseCost": 2,
+        "maxCost": 2
+      },
+      {
+        "xmlId": "TEMPERATE",
+        "display": "Temperate/Subtropical",
+        "baseCost": 2,
+        "maxCost": 2,
+        "adders": [
+          {
+            "xmlId": "TEMPERATECOASTS",
+            "display": "Temperate/Subtropical Coasts",
+            "baseCost": 1
+          },
+          {
+            "xmlId": "TEMPERATEPLAINS",
+            "display": "Temperate/Subtropical Plains",
+            "baseCost": 1
+          },
+          {
+            "xmlId": "TEMPERATEFORESTS",
+            "display": "Temperate/Subtropical Forests",
+            "baseCost": 1
+          }
+        ]
+      },
+      {
+        "xmlId": "TROPICAL",
+        "display": "Tropical",
+        "baseCost": 2,
+        "maxCost": 2,
+        "adders": [
+          {
+            "xmlId": "TROPICALCOASTS",
+            "display": "Tropical Coasts/Pelagic Environments",
+            "baseCost": 1
+          },
+          {
+            "xmlId": "TROPICALPLAINS",
+            "display": "Tropical Plains",
+            "baseCost": 1
+          },
+          {
+            "xmlId": "TROPICALFORESTS",
+            "display": "Tropical Forests",
+            "baseCost": 1
+          }
+        ]
+      },
+      {
+        "xmlId": "URBAN",
+        "display": "Urban",
+        "baseCost": 2,
+        "maxCost": 2
+      },
+      {
+        "xmlId": "UNDERGROUND",
+        "display": "Underground",
+        "baseCost": 2,
+        "maxCost": 2
+      }
     ]
   },
   {
@@ -1203,7 +1696,383 @@ export const SKILL_CATALOG_6E: SkillCatalogEntry[] = [
   {
     "xmlId": "TRANSPORT_FAMILIARITY",
     "display": "Transport Familiarity",
-    "baseCost": 0
+    "baseCost": 0,
+    "adders": [
+      {
+        "xmlId": "RIDINGANIMALS",
+        "display": "Riding Animals",
+        "baseCost": 2,
+        "maxCost": 2,
+        "adders": [
+          {
+            "xmlId": "CAMELS",
+            "display": "Camels",
+            "baseCost": 1
+          },
+          {
+            "xmlId": "DOGS",
+            "display": "Dogs",
+            "baseCost": 1
+          },
+          {
+            "xmlId": "EQUINES",
+            "display": "Equines",
+            "baseCost": 1
+          },
+          {
+            "xmlId": "FLYINGBEASTS",
+            "display": "Flying Beasts",
+            "baseCost": 1
+          },
+          {
+            "xmlId": "HUGEBEASTS",
+            "display": "Huge Beasts",
+            "baseCost": 1
+          },
+          {
+            "xmlId": "SWIMMINGBEASTS",
+            "display": "Swimming Beasts",
+            "baseCost": 1
+          },
+          {
+            "xmlId": "OTHERRIDING",
+            "display": "Other",
+            "baseCost": 1
+          }
+        ]
+      },
+      {
+        "xmlId": "MUSCLEPOWEREDGROUNDVEHICLES",
+        "display": "Muscle-Powered Ground Vehicles",
+        "baseCost": 0,
+        "adders": [
+          {
+            "xmlId": "ONEWHEELEDMUSCLE",
+            "display": "One-Wheeled Muscle-Powered Ground Vehicles",
+            "baseCost": 1
+          },
+          {
+            "xmlId": "TWOWHEELEDMUSCLE",
+            "display": "Two-Wheeled Muscle-Powered Ground Vehicles",
+            "baseCost": 1
+          },
+          {
+            "xmlId": "CARTSANDCARRIAGES",
+            "display": "Carts & Carriages",
+            "baseCost": 1
+          },
+          {
+            "xmlId": "CHARIOTS",
+            "display": "Chariots",
+            "baseCost": 1
+          }
+        ]
+      },
+      {
+        "xmlId": "COMMONMOTORIZED",
+        "display": "Common Motorized Ground Vehicles",
+        "baseCost": 2,
+        "maxCost": 2,
+        "adders": [
+          {
+            "xmlId": "SMALLMOTORIZED",
+            "display": "Small Motorized Ground Vehicles",
+            "baseCost": 1
+          },
+          {
+            "xmlId": "LARGEMOTORIZED",
+            "display": "Large Motorized Ground Vehicles",
+            "baseCost": 1
+          }
+        ]
+      },
+      {
+        "xmlId": "UNCOMMONMOTORIZEDGROUNDVEHICLES",
+        "display": "Uncommon Motorized Ground Vehicles",
+        "baseCost": 0,
+        "adders": [
+          {
+            "xmlId": "TWOWHEELEDMOTORIZED",
+            "display": "Two-Wheeled Motorized Ground Vehicles",
+            "baseCost": 1
+          },
+          {
+            "xmlId": "AGRICULTURAL",
+            "display": "Agricultural & Construction Vehicles",
+            "baseCost": 1
+          },
+          {
+            "xmlId": "TRACKEDMILITARY",
+            "display": "Tracked Military Vehicles",
+            "baseCost": 1
+          },
+          {
+            "xmlId": "WHEELEDMILITARY",
+            "display": "Wheeled Military Vehicles",
+            "baseCost": 1
+          },
+          {
+            "xmlId": "RAILED",
+            "display": "Railed Vehicles",
+            "baseCost": 1
+          }
+        ]
+      },
+      {
+        "xmlId": "AIR",
+        "display": "Air Vehicles",
+        "baseCost": 0,
+        "adders": [
+          {
+            "xmlId": "BALLOONS",
+            "display": "Balloons & Zeppelins",
+            "baseCost": 1
+          },
+          {
+            "xmlId": "SMALLPLANES",
+            "display": "Small Planes",
+            "baseCost": 1
+          },
+          {
+            "xmlId": "LARGEPLANES",
+            "display": "Large Planes",
+            "baseCost": 1
+          },
+          {
+            "xmlId": "COMBATAIRCRAFT",
+            "display": "Combat Aircraft",
+            "baseCost": 1
+          },
+          {
+            "xmlId": "HELICOPTERS",
+            "display": "Helicopters",
+            "baseCost": 1
+          }
+        ]
+      },
+      {
+        "xmlId": "COLDWEATHERVEHICLES",
+        "display": "Cold-Weather Vehicles",
+        "baseCost": 0,
+        "adders": [
+          {
+            "xmlId": "BOBSLEDS",
+            "display": "Bobsleds",
+            "baseCost": 1
+          },
+          {
+            "xmlId": "SLEDS",
+            "display": "Sleds",
+            "baseCost": 1
+          },
+          {
+            "xmlId": "DOGSLEDS",
+            "display": "Dog Sleds",
+            "baseCost": 1
+          },
+          {
+            "xmlId": "SNOWMOBILES",
+            "display": "Snowmobiles",
+            "baseCost": 1
+          }
+        ]
+      },
+      {
+        "xmlId": "WATER",
+        "display": "Water Vehicles",
+        "baseCost": 0,
+        "adders": [
+          {
+            "xmlId": "RAFTS",
+            "display": "Rafts",
+            "baseCost": 1
+          },
+          {
+            "xmlId": "SMALLROWED",
+            "display": "Small Rowed Boats",
+            "baseCost": 1
+          },
+          {
+            "xmlId": "LARGEROWED",
+            "display": "Large Rowed Boats",
+            "baseCost": 1
+          },
+          {
+            "xmlId": "SMALLWIND",
+            "display": "Small Wind-Powered Boats",
+            "baseCost": 1
+          },
+          {
+            "xmlId": "LARGEWIND",
+            "display": "Large Wind-Powered Boats",
+            "baseCost": 1
+          },
+          {
+            "xmlId": "SMALLMOTORIZEDBOATS",
+            "display": "Small Motorized Boats",
+            "baseCost": 1
+          },
+          {
+            "xmlId": "LARGEMOTORIZEDBOATS",
+            "display": "Large Motorized Boats",
+            "baseCost": 1
+          },
+          {
+            "xmlId": "SMALLMILITARYSHIPS",
+            "display": "Small Military Ships",
+            "baseCost": 1
+          },
+          {
+            "xmlId": "LARGEMILITARYSHIPS",
+            "display": "Large Military Ships",
+            "baseCost": 1
+          },
+          {
+            "xmlId": "SUBMARINES",
+            "display": "Submarines",
+            "baseCost": 1
+          }
+        ]
+      },
+      {
+        "xmlId": "RECREATIONALVEHICLES",
+        "display": "Recreational Vehicles",
+        "baseCost": 0,
+        "adders": [
+          {
+            "xmlId": "HANGGLIDING",
+            "display": "Hanggliding",
+            "baseCost": 1
+          },
+          {
+            "xmlId": "JETSKIS",
+            "display": "Jetskis",
+            "baseCost": 1
+          },
+          {
+            "xmlId": "BASICPARA",
+            "display": "Parachuting, Basic",
+            "baseCost": 1
+          },
+          {
+            "xmlId": "ADVANCEDPARA",
+            "display": "Parachuting, Advanced",
+            "baseCost": 1
+          },
+          {
+            "xmlId": "SCUBA",
+            "display": "SCUBA",
+            "baseCost": 1
+          },
+          {
+            "xmlId": "SKATEBOARDING",
+            "display": "Skateboarding",
+            "baseCost": 1
+          },
+          {
+            "xmlId": "SKATING",
+            "display": "Skating (iceskating or rollerskating)",
+            "baseCost": 1
+          },
+          {
+            "xmlId": "SKIING",
+            "display": "Skiing (snow)",
+            "baseCost": 1
+          },
+          {
+            "xmlId": "WATERSKIING",
+            "display": "Skiing (water)",
+            "baseCost": 1
+          },
+          {
+            "xmlId": "SNOWBOARDING",
+            "display": "Snowboarding",
+            "baseCost": 1
+          },
+          {
+            "xmlId": "SURFING",
+            "display": "Surfing",
+            "baseCost": 1
+          },
+          {
+            "xmlId": "WINDSURFING",
+            "display": "Windsurfing",
+            "baseCost": 1
+          }
+        ]
+      },
+      {
+        "xmlId": "SCIFI",
+        "display": "Science Fiction & Space Vehicles",
+        "baseCost": 2,
+        "maxCost": 2,
+        "adders": [
+          {
+            "xmlId": "EARLYSPACE",
+            "display": "Early Spacecraft",
+            "baseCost": 1
+          },
+          {
+            "xmlId": "SPACEPLANES",
+            "display": "Spaceplanes",
+            "baseCost": 1
+          },
+          {
+            "xmlId": "GRAVVEHICLES",
+            "display": "Grav Vehicles/Hovercraft",
+            "baseCost": 1
+          },
+          {
+            "xmlId": "PERSONALSPACE",
+            "display": "Personal Use Spacecraft",
+            "baseCost": 1
+          },
+          {
+            "xmlId": "COMMERCIALSPACE",
+            "display": "Commercial Spacecraft & Space Yachts",
+            "baseCost": 1
+          },
+          {
+            "xmlId": "INDUSTRIALSPACE",
+            "display": "Industrial & Exploratory Spacecraft",
+            "baseCost": 1
+          },
+          {
+            "xmlId": "MILITARYSPACE",
+            "display": "Military Spacecraft",
+            "baseCost": 1
+          },
+          {
+            "xmlId": "SPACESTATIONS",
+            "display": "Mobile Space Stations",
+            "baseCost": 1
+          }
+        ]
+      },
+      {
+        "xmlId": "MECHA",
+        "display": "Mecha",
+        "baseCost": 2,
+        "maxCost": 2,
+        "adders": [
+          {
+            "xmlId": "ANTHROPOMORPHIC",
+            "display": "Anthropomorphic Mecha",
+            "baseCost": 1
+          },
+          {
+            "xmlId": "BEASTSHAPEDMECHA",
+            "display": "Beast-Shaped Mecha",
+            "baseCost": 1
+          },
+          {
+            "xmlId": "HYBRIDMECHA",
+            "display": "Hybrid/Shapeshifting Mecha",
+            "baseCost": 1
+          }
+        ]
+      }
+    ]
   },
   {
     "xmlId": "TWO_WEAPON_FIGHTING_HTH",
@@ -1226,7 +2095,620 @@ export const SKILL_CATALOG_6E: SkillCatalogEntry[] = [
   {
     "xmlId": "WEAPON_FAMILIARITY",
     "display": "Weapon Familiarity",
-    "baseCost": 0
+    "baseCost": 0,
+    "adders": [
+      {
+        "xmlId": "COMMONMELEE",
+        "display": "Common Melee Weapons",
+        "baseCost": 2,
+        "maxCost": 2,
+        "adders": [
+          {
+            "xmlId": "UNARMEDCOMBAT",
+            "display": "Unarmed Combat",
+            "baseCost": 0
+          },
+          {
+            "xmlId": "AXESMACES",
+            "display": "Axes, Maces, Hammers, and Picks",
+            "baseCost": 1
+          },
+          {
+            "xmlId": "BLADES",
+            "display": "Blades",
+            "baseCost": 1
+          },
+          {
+            "xmlId": "CLUBS",
+            "display": "Clubs",
+            "baseCost": 0
+          },
+          {
+            "xmlId": "FISTLOADS",
+            "display": "Fist-Loads",
+            "baseCost": 0
+          },
+          {
+            "xmlId": "POLEARMS",
+            "display": "Polearms and Spears",
+            "baseCost": 1
+          },
+          {
+            "xmlId": "TWOHANDED",
+            "display": "Two-Handed Weapons",
+            "baseCost": 1
+          }
+        ]
+      },
+      {
+        "xmlId": "UNCOMMONMELEE",
+        "display": "Uncommon Melee Weapons",
+        "baseCost": 0,
+        "adders": [
+          {
+            "xmlId": "FLAILS",
+            "display": "Flails",
+            "baseCost": 1
+          },
+          {
+            "xmlId": "GARROTE",
+            "display": "Garrote",
+            "baseCost": 1
+          },
+          {
+            "xmlId": "HOMEMADEWEAPONS",
+            "display": "Homemade Weapons",
+            "baseCost": 1
+          },
+          {
+            "xmlId": "LANCES",
+            "display": "Lances",
+            "baseCost": 1
+          },
+          {
+            "xmlId": "NETS",
+            "display": "Nets",
+            "baseCost": 1
+          },
+          {
+            "xmlId": "SPREADTHEWATER",
+            "display": "Spread-The-Water Knife",
+            "baseCost": 1
+          },
+          {
+            "xmlId": "STAFFS",
+            "display": "Staffs",
+            "baseCost": 1
+          },
+          {
+            "xmlId": "WHIPS",
+            "display": "Whips",
+            "baseCost": 1
+          },
+          {
+            "xmlId": "ELECTRICWHIP",
+            "display": "Electric Whip",
+            "baseCost": 1
+          },
+          {
+            "xmlId": "ENERGYBLADES",
+            "display": "Energy Blades",
+            "baseCost": 1
+          },
+          {
+            "xmlId": "INERTIALGLOVES",
+            "display": "Inertial Gloves",
+            "baseCost": 1
+          },
+          {
+            "xmlId": "STUNRODS",
+            "display": "Stun Rods",
+            "baseCost": 1
+          }
+        ]
+      },
+      {
+        "xmlId": "COMMONMARTIAL",
+        "display": "Common Martial Arts Melee Weapons",
+        "baseCost": 2,
+        "maxCost": 2,
+        "adders": [
+          {
+            "xmlId": "CHAIN",
+            "display": "Chain & Rope Weapons",
+            "baseCost": 1
+          },
+          {
+            "xmlId": "KARATE",
+            "display": "Karate Weapons",
+            "baseCost": 1
+          },
+          {
+            "xmlId": "MOURN",
+            "display": "Mourn Staff",
+            "baseCost": 1
+          },
+          {
+            "xmlId": "NINJA",
+            "display": "Ninja Weapons",
+            "baseCost": 1
+          },
+          {
+            "xmlId": "RINGS",
+            "display": "Rings",
+            "baseCost": 1
+          },
+          {
+            "xmlId": "STAFFS",
+            "display": "Staffs",
+            "baseCost": 1
+          },
+          {
+            "xmlId": "WARFAN",
+            "display": "War Fan",
+            "baseCost": 1
+          }
+        ]
+      },
+      {
+        "xmlId": "UNCOMMONMARTIAL",
+        "display": "Uncommon Martial Arts Melee Weapons",
+        "baseCost": 0,
+        "adders": [
+          {
+            "xmlId": "FLYINGCLAW",
+            "display": "Flying Claw/Guillotine",
+            "baseCost": 1
+          },
+          {
+            "xmlId": "HOOKSWORD",
+            "display": "Hook Sword",
+            "baseCost": 1
+          },
+          {
+            "xmlId": "KISERU",
+            "display": "Kiseru",
+            "baseCost": 1
+          },
+          {
+            "xmlId": "LAJATANG",
+            "display": "Lajatang",
+            "baseCost": 1
+          },
+          {
+            "xmlId": "PENDJEPIT",
+            "display": "Pendjepit",
+            "baseCost": 1
+          },
+          {
+            "xmlId": "ROPEDART",
+            "display": "Rope Dart",
+            "baseCost": 1
+          },
+          {
+            "xmlId": "THREESECTIONSTAFF",
+            "display": "Three-Section Staff",
+            "baseCost": 1
+          },
+          {
+            "xmlId": "URUMI",
+            "display": "Urumi",
+            "baseCost": 1
+          },
+          {
+            "xmlId": "WINDANDFIRE",
+            "display": "Wind and Fire Wheels",
+            "baseCost": 1
+          }
+        ]
+      },
+      {
+        "xmlId": "COMMONMISSILE",
+        "display": "Common Missile Weapons",
+        "baseCost": 2,
+        "maxCost": 2,
+        "adders": [
+          {
+            "xmlId": "ROCKS",
+            "display": "Thrown Rocks",
+            "baseCost": 0
+          },
+          {
+            "xmlId": "BOWS",
+            "display": "Bows",
+            "baseCost": 1
+          },
+          {
+            "xmlId": "CROSSBOWS",
+            "display": "Crossbows",
+            "baseCost": 1
+          },
+          {
+            "xmlId": "JAVELINS",
+            "display": "Javelins and Thrown Spears",
+            "baseCost": 1
+          },
+          {
+            "xmlId": "THROWNKNIVES",
+            "display": "Thrown Knives, Axes, and Darts",
+            "baseCost": 1
+          }
+        ]
+      },
+      {
+        "xmlId": "UNCOMMONMISSILEWEAPONS",
+        "display": "Uncommon Missile Weapons",
+        "baseCost": 0,
+        "adders": [
+          {
+            "xmlId": "ARARE",
+            "display": "Arare",
+            "baseCost": 1
+          },
+          {
+            "xmlId": "ATATL",
+            "display": "Atatl",
+            "baseCost": 1
+          },
+          {
+            "xmlId": "BLOWGUNS",
+            "display": "Blowguns",
+            "baseCost": 1
+          },
+          {
+            "xmlId": "BOOMERANGS",
+            "display": "Boomerangs and Throwing Clubs",
+            "baseCost": 1
+          },
+          {
+            "xmlId": "EARLYGRENADES",
+            "display": "Early Thrown Grenades",
+            "baseCost": 1
+          },
+          {
+            "xmlId": "FUKIMIBARI",
+            "display": "Fukimi-Bari",
+            "baseCost": 1
+          },
+          {
+            "xmlId": "IRONDUCK",
+            "display": "Iron Mandarin Duck",
+            "baseCost": 1
+          },
+          {
+            "xmlId": "METSUBISHI",
+            "display": "Metsubishi",
+            "baseCost": 1
+          },
+          {
+            "xmlId": "SLING",
+            "display": "Sling",
+            "baseCost": 1
+          },
+          {
+            "xmlId": "SLINGBOW",
+            "display": "Sling Bow",
+            "baseCost": 1
+          },
+          {
+            "xmlId": "STAFFSLING",
+            "display": "Staff Sling",
+            "baseCost": 1
+          },
+          {
+            "xmlId": "STEELOLIVE",
+            "display": "Steel Olive",
+            "baseCost": 1
+          },
+          {
+            "xmlId": "STEELTOAD",
+            "display": "Steel Toad",
+            "baseCost": 1
+          },
+          {
+            "xmlId": "THROWNCHAIN",
+            "display": "Thrown Chain & Rope Weapons",
+            "baseCost": 1
+          },
+          {
+            "xmlId": "THROWNSWORD",
+            "display": "Thrown Sword",
+            "baseCost": 1
+          },
+          {
+            "xmlId": "WISHFULBALL",
+            "display": "Wishful Steel Ball",
+            "baseCost": 1
+          }
+        ]
+      },
+      {
+        "xmlId": "SIEGEENGINES",
+        "display": "Siege Engines",
+        "baseCost": 2,
+        "maxCost": 2,
+        "adders": [
+          {
+            "xmlId": "BALLISTA",
+            "display": "Ballista",
+            "baseCost": 1
+          },
+          {
+            "xmlId": "CATAPULT",
+            "display": "Catapult",
+            "baseCost": 1
+          },
+          {
+            "xmlId": "ONAGER",
+            "display": "Onager",
+            "baseCost": 1
+          },
+          {
+            "xmlId": "SIEGETOWER",
+            "display": "Siege Tower",
+            "baseCost": 1
+          },
+          {
+            "xmlId": "SPRINGENGINE",
+            "display": "Spring Engine",
+            "baseCost": 1
+          },
+          {
+            "xmlId": "TREBUCHET",
+            "display": "Trebuchet",
+            "baseCost": 1
+          },
+          {
+            "xmlId": "TURTLE",
+            "display": "Turtle",
+            "baseCost": 1
+          }
+        ]
+      },
+      {
+        "xmlId": "EARLYFIREARMS",
+        "display": "Early Firearms",
+        "baseCost": 2,
+        "maxCost": 2,
+        "adders": [
+          {
+            "xmlId": "EARLYMUZZLELOADERS",
+            "display": "Early Muzzleloaders",
+            "baseCost": 1
+          },
+          {
+            "xmlId": "MATCHLOCKS",
+            "display": "Matchlocks",
+            "baseCost": 1
+          },
+          {
+            "xmlId": "WHEELLOCKS",
+            "display": "Wheellocks",
+            "baseCost": 1
+          },
+          {
+            "xmlId": "FLINTLOCKS",
+            "display": "Flintlocks",
+            "baseCost": 1
+          },
+          {
+            "xmlId": "EARLYPERCUSSIONFIREARMS",
+            "display": "Early Percussion Firearms",
+            "baseCost": 1
+          }
+        ]
+      },
+      {
+        "xmlId": "SMALLARMS",
+        "display": "Small Arms",
+        "baseCost": 2,
+        "maxCost": 2,
+        "adders": [
+          {
+            "xmlId": "LMGS",
+            "display": "Assault Rifles/LMGs",
+            "baseCost": 1
+          },
+          {
+            "xmlId": "HANDGUNS",
+            "display": "Handguns",
+            "baseCost": 1
+          },
+          {
+            "xmlId": "RIFLES",
+            "display": "Rifles",
+            "baseCost": 1
+          },
+          {
+            "xmlId": "SHOTGUNS",
+            "display": "Shotguns",
+            "baseCost": 1
+          },
+          {
+            "xmlId": "SUBMACHINEGUNS",
+            "display": "Submachine Guns",
+            "baseCost": 1
+          },
+          {
+            "xmlId": "THROWNGRENADES",
+            "display": "Thrown Grenades",
+            "baseCost": 1
+          },
+          {
+            "xmlId": "LIQUIDRIFLE",
+            "display": "Liquid-Propellant Rifles",
+            "baseCost": 1
+          },
+          {
+            "xmlId": "GAUSSGUNS",
+            "display": "Gauss Guns",
+            "baseCost": 1
+          },
+          {
+            "xmlId": "POLYMERGUNS",
+            "display": "Polymer Guns",
+            "baseCost": 1
+          },
+          {
+            "xmlId": "ROCKETPISTOLS",
+            "display": "Rocket Pistols",
+            "baseCost": 1
+          },
+          {
+            "xmlId": "ROCKETRIFLES",
+            "display": "Rocket Rifles",
+            "baseCost": 1
+          },
+          {
+            "xmlId": "MISSILEGUNS",
+            "display": "Missile Guns",
+            "baseCost": 1
+          },
+          {
+            "xmlId": "SONICSTUNNER",
+            "display": "Sonic Stunners",
+            "baseCost": 1
+          },
+          {
+            "xmlId": "TRANQGUNS",
+            "display": "Tranquilizer Dart Guns",
+            "baseCost": 1
+          }
+        ]
+      },
+      {
+        "xmlId": "UNCOMMONMODERNWEAPONS",
+        "display": "Uncommon Modern Weapons",
+        "baseCost": 0,
+        "adders": [
+          {
+            "xmlId": "FLAMETHROWERS",
+            "display": "Flamethrowers",
+            "baseCost": 1
+          },
+          {
+            "xmlId": "GRENADELAUNCHERS",
+            "display": "Grenade Launchers",
+            "baseCost": 1
+          },
+          {
+            "xmlId": "HEAVYMACHINEGUNS",
+            "display": "General Purpose/Heavy Machine Guns",
+            "baseCost": 1
+          },
+          {
+            "xmlId": "SHOULDERFIRED",
+            "display": "Shoulder-Fired Weapons",
+            "baseCost": 1
+          }
+        ]
+      },
+      {
+        "xmlId": "EMPLACEDWEAPONS",
+        "display": "Emplaced Weapons",
+        "baseCost": 2,
+        "maxCost": 2,
+        "adders": [
+          {
+            "xmlId": "EARLYEMPLACEDWEAPONS",
+            "display": "Early Emplaced Weapons",
+            "baseCost": 1
+          },
+          {
+            "xmlId": "ANTIAIRCRAFT",
+            "display": "Anti-Aircraft Guns",
+            "baseCost": 1
+          },
+          {
+            "xmlId": "ANTITANK",
+            "display": "Anti-Tank Guns",
+            "baseCost": 1
+          },
+          {
+            "xmlId": "ARTILLERY",
+            "display": "Artillery",
+            "baseCost": 1
+          },
+          {
+            "xmlId": "HOWITZERS",
+            "display": "Howitzers",
+            "baseCost": 1
+          },
+          {
+            "xmlId": "MORTARS",
+            "display": "Mortars",
+            "baseCost": 1
+          },
+          {
+            "xmlId": "RECOILLESSGUNS",
+            "display": "Recoilless Guns",
+            "baseCost": 1
+          }
+        ]
+      },
+      {
+        "xmlId": "VEHICLEWEAPONS",
+        "display": "Vehicle Weapons",
+        "baseCost": 1
+      },
+      {
+        "xmlId": "VEHICLEWEAPONSALL",
+        "display": "Vehicle Weapons (group)",
+        "baseCost": 2,
+        "maxCost": 2
+      },
+      {
+        "xmlId": "BEAMWEAPONS",
+        "display": "Beam Weapons",
+        "baseCost": 2,
+        "maxCost": 2,
+        "adders": [
+          {
+            "xmlId": "LASERPISTOL",
+            "display": "Laser Pistols",
+            "baseCost": 1
+          },
+          {
+            "xmlId": "LASERRIFLE",
+            "display": "Laser Rifles",
+            "baseCost": 1
+          },
+          {
+            "xmlId": "ELECTRONBEAM",
+            "display": "Electron Beam Weapons",
+            "baseCost": 1
+          },
+          {
+            "xmlId": "PARTICLEGUNS",
+            "display": "Particle Guns",
+            "baseCost": 1
+          }
+        ]
+      },
+      {
+        "xmlId": "ENERGYWEAPONS",
+        "display": "Energy Weapons",
+        "baseCost": 2,
+        "maxCost": 2,
+        "adders": [
+          {
+            "xmlId": "IONBLASTER",
+            "display": "Ion Blasters",
+            "baseCost": 1
+          },
+          {
+            "xmlId": "PLASMAGUNS",
+            "display": "Plasma Guns",
+            "baseCost": 1
+          },
+          {
+            "xmlId": "DISINTEGRATORS",
+            "display": "Disintegrators",
+            "baseCost": 1
+          }
+        ]
+      }
+    ]
   },
   {
     "xmlId": "WEAPONSMITH",
@@ -1239,6 +2721,93 @@ export const SKILL_CATALOG_6E: SkillCatalogEntry[] = [
         "baseCost": 0,
         "lvlCost": 2,
         "lvlVal": 1
+      }
+    ],
+    "adders": [
+      {
+        "xmlId": "MUSCLEPOWEREDHTH",
+        "display": "Muscle-Powered HTH",
+        "baseCost": 2
+      },
+      {
+        "xmlId": "MUSCLEPOWEREDRANGED",
+        "display": "Muscle-Powered Ranged",
+        "baseCost": 2
+      },
+      {
+        "xmlId": "FIREARMS",
+        "display": "Firearms",
+        "baseCost": 2
+      },
+      {
+        "xmlId": "MISSILES",
+        "display": "Missiles & Rockets",
+        "baseCost": 2
+      },
+      {
+        "xmlId": "CHEMICAL",
+        "display": "Chemical Weapons",
+        "baseCost": 2
+      },
+      {
+        "xmlId": "BIOLOGICAL",
+        "display": "Biological Weapons",
+        "baseCost": 2
+      },
+      {
+        "xmlId": "INCENDIARY",
+        "display": "Incendiary Weapons",
+        "baseCost": 2
+      },
+      {
+        "xmlId": "ENERGY",
+        "display": "Energy Weapons",
+        "baseCost": 2
+      },
+      {
+        "xmlId": "ARROWSBOLTSDARTS",
+        "display": "Arrows, Bolts, And Darts",
+        "baseCost": 2
+      },
+      {
+        "xmlId": "AXESANDPICKS",
+        "display": "Axes And Picks",
+        "baseCost": 2
+      },
+      {
+        "xmlId": "BOWS",
+        "display": "Bows",
+        "baseCost": 2
+      },
+      {
+        "xmlId": "CROSSBOWS",
+        "display": "Crossbows",
+        "baseCost": 2
+      },
+      {
+        "xmlId": "FLAILS",
+        "display": "Flails",
+        "baseCost": 2
+      },
+      {
+        "xmlId": "MACESANDHAMMERS",
+        "display": "Maces And Hammers",
+        "baseCost": 2
+      },
+      {
+        "xmlId": "SPEARSANDPOLEARMS",
+        "display": "Spears And Polearms",
+        "baseCost": 2
+      },
+      {
+        "xmlId": "SWORDSANDDAGGERS",
+        "display": "Swords And Daggers",
+        "baseCost": 2
+      },
+      {
+        "xmlId": "OTHER",
+        "display": "Other",
+        "baseCost": 2
       }
     ]
   },

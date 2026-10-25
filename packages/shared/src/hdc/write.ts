@@ -45,6 +45,7 @@ import {
 import {
   SKILL_CATALOG_6E,
   SKILL_ENHANCER_CATALOG_6E,
+  type SkillCatalogAdder,
   type SkillCatalogEntry,
 } from '../generated/skillCatalog6e.js';
 import {
@@ -856,9 +857,14 @@ function reconcileAdders(ctx: WriteContext, owner: XmlElement, before: Adder[], 
   for (const b of flatBefore) {
     if (afterIds.has(b.id)) continue;
     const el = findAdder(owner, b.id);
-    if (el?.parent) {
-      el.parent.removeElement(el);
+    const parent = el?.parent;
+    if (parent) {
+      parent.removeElement(el);
       ctx.change(`Removed adder ${b.name}`);
+      // A group bought member by member goes once its last member does
+      if (b.group && parent.name === 'ADDER' && parent.getAttr('SELECTED') === 'NO' && !parent.elements('ADDER').length) {
+        parent.parent?.removeElement(parent);
+      }
     }
   }
 
@@ -870,7 +876,7 @@ function reconcileAdders(ctx: WriteContext, owner: XmlElement, before: Adder[], 
 function reconcileAdder(ctx: WriteContext, owner: XmlElement, beforeById: Map<string, Adder>, a: Adder): void {
   const b = beforeById.get(a.id);
   if (!b) {
-    insertChild(owner, createAdder(ctx, a));
+    insertChild(a.group ? adderGroup(ctx, owner, a.group) : owner, createAdder(ctx, a));
     ctx.change(`Added adder ${a.name}`);
     return;
   }
@@ -900,6 +906,20 @@ function reconcileAdder(ctx: WriteContext, owner: XmlElement, beforeById: Map<st
   if (a.adders || b.adders) {
     for (const child of a.adders ?? []) reconcileAdder(ctx, el, beforeById, child);
   }
+}
+
+/**
+ * The unselected adder a member is listed under (a Weapon Familiarity's Uncommon Melee Weapons),
+ * as Hero Designer stores a group bought member by member; created when it's the first member
+ */
+function adderGroup(ctx: WriteContext, owner: XmlElement, xmlId: string): XmlElement {
+  const existing = owner.elements('ADDER').find((el) => el.getAttr('XMLID') === xmlId);
+  if (existing) return existing;
+  const skill = SKILL_CATALOG_6E.find((s) => s.xmlId === owner.getAttr('XMLID'));
+  const find = (list: SkillCatalogAdder[] | undefined): SkillCatalogAdder | undefined =>
+    list?.reduce<SkillCatalogAdder | undefined>((hit, a) => hit ?? (a.xmlId === xmlId ? a : find(a.adders)), undefined);
+  const display = find(skill?.adders)?.display ?? xmlId;
+  return insertChild(owner, createAdder(ctx, { id: '', xmlId, name: display, alias: display, baseCost: 0, selected: false }));
 }
 
 function flattenAdders(adders: Adder[]): Adder[] {
@@ -938,7 +958,7 @@ function createAdder(ctx: WriteContext, a: Adder): XmlElement {
 function appendChildren(ctx: WriteContext, el: XmlElement, item: { modifiers?: Modifier[]; adders?: Adder[]; notes?: string }): void {
   insertChild(el, createElement('NOTES'));
   if (item.notes) setNotes(el, item.notes);
-  for (const adder of item.adders ?? []) insertChild(el, createAdder(ctx, adder));
+  for (const adder of item.adders ?? []) insertChild(adder.group ? adderGroup(ctx, el, adder.group) : el, createAdder(ctx, adder));
   for (const modifier of item.modifiers ?? []) insertChild(el, createModifier(ctx, modifier));
 }
 
@@ -1042,14 +1062,20 @@ const SKILL_SPEC: ItemSpec<Skill> = {
       && (el.hasAttr('CHARACTERISTIC') || lookupSkillCatalog(xmlId)?.characteristicChoices)) {
       el.setAttr('CHARACTERISTIC', a.characteristic);
     }
-    if (!same(b.proficiency, a.proficiency)) el.setAttr('PROFICIENCY', yesNo(a.proficiency));
-    if (!same(b.familiarity, a.familiarity)) {
-      el.setAttr('FAMILIARITY', yesNo(a.familiarity));
-      // Hero Designer writes a familiarity's BASECOST as 0, and the skill's own base otherwise
+    if (!same(b.familiarity, a.familiarity) || !same(b.proficiency, a.proficiency)) {
+      el.setAttr('FAMILIARITY', yesNo(a.familiarity && !a.proficiency));
+      el.setAttr('PROFICIENCY', yesNo(a.proficiency));
+      // Hero Designer writes a familiarity's BASECOST as 0, a proficiency's as 2, and the skill's own base otherwise
       const choices = lookupSkillCatalog(xmlId)?.characteristicChoices ?? [];
       const base = choices.find((c) => c.characteristic === el.getAttr('CHARACTERISTIC'))?.baseCost ?? choices[0]?.baseCost;
-      if (a.familiarity && !a.proficiency) el.setAttr('BASECOST', '0.0');
+      if (a.proficiency) el.setAttr('BASECOST', hdCost(Math.min(2, base ?? 2)));
+      else if (a.familiarity) el.setAttr('BASECOST', '0.0');
       else if (base !== undefined) el.setAttr('BASECOST', hdCost(base));
+      // A Proficiency is kept as a General skill (proficiencyAsGeneral); otherwise it has its characteristic
+      const own = choices.find((c) => c.characteristic === a.characteristic)?.characteristic ?? choices[0]?.characteristic;
+      if (!a.proficiency && el.getAttr('CHARACTERISTIC') === 'GENERAL' && own && !choices.some((c) => c.characteristic === 'GENERAL')) {
+        el.setAttr('CHARACTERISTIC', own);
+      }
     }
     if (!same(b.everyman, a.everyman)) el.setAttr('EVERYMAN', yesNo(a.everyman));
     if (!same(b.nativeTongue, a.nativeTongue)) el.setAttr('NATIVE_TONGUE', yesNo(a.nativeTongue));
@@ -1110,7 +1136,12 @@ const SKILL_SPEC: ItemSpec<Skill> = {
       XMLID: xmlId,
       ID: '',
       // A familiarity has no base cost of its own (Hero Designer writes 0; hero6e prices from it)
-      BASECOST: hdCost(isCustom ? s.baseCost : s.familiarity && !s.proficiency ? 0 : (fluency?.cost ?? choice?.baseCost ?? cat?.baseCost ?? 0)),
+      BASECOST: hdCost(
+        isCustom ? s.baseCost
+          : s.proficiency ? Math.min(2, choice?.baseCost ?? cat?.baseCost ?? 2)
+            : s.familiarity ? 0
+              : (fluency?.cost ?? choice?.baseCost ?? cat?.baseCost ?? 0),
+      ),
       LEVELS: hdInt(s.levels),
       ALIAS: alias,
       POSITION: '0',
@@ -1118,7 +1149,7 @@ const SKILL_SPEC: ItemSpec<Skill> = {
       NAME: customName,
       INPUT: parsed.input,
       CHARACTERISTIC: choice?.characteristic ?? (isCustom ? s.characteristic ?? 'GENERAL' : undefined),
-      FAMILIARITY: yesNo(s.familiarity),
+      FAMILIARITY: yesNo(s.familiarity && !s.proficiency),
       PROFICIENCY: yesNo(s.proficiency),
       LEVELSONLY: 'No',
       EVERYMAN: s.everyman ? 'Yes' : undefined,

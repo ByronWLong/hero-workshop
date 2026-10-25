@@ -10,6 +10,8 @@
  * - "Usable As" movement says which movement it is (hero6e reads ALIAS or COMMENTS).
  * - Penalty Skill Levels have their option, and the penalty their name states is in the
  *   option's text, where hero6e looks for it.
+ * - Proficiencies (11-) are General skills with no levels, which hero6e rolls at 11- (it rolls
+ *   PROFICIENCY="Yes" at 10-).
  *
  * Anything that can't be worked out is reported, not guessed.
  */
@@ -20,7 +22,7 @@ import { isContainerType } from '../frameworks.js';
 import { HdcDocument } from './document.js';
 import { parseHdcDocument } from './parse.js';
 import { updateHdc } from './write.js';
-import { characteristicRollFix, fixPslOption, lacksManeuverCategory, lacksPslOption, lacksSenseGroup } from './foundry.js';
+import { characteristicRollFix, fixPslOption, lacksManeuverCategory, lacksPslOption, lacksSenseGroup, proficiencyAsGeneral } from './foundry.js';
 import { PSL_PENALTIES, pslPenalty, pslPenaltyInName } from '../skillLevels.js';
 
 export interface RepairResult {
@@ -50,6 +52,7 @@ export function repairForFoundry(xml: string): RepairResult {
   repairSenseGroups(fixed, changes);
   repairAdderIds(fixed, changes);
   repairCharacteristicRolls(fixed, changes);
+  repairProficiencies(fixed, changes);
   out = fixed.toString();
   return { xml: changes.length ? out : xml, changes, unresolved };
 }
@@ -279,6 +282,13 @@ function repairSenseGroups(doc: HdcDocument, changes: string[]): void {
     el.setAttr('OPTIONID', 'SIGHTGROUP');
     el.setAttr('OPTION_ALIAS', 'Sight Group');
     changes.push(`${el.getAttr('NAME') || el.getAttr('ALIAS')}: affects the Sight Group`);
+  }
+}
+
+/** A Proficiency becomes the General 11- skill hero6e rolls correctly */
+function repairProficiencies(doc: HdcDocument, changes: string[]): void {
+  for (const el of doc.section('SKILLS')?.descendants() ?? []) {
+    if (proficiencyAsGeneral(el)) changes.push(`${el.getAttr('NAME') || el.getAttr('ALIAS') || 'Skill'}: Proficiency rolls 11-`);
   }
 }
 

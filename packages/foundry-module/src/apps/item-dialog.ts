@@ -96,7 +96,7 @@ export class ItemDialog extends HeroWorkshopApplication {
           },
         };
       }
-      if (field.type !== 'attacks') return field;
+      if (field.type !== 'attacks' && field.type !== 'checklist') return field;
       const groups: { name: string; options: typeof field.options }[] = [];
       for (const option of field.options ?? []) {
         const name = option.group ?? '';
@@ -162,6 +162,15 @@ export class ItemDialog extends HeroWorkshopApplication {
     super._onRender(context, options);
     this.element.querySelectorAll<HTMLInputElement>('input[data-target]').forEach((box) => {
       box.addEventListener('change', () => this.#toggleTarget(box.dataset.target!, box.checked));
+    });
+    // Checklists (a Weapon Familiarity's weapons): each tick adds or removes its choice
+    this.element.querySelectorAll<HTMLInputElement>('[data-checklist] input[data-value]').forEach((box) => {
+      box.addEventListener('change', () => {
+        const name = box.closest<HTMLElement>('[data-checklist]')!.dataset.checklist!;
+        const chosen = (Array.isArray(this.#values[name]) ? (this.#values[name] as string[]) : []).filter((v) => v !== box.dataset.value);
+        this.#values = { ...this.#values, [name]: box.checked ? [...chosen, box.dataset.value!] : chosen };
+        void this.render();
+      });
     });
   }
 
