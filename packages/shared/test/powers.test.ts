@@ -14,7 +14,11 @@ import {
   powerDraft,
   savePowerDraft,
   selectPower,
+  setAdderMedium,
+  setAdderOption,
+  setAdderOptionAlias,
   setModifierComments,
+  powerFormView,
   setModifierOption,
   updateHdc,
 } from '../src/index.js';
@@ -141,5 +145,47 @@ describe('power drafts', () => {
     expect(HdcDocument.parse(out).findById('9602')!.getAttr('COMMENTS')).toBe('Only in jungle or forest');
     expect(out.replace('COMMENTS="Only in jungle or forest"', 'COMMENTS=""')).toBe(xml);
     expect(parseHdcFile(out).powers[0]!.modifiers![0]!.comments).toBe('Only in jungle or forest');
+  });
+
+  it("qualifies Life Support's adders by their choices", () => {
+    const base = blankHdc();
+    const character = parseHdcFile(base);
+    let draft = selectPower(powerDraft(character, 'powers'), 'LIFESUPPORT');
+    for (const id of ['EATING', 'LONGEVITY', 'IMMUNITY']) draft = addAdder(draft, id);
+    // Each starts on its first choice
+    expect(draft.adders.map((a) => [a.optionId, a.baseCost])).toEqual([['WEEK', 1], ['TWOHUNDRED', 1], ['ALCOHOL', 3]]);
+    const [eating, longevity, immunity] = draft.adders.map((a) => a.id);
+    draft = setAdderOption(draft, eating!, 'NEVER');
+    draft = setAdderOption(draft, longevity!, 'IMMORTAL');
+    draft = setAdderOptionAlias(setAdderOption(draft, immunity!, 'ONETHING'), immunity!, 'Arsenic');
+    // Does not eat 3, Immortal 5, a single substance 3
+    expect(powerCosts(draft).real).toBe(11);
+    const view = powerFormView(character, 'powers', draft);
+    expect(view.adders[0]!.options?.find((o) => o.selected)?.value).toBe('NEVER');
+    expect(view.adders[2]!.optionText?.value).toBe('Arsenic');
+
+    const { xml } = updateHdc(base, savePowerDraft(character, 'powers', undefined, draft));
+    const el = HdcDocument.parse(xml).section('POWERS')!.elements()[0]!;
+    expect(el.elements('ADDER').map((a) => ['OPTIONID', 'OPTION_ALIAS', 'BASECOST'].map((k) => a.getAttr(k)))).toEqual([
+      ['NEVER', 'Character does not eat', '3.0'],
+      ['IMMORTAL', 'Immortal', '5.0'],
+      ['ONETHING', 'Arsenic', '3.0'],
+    ]);
+    expect(parseHdcFile(xml).powers[0]!.realCost).toBe(11);
+  });
+
+  it("names Expanded Breathing's medium", () => {
+    const base = blankHdc();
+    const character = parseHdcFile(base);
+    let draft = addAdder(selectPower(powerDraft(character, 'powers'), 'LIFESUPPORT'), 'EXPANDEDBREATHING');
+    draft = setAdderMedium(draft, draft.adders[0]!.id, 'water');
+    const view = powerFormView(character, 'powers', draft);
+    expect([view.adders[0]!.name, view.adders[0]!.medium?.value]).toEqual(['Expanded Breathing', 'water']);
+    const { xml } = updateHdc(base, savePowerDraft(character, 'powers', undefined, draft));
+    const adder = HdcDocument.parse(xml).section('POWERS')!.elements()[0]!.elements('ADDER')[0]!;
+    expect([adder.getAttr('ALIAS'), adder.getAttr('BASECOST')]).toEqual(['Expanded Breathing: water', '5.0']);
+    const reparsed = parseHdcFile(xml);
+    const reopened = powerFormView(reparsed, 'powers', powerDraft(reparsed, 'powers', reparsed.powers[0]!.id), reparsed.powers[0]!.id);
+    expect(reopened.adders[0]!.medium?.value).toBe('water');
   });
 });

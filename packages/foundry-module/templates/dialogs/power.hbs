@@ -169,6 +169,13 @@
     {{#each adders}}
     <div class="hw-mod-row">
       <span class="hw-mod-name {{#if rename}}hw-mod-label{{/if}}">{{#if rename}}Also detects{{else}}{{name}}{{/if}}</span>
+      {{#if options}}
+      <select class="hw-mod-option" data-field="adderOption.{{id}}" aria-label="{{name}}">
+        {{#each options}}<option value="{{value}}" {{#if selected}}selected{{/if}}>{{label}}</option>{{/each}}
+      </select>
+      {{/if}}
+      {{#if optionText}}<input type="text" class="hw-mod-text" data-field="adderOptionText.{{id}}" value="{{optionText.value}}" placeholder="{{optionText.placeholder}}" aria-label="{{optionText.placeholder}}">{{/if}}
+      {{#if medium}}<input type="text" class="hw-mod-text" data-field="adderMedium.{{id}}" value="{{medium.value}}" placeholder="Medium (water, methane…)" aria-label="Medium">{{/if}}
       {{#if rename}}<input type="text" class="hw-mod-text" data-field="adderAlias.{{id}}" value="{{rename.value}}" placeholder="What else it detects" aria-label="What else it detects">{{/if}}
       {{#if hasLevels}}<input type="number" class="hw-small" data-field="adder.{{id}}" value="{{levels}}" min="0" data-tooltip="Levels">{{/if}}
       <span class="hw-mod-value">+{{cost}}</span>

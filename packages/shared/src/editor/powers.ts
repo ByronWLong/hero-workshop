@@ -230,6 +230,26 @@ function findPower(character: Character, section: PowerSection, id: string): Pow
   return undefined;
 }
 
+/** Choices that leave the adder to be described (Immunity to a "Single substance") */
+const OPEN_ADDER_OPTIONS = new Set(['ONETHING']);
+
+function adderOptionsView(draft: PowerDraft, a: Adder) {
+  const options = adderChoices(draft).find((d) => d.xmlId === a.xmlId)?.options;
+  if (!options?.length) return {};
+  const option = options.find((o) => o.xmlId === a.optionId);
+  return {
+    options: [
+      // None chosen yet (files written without one), or one the template doesn't have, which stays
+      ...(!a.optionId ? [{ value: '', label: 'Choose…', selected: true }] : []),
+      ...(a.optionId && !option ? [{ value: a.optionId, label: a.optionAlias ?? a.optionId, selected: true }] : []),
+      ...options.map((o) => ({ value: o.xmlId, label: `${o.display} (${o.baseCost ?? 0})`, selected: o.xmlId === a.optionId })),
+    ],
+    optionText: option && OPEN_ADDER_OPTIONS.has(option.xmlId)
+      ? { value: a.optionAlias && a.optionAlias !== option.display ? a.optionAlias : '', placeholder: 'Which substance' }
+      : undefined,
+  };
+}
+
 function senseView(draft: PowerDraft) {
   // Hero Designer also writes NOGROUP for a sense in no group: that's Unusual Senses
   const group = !draft.senseGroup || draft.senseGroup === 'NOGROUP' ? (defaultSenseGroup(draft.xmlId) ?? 'UNUSUALGROUP') : draft.senseGroup;
@@ -408,6 +428,29 @@ export function setAdderAlias(draft: PowerDraft, id: string, alias: string): Pow
   return { ...draft, adders: draft.adders.map((a) => (a.id === id ? { ...a, alias: alias.trim() || a.name } : a)) };
 }
 
+/**
+ * What an adder is for, in its name as Hero Designer prints its Life Support adders ("Eating: ...").
+ * Expanded Breathing has no choices, so the medium goes there: "Expanded Breathing: water"
+ */
+export function setAdderMedium(draft: PowerDraft, id: string, text: string): PowerDraft {
+  return {
+    ...draft,
+    adders: draft.adders.map((a) => {
+      if (a.id !== id) return a;
+      const name = templateAdderName(draft, a.xmlId ?? '') ?? a.name;
+      return { ...a, alias: text.trim() ? `${name}: ${text.trim()}` : name };
+    }),
+  };
+}
+
+/** The medium in an adder's name, or (from files that put it there) its OPTION_ALIAS */
+function adderMedium(draft: PowerDraft, a: Adder): string {
+  const name = templateAdderName(draft, a.xmlId ?? '') ?? a.name;
+  const alias = a.alias ?? '';
+  if (alias.startsWith(`${name}:`)) return alias.slice(name.length + 1).trim();
+  return a.optionAlias ?? '';
+}
+
 /** An adder's name in the template (before it's renamed) */
 const templateAdderName = (draft: PowerDraft, xmlId: string) => adderChoices(draft).find((a) => a.xmlId === xmlId)?.display;
 
@@ -446,12 +489,16 @@ export function addAdder(draft: PowerDraft, xmlId: string): PowerDraft {
   const def = adderChoices(draft).find((a) => a.xmlId === xmlId);
   if (!def) return draft;
   const excludes = new Set(def.excludes ?? []);
+  // An adder with choices (Life Support's Eating: once a week, a year, never) starts on the first
+  const option = def.options?.[0];
   const adder: Adder = {
     id: newId(),
     xmlId: def.xmlId,
     name: def.display,
     alias: def.display,
-    baseCost: def.baseCost,
+    baseCost: option?.baseCost ?? def.baseCost,
+    optionId: option?.xmlId,
+    optionAlias: option?.display,
     levels: def.lvlCost ? Math.max(def.minVal ?? 1, 1) : undefined,
     lvlCost: def.lvlCost,
     lvlVal: def.lvlVal,
@@ -459,6 +506,27 @@ export function addAdder(draft: PowerDraft, xmlId: string): PowerDraft {
     selected: true,
   };
   return { ...draft, adders: [...draft.adders.filter((a) => !excludes.has(a.xmlId ?? '')), adder] };
+}
+
+/**
+ * Picks an adder's choice, which sets its price (Life Support's Longevity: 200 years is 1 point,
+ * Immortal 5), as Hero Designer stores it: OPTIONID, OPTION_ALIAS and the option's BASECOST
+ */
+export function setAdderOption(draft: PowerDraft, id: string, optionId: string): PowerDraft {
+  return {
+    ...draft,
+    adders: draft.adders.map((a) => {
+      if (a.id !== id) return a;
+      const option = adderChoices(draft).find((d) => d.xmlId === a.xmlId)?.options?.find((o) => o.xmlId === optionId);
+      return option ? { ...a, optionId: option.xmlId, optionAlias: option.display, baseCost: option.baseCost ?? a.baseCost } : a;
+    }),
+  };
+}
+
+/** What an adder's choice names, where the choice is "something" (Immunity to a single substance) */
+export function setAdderOptionAlias(draft: PowerDraft, id: string, text: string): PowerDraft {
+  const named = (a: Adder) => adderChoices(draft).find((d) => d.xmlId === a.xmlId)?.options?.find((o) => o.xmlId === a.optionId)?.display;
+  return { ...draft, adders: draft.adders.map((a) => (a.id === id ? { ...a, optionAlias: text.trim() || named(a) || a.optionAlias } : a)) };
 }
 
 export function removeAdder(draft: PowerDraft, id: string): PowerDraft {
@@ -1076,11 +1144,16 @@ export function powerFormView(character: Character, section: PowerSection, draft
     containers: powerContainers(character, section, itemId).map((c) => ({ ...c, selected: c.id === draft.parentId })),
     adders: draft.adders.map((a) => ({
       id: a.id,
-      name: a.alias ?? a.name,
+      // An adder with its medium in its name shows the medium in its own box
+      name: a.xmlId === 'EXPANDEDBREATHING' ? (templateAdderName(draft, a.xmlId) ?? a.name) : (a.alias ?? a.name),
       hasLevels: !!a.lvlCost,
       levels: a.levels ?? 0,
+      // The adder's choices (Life Support's Eating: how often), and text for an open one
+      ...adderOptionsView(draft, a),
       // Detect's extra things are named by their alias
       rename: draft.xmlId === 'DETECT' && a.xmlId === 'EXTRA' ? { value: a.alias && a.alias !== templateAdderName(draft, 'EXTRA') ? a.alias : '' } : undefined,
+      // Life Support's Expanded Breathing: the medium it breathes
+      medium: a.xmlId === 'EXPANDEDBREATHING' ? { value: adderMedium(draft, a) } : undefined,
       cost: (a.baseCost ?? 0) + (a.levels ?? 0) * (a.lvlCost ?? 0),
     })),
     availableAdders: availableAdders(draft).map((a) => ({
