@@ -35,6 +35,9 @@ export interface ItemRowView {
   /** Equipment: what it costs to buy and what it weighs (kg), when set */
   price?: number;
   weight?: number;
+  /** Equipment: whether it's carried (not stored somewhere), and a list's contents' weight */
+  carried?: boolean;
+  contents?: { carried: number; stored: number };
   children: ItemRowView[];
 }
 
@@ -59,6 +62,8 @@ export interface ListItem {
   subPowers?: ListItem[];
   price?: number;
   weight?: number;
+  carried?: boolean;
+  quantity?: number;
 }
 
 export function sectionItems(character: Character, section: SectionId): ListItem[] {
@@ -126,6 +131,22 @@ function rowCost(section: SectionId, own: number, isGroup: boolean, children: It
   return own;
 }
 
+/** What's in a list weighs (kg), carried and stored, from its rows */
+function contentsWeight(rows: ItemRowView[]): { carried: number; stored: number } {
+  let carried = 0;
+  let stored = 0;
+  for (const row of rows) {
+    const own = row.weight ?? 0;
+    if (row.carried === false) stored += own;
+    else carried += own;
+    if (row.contents) {
+      carried += row.contents.carried;
+      stored += row.contents.stored;
+    }
+  }
+  return { carried: Math.round(carried * 10) / 10, stored: Math.round(stored * 10) / 10 };
+}
+
 /** Items nested under their LIST groups / compound powers, in list order */
 export function buildItemTree(character: Character, section: SectionId): ItemRowView[] {
   const items = sectionItems(character, section);
@@ -172,7 +193,9 @@ export function buildItemTree(character: Character, section: SectionId): ItemRow
       free: section !== 'disadvantages' && multiplier === 0,
       rawCost,
       ...(section === 'equipment' && item.price ? { price: item.price } : {}),
-      ...(section === 'equipment' && item.weight ? { weight: item.weight } : {}),
+      ...(section === 'equipment' && item.weight ? { weight: Math.round(item.weight * (item.quantity ?? 1) * 10) / 10 } : {}),
+      ...(section === 'equipment' && !isPart ? { carried: item.carried ?? true } : {}),
+      ...(section === 'equipment' && (kind === 'LIST' || item.isContainer) ? { contents: contentsWeight(children) } : {}),
       isGroup,
       icon: item.icon,
       acceptsChildren: !!item.isGroup || item.type === 'LIST' || FRAMEWORKS.includes(item.xmlId ?? item.type ?? ''),

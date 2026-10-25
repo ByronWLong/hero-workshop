@@ -18,6 +18,8 @@ import {
 } from './apps';
 import { preloadTemplates } from './apps/base';
 import { queueCreatedItem, recordIconChange } from './sync/actorItems';
+import { carriedChanged } from './sync/carried';
+import { moveItemToActor } from './sync/move';
 import { openNewItem } from './apps/new-item';
 import {
   DRAG_TYPE,
@@ -65,6 +67,11 @@ Hooks.once('init', () => {
       driftReport,
       createItemsFromXml,
       repairForFoundry,
+      /** Moves an actor's item (with what's in it) to another actor */
+      moveItem: (item: FoundryItem, target: FoundryActor) => {
+        if (!item.actor) throw new Error(`${item.name} isn't on an actor`);
+        return moveItemToActor(item.actor, String(item.system.ID), target);
+      },
     };
   }
   registerRaceSettings(openRaceLibrary);
@@ -349,4 +356,12 @@ Hooks.on('updateItem', ((item: FoundryItem, changes: Record<string, unknown>, _o
   // hero6e's own import sets items up (and we restore icons after it)
   if (item.actor?.getFlag(HERO_SYSTEM_ID, 'uploading')) return;
   recordIconChange(item);
+}) as (...args: never[]) => unknown);
+
+// Equipment carried or put down on hero6e's sheet: a list's contents go with it, and the
+// change goes into the actor's HDC
+Hooks.on('updateItem', ((item: FoundryItem, changes: Record<string, unknown>, options: Record<string, unknown>, userId: string) => {
+  if (!isHeroSystem() || !actsForUser(userId)) return;
+  if (item.actor?.getFlag(HERO_SYSTEM_ID, 'uploading')) return;
+  carriedChanged(item, changes, options);
 }) as (...args: never[]) => unknown);

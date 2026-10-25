@@ -55,6 +55,32 @@ export function extractItems(xml: string, id: string): ItemTransfer | undefined 
   return { section, fragments: members.map((m) => m.toString()) };
 }
 
+/**
+ * Takes an item out of a document: the element and its PARENTID descendants (a list's or
+ * framework's members), with what's nested in them. Returns the new text and every HDC ID that
+ * went, nested ones included (hero6e keeps a compound's parts as items of their own).
+ */
+export function removeItems(xml: string, id: string): { xml: string; removedIds: string[] } | undefined {
+  const doc = HdcDocument.parse(xml);
+  const el = doc.findById(id);
+  if (!el?.parent) return undefined;
+  const section = sectionOf(doc, el);
+  const container = section ? doc.section(section) : undefined;
+  const members = container && el.parent === container ? family(container, el) : [el];
+  const removedIds: string[] = [];
+  const collect = (node: XmlElement) => {
+    const nodeId = node.getAttr('ID');
+    if (nodeId && node.getAttr('XMLID') !== undefined && node.name !== 'ADDER' && node.name !== 'MODIFIER') removedIds.push(nodeId);
+    for (const child of node.elements()) collect(child);
+  };
+  for (const member of members) {
+    collect(member);
+    member.parent?.removeElement(member);
+  }
+  doc.invalidateIndex();
+  return { xml: doc.toString(), removedIds };
+}
+
 /** Where a dropped item goes beside another item: just before it, or just after it (and its members) */
 export interface Placement {
   /** HDC ID of the item it goes beside */

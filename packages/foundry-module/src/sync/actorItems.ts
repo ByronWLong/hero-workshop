@@ -46,6 +46,21 @@ function enqueue(actorId: string, work: () => Promise<void>): void {
   });
 }
 
+/** Runs work after any earlier writes for the same actor, resolving (or failing) with it */
+export function runQueued<T>(actorId: string, work: () => Promise<T>): Promise<T> {
+  const previous = writing.get(actorId) ?? Promise.resolve();
+  const result = previous.then(work);
+  const next = result.then(
+    () => undefined,
+    () => undefined,
+  );
+  writing.set(actorId, next);
+  void next.finally(() => {
+    if (writing.get(actorId) === next) writing.delete(actorId);
+  });
+  return result;
+}
+
 async function flush(actorId: string): Promise<void> {
   const entry = pending.get(actorId);
   pending.delete(actorId);

@@ -12,6 +12,7 @@ export {
   insertParts,
   partsTarget,
   moveItem,
+  removeItems,
   placementParent,
   isContainerTransfer,
   type Placement,

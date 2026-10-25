@@ -13,9 +13,14 @@
     </div>
     {{/if}}
   </div>
+  {{#if tab.load}}
+  <p class="hint hw-load {{#if tab.load.dcv}}hw-bad{{/if}}" data-tooltip="As hero6e works out encumbrance: carried weight against what STR lifts">
+    <i class="fa-solid fa-weight-hanging" inert></i> {{tab.load.text}}{{#if tab.load.stored}} · <i class="fa-solid fa-box-archive" inert></i> {{tab.load.stored}}{{/if}}
+  </p>
+  {{/if}}
   {{#if tab.rows.length}}
   <ol class="hw-items">
-    {{#each tab.rows as |row|}}{{> "modules/hero-workshop/templates/editor/item-row.hbs" row=row section=../tab.section}}{{/each}}
+    {{#each tab.rows as |row|}}{{> "modules/hero-workshop/templates/editor/item-row.hbs" row=row section=../tab.section canCarry=../tab.canCarry canMove=../tab.canMove}}{{/each}}
   </ol>
   {{else}}
   <p class="hint hw-empty">Nothing here yet. Add one, or drag items in from the Items sidebar.</p>

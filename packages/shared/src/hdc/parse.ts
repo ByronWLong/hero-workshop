@@ -1824,6 +1824,7 @@ function parseEquipmentItem(obj: Record<string, unknown>): Equipment {
     price: getAttrNum(obj, 'PRICE') || undefined,
     weight: weightKg,
     carried: getAttrBool(obj, 'CARRIED', true),
+    quantity: getAttrNum(obj, 'QUANTITY', 1) > 1 ? getAttrNum(obj, 'QUANTITY', 1) : undefined,
     input: getAttr(obj, 'INPUT') || undefined,
     option: getAttr(obj, 'OPTION') || undefined,
     optionAlias: getAttr(obj, 'OPTION_ALIAS') || undefined,

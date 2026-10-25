@@ -355,6 +355,8 @@ export interface Equipment extends GenericObjectBase {
   price?: number;
   weight?: number;
   carried?: boolean;
+  /** How many there are (QUANTITY): weight is per item */
+  quantity?: number;
   activeCost?: number;
   realCost?: number;
   endCost?: number;

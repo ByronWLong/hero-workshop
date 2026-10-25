@@ -11,6 +11,8 @@ export interface ActorChoiceOptions {
   title: string;
   /** Explains what happens to the chosen actor */
   hint?: string;
+  /** Only the world's actors this user owns that have Hero Designer data, except this one */
+  ownedWorldActors?: { except?: string };
 }
 
 export function chooseActor(options: ActorChoiceOptions): Promise<FoundryActor | undefined> {
@@ -40,7 +42,10 @@ class ActorChooserWindow extends HeroWorkshopApplication {
   }
 
   async _prepareContext() {
-    const world = [...game.actors.contents].sort((a, b) => a.name.localeCompare(b.name)).map((actor) => {
+    const owned = this.choice.ownedWorldActors;
+    const world = [...game.actors.contents]
+      .filter((a) => !owned || (a.isOwner && a.system._hdcXml && a.id !== owned.except))
+      .sort((a, b) => a.name.localeCompare(b.name)).map((actor) => {
       const folder = (actor as FoundryActor & { folder?: { name?: string } }).folder?.name;
       const type = actor.type.toUpperCase();
       return {
@@ -54,7 +59,7 @@ class ActorChooserWindow extends HeroWorkshopApplication {
     });
     // Compendium actors, from each pack's index (only the chosen one is loaded)
     const compendiums = [];
-    for (const pack of game.packs.contents.filter((p) => p.documentName === 'Actor' && p.visible !== false)) {
+    for (const pack of owned ? [] : game.packs.contents.filter((p) => p.documentName === 'Actor' && p.visible !== false)) {
       const index = await pack.getIndex({ fields: ['img', 'type', 'folder'] });
       const entries = [...index.values()].sort((a, b) => a.name.localeCompare(b.name));
       if (!entries.length) continue;

@@ -409,6 +409,37 @@
   color: var(--color-level-error);
 }
 
+/* Equipment carried or stored (put down somewhere), and moved to another actor */
+.hero-workshop .hw-item-carry,
+.hero-workshop .hw-item-move {
+  width: 1.25rem;
+  text-align: center;
+  color: var(--color-text-secondary);
+}
+
+.hero-workshop .hw-item-move {
+  visibility: hidden;
+}
+
+.hero-workshop .hw-item-row:hover > .hw-item-move,
+.hero-workshop .hw-item-row:focus-within > .hw-item-move {
+  visibility: visible;
+}
+
+.hero-workshop .hw-item-carry:hover,
+.hero-workshop .hw-item-move:hover {
+  color: var(--color-text-primary);
+}
+
+.hero-workshop .hw-stored > .hw-item-row .hw-item-text,
+.hero-workshop .hw-stored > .hw-item-row .hw-item-weight {
+  opacity: 0.6;
+}
+
+.hero-workshop .hw-load {
+  margin: 0 0 0.5rem;
+}
+
 /* ---------------------------------------------------------------- drag and drop */
 
 .hero-workshop .hw-item-row.hw-dragging {

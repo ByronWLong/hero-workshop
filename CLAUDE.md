@@ -49,6 +49,8 @@ Shared must build first as it provides type definitions consumed by the Foundry 
 - `src/sync/drift.ts` - Detects edits made on hero6e's own sheets that aren't in the actor's stored HDC
 - `src/sync/worldItems.ts` - World items ↔ HDC fragments (drag and drop, new items); world items are built with hero6e's own `parseItemsFromHeroJsonToItemDataArray`. Shared `hdc/transfer.ts` extracts/inserts items with fresh IDs
 - `src/sync/session.ts` - Applies edited HDC through hero6e's `actor.uploadFromXml` (keeps damage, charges, item IDs)
+- `src/sync/move.ts` - Moves an item to another actor (editor "Move to…", Shift-drop between sheets, `api.moveItem`): copies it on, then removes it from the source's items and HDC
+- `src/sync/carried.ts` - A list's Carried toggled on hero6e's sheet goes to its contents and into the stored HDC (shared `editor/equipment.ts` has the carry and encumbrance rules)
 
 ## HDC Writing Rules
 

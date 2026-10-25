@@ -22,6 +22,8 @@ import {
   placementParent,
   powerTypeChoices,
   removeItem,
+  equipmentLoad,
+  setCarried,
   setCharacteristicValue,
   typeChoices,
   hasLists,
@@ -44,6 +46,7 @@ import { DRAG_TYPE, dragData, transferFromItem, type HeroWorkshopDragData } from
 import { canManageRaces, getRaceLibrary } from '../races/library';
 import { HeroWorkshopApplication, template } from './base';
 import { chooseRaces } from './race-picker';
+import { chooseActor } from './actor-chooser';
 import { ItemDialog } from './item-dialog';
 import { PowerDialog } from './power-dialog';
 
@@ -115,6 +118,8 @@ export class HeroWorkshopEditor extends HeroWorkshopApplication {
       addItem: HeroWorkshopEditor.#onAddItem,
       editItem: HeroWorkshopEditor.#onEditItem,
       deleteItem: HeroWorkshopEditor.#onDeleteItem,
+      toggleCarried: HeroWorkshopEditor.#onToggleCarried,
+      moveToActor: HeroWorkshopEditor.#onMoveToActor,
     },
   };
 
@@ -213,6 +218,8 @@ export class HeroWorkshopEditor extends HeroWorkshopApplication {
           id === 'powers' || id === 'equipment' ? powerTypeChoices() : typeChoices(id as FormSection)?.groups,
         addField: `addType.${id}`,
         addPlaceholder: id === 'equipment' ? 'Add equipment by power…' : `Add a ${SECTION_NOUNS[id]} by name…`,
+        // Equipment: carried and stored, what that weighs, and items moved to other actors
+        ...(id === 'equipment' ? this.#equipmentContext() : {}),
       };
     };
     const characteristics = buildCharacteristicsView(character);
@@ -251,6 +258,20 @@ export class HeroWorkshopEditor extends HeroWorkshopApplication {
         .filter((id) => tabs[id])
         .map(listTab),
       ...this.#footerContext(),
+    };
+  }
+
+  #equipmentContext() {
+    const load = equipmentLoad(this.#character);
+    const penalty = load.dcv ? `${load.dcv} DCV and DEX Rolls${load.move ? `, ${load.move}m movement` : ''}` : 'no penalty';
+    return {
+      canCarry: !this.readOnly && !this.session.view?.visibleTabs,
+      canMove: !!this.session.moveItem && !this.readOnly,
+      load: {
+        ...load,
+        text: `Carrying ${load.carried} kg of ${load.lift} kg (${load.percent}%): ${penalty}`,
+        stored: load.stored ? `${load.stored} kg stored` : '',
+      },
     };
   }
 
@@ -783,6 +804,45 @@ export class HeroWorkshopEditor extends HeroWorkshopApplication {
       rejectClose: false,
     });
     if (confirmed) this.setCharacter(removeItem(this.#character, section, id));
+  }
+
+  static #onToggleCarried(this: HeroWorkshopEditor, event: Event, target: HTMLElement) {
+    event.stopPropagation();
+    const id = target.dataset.itemId!;
+    const item = (this.#character.equipment ?? []).find((e) => e.id === id);
+    if (item) this.setCharacter(setCarried(this.#character, id, !(item.carried ?? true)));
+  }
+
+  /** Moves an item to another actor straight away (the editor then shows the actor without it) */
+  static async #onMoveToActor(this: HeroWorkshopEditor, event: Event, target: HTMLElement) {
+    event.stopPropagation();
+    const move = this.session.moveItem;
+    if (!move) return;
+    if (this.#dirty) {
+      ui.notifications.warn('Apply or discard your changes before moving items to another actor.');
+      return;
+    }
+    const id = target.dataset.itemId!;
+    const name = (this.#character.equipment ?? []).find((e) => e.id === id)?.name ?? 'the item';
+    const actor = await chooseActor({
+      title: `Move ${name} to…`,
+      hint: `${name} goes to the chosen actor, with everything in it, and off ${this.session.actorName}.`,
+      ownedWorldActors: { except: this.session.actorId },
+    });
+    if (!actor) return;
+    try {
+      const moved = await move.call(this.session, id, actor);
+      ui.notifications.info(game.i18n.format('HERO_WORKSHOP.MovedToActor', { name: moved, from: this.session.actorName, actor: actor.name }));
+    } catch (e) {
+      console.error(e);
+      ui.notifications.error(game.i18n.format('HERO_WORKSHOP.MoveFailed', { name, reason: e instanceof Error ? e.message : String(e) }));
+      return;
+    }
+    // Start again from the actor's HDC as it now is
+    this.#baseXml = this.session.hdcXml;
+    this.#original = parseHdcFile(this.#baseXml);
+    this.#character = this.#original;
+    void this.render();
   }
 
   static #onManageRaces() {

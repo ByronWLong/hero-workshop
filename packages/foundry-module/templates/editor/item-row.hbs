@@ -1,4 +1,4 @@
-<li class="hw-item {{#if row.isGroup}}hw-item-group{{/if}}">
+<li class="hw-item {{#if row.isGroup}}hw-item-group{{/if}} {{#if (eq row.carried false)}}hw-stored{{/if}}">
   <div class="hw-item-row" draggable="true" tabindex="0" role="button" data-action="editItem" data-section="{{section}}"
     data-item-id="{{row.id}}" {{#if row.acceptsChildren}}data-accepts-children{{/if}} {{#if row.acceptsParts}}data-accepts-parts{{/if}}>
     <img class="hw-item-icon" src="{{row.img}}" alt="" loading="lazy">
@@ -11,14 +11,26 @@
     {{/if}}
     {{#if (eq section "equipment")}}
     <span class="hw-item-price" data-tooltip="Price">{{#if row.price}}{{row.price}}{{/if}}</span>
+    {{#if row.contents}}
+    <span class="hw-item-weight" data-tooltip="What's in it: {{row.contents.carried}} kg carried, {{row.contents.stored}} kg stored">{{#if row.contents.carried}}{{row.contents.carried}} kg{{else if row.contents.stored}}({{row.contents.stored}} kg){{/if}}</span>
+    {{else}}
     <span class="hw-item-weight" data-tooltip="Weight">{{#if row.weight}}{{row.weight}} kg{{/if}}</span>
     {{/if}}
+    {{/if}}
     <span class="hw-item-cost" {{#if (eq section "equipment")}}data-tooltip="Real Cost"{{/if}}>{{row.cost}}</span>
+    {{#if (and canCarry (or (eq row.carried true) (eq row.carried false)))}}
+    <a class="hw-item-carry" data-action="toggleCarried" data-item-id="{{row.id}}"
+      data-tooltip="{{#if row.carried}}Carried{{#if row.contents}} (with what's in it){{/if}}: click to store it{{else}}Stored, not carried: click to carry it{{/if}}"
+      aria-label="{{#if row.carried}}Store{{else}}Carry{{/if}} {{row.name}}"><i class="fa-solid {{#if row.carried}}fa-hand-holding{{else}}fa-box-archive{{/if}}" inert></i></a>
+    {{/if}}
+    {{#if (and canMove (or (eq row.carried true) (eq row.carried false)))}}
+    <a class="hw-item-move" data-action="moveToActor" data-item-id="{{row.id}}" data-tooltip="Move to another actor (a stash, a mount, another character)" aria-label="Move {{row.name}} to another actor"><i class="fa-solid fa-right-left" inert></i></a>
+    {{/if}}
     <a class="hw-item-delete" data-action="deleteItem" data-section="{{section}}" data-item-id="{{row.id}}" data-tooltip="Delete" aria-label="Delete {{row.name}}"><i class="fa-solid fa-trash" inert></i></a>
   </div>
   {{#if row.children.length}}
   <ol class="hw-items hw-children">
-    {{#each row.children as |child|}}{{> "modules/hero-workshop/templates/editor/item-row.hbs" row=child section=../section}}{{/each}}
+    {{#each row.children as |child|}}{{> "modules/hero-workshop/templates/editor/item-row.hbs" row=child section=../section canCarry=../canCarry canMove=../canMove}}{{/each}}
   </ol>
   {{/if}}
 </li>

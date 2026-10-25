@@ -40,6 +40,7 @@ import {
 import { calculateAdderCost, heroRoundCost } from '../utils.js';
 import { builtInSenseModifiers, defaultSenseGroup, isEnhancedSense, senseAdders, senseGroupChoices, senseModifierName } from '../senses.js';
 import { fractionText as fraction, modifierSummary } from './lists.js';
+import { setCarried } from './equipment.js';
 import { skillRollCategory } from '../hdc/foundry.js';
 import { HdcDocument } from '../hdc/document.js';
 import { parseHdcFile } from '../hdc/parse.js';
@@ -1447,5 +1448,11 @@ export function savePowerDraft(character: Character, section: PowerSection, item
   } else {
     items = propagateCost(items, item.parentId, { real: now.real - was.real, active: now.active - was.active });
   }
-  return { ...character, equipment: items };
+  let saved: Character = { ...character, equipment: items };
+  // A list's Carried is its contents' (put down the saddlebags, and what's in them is put down)
+  if (draft.kind === 'list' && top && (top.carried ?? true) !== draft.carried) saved = setCarried(saved, item.id, draft.carried);
+  // Put in a list, an item is where the list is: carried or stored with it
+  const list = item.parentId !== top?.parentId ? items.find((e) => e.id === item.parentId && e.xmlId === 'LIST') : undefined;
+  if (list && (top?.carried ?? true) === draft.carried) saved = setCarried(saved, item.id, list.carried ?? true);
+  return saved;
 }

@@ -13,10 +13,13 @@
  *   rows are made draggable, and Hero Workshop copies them with their members or parts.
  * - Nor can it copy a list or framework (e.g. a Multipower) from a compendium, where folder
  *   contents aren't loaded: only the parent arrives. Hero Workshop copies those too.
+ * - Shift-dropping an item from another actor moves it there (off the first actor), e.g. into
+ *   the party's wagon.
  */
 
 import { MODULE_ID } from '../sync/session';
 import { copyFamilyToActor, itemFamily } from '../sync/worldItems';
+import { moveItemToActor } from '../sync/move';
 
 interface ObservableActor {
   testUserPermission(user: unknown, permission: string): boolean;
@@ -88,6 +91,22 @@ async function copyFamily(item: FamilyItem, actor: FoundryActor): Promise<void> 
   }
 }
 
+/** Moves an item Shift-dropped from another actor's sheet; false if it isn't one that can move */
+async function moveDropped(uuid: string, actor: FoundryActor, event: DragEvent): Promise<boolean> {
+  const item = (await fromUuid(uuid)) as FamilyItem | null;
+  const source = item?.actor;
+  if (!item || !source || source.pack) return false;
+  event.preventDefault?.();
+  try {
+    const name = await moveItemToActor(source, String(item.system.ID), actor);
+    ui.notifications.info(game.i18n.format('HERO_WORKSHOP.MovedToActor', { name, from: source.name, actor: actor.name }));
+  } catch (e) {
+    console.error(e);
+    ui.notifications.error(game.i18n.format('HERO_WORKSHOP.MoveFailed', { name: item.name, reason: e instanceof Error ? e.message : String(e) }));
+  }
+  return true;
+}
+
 /**
  * Makes a sheet's list, framework and compound rows draggable (call on render; hero6e marks
  * only single items).
@@ -143,6 +162,7 @@ export function wrapActorSheetDrag(): void {
         const at = uuid.lastIndexOf('.Item.');
         const actorUuid = (this.actor as { uuid?: string } | undefined)?.uuid;
         if (at < 0 || !this.actor || uuid.slice(0, at) === actorUuid) return onDropItem.call(this, event, data);
+        if (event.shiftKey && (await moveDropped(uuid, this.actor, event))) return;
         const family = await familyToCopy(uuid, this.actor);
         if (!family) return onDropItem.call(this, event, data);
         event.preventDefault?.();

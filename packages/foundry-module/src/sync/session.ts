@@ -11,6 +11,7 @@ import { HdcDocument, blankHdc, type Character } from '@hero-workshop/shared';
 import type { TabId } from './tabs';
 import { detectDrift, type DriftChange, type DriftItemSource } from './drift';
 import { applyIcons } from './icons';
+import { moveItemToActor } from './move';
 
 export const MODULE_ID = 'hero-workshop';
 
@@ -35,6 +36,8 @@ export interface SessionView {
 
 export interface ActorSession {
   actorName: string;
+  /** The Foundry actor's ID, when it exists */
+  actorId?: string;
   /** True when applying creates a new actor rather than updating one */
   isNew: boolean;
   /** The actor's stored HDC (hero6e keeps it at system._hdcXml, minus the portrait) */
@@ -48,6 +51,8 @@ export interface ActorSession {
   download(xml: string, fileName: string): void;
   /** The Foundry icon of the item with this HDC ID, if it's in Foundry */
   itemImage?(hdcId: string): string | undefined;
+  /** Moves an item (with what's in it) to another actor, now; returns its name */
+  moveItem?(hdcId: string, target: FoundryActor): Promise<string>;
 }
 
 export function createActorSession(actor: FoundryActor, view?: SessionView): ActorSession {
@@ -56,9 +61,17 @@ export function createActorSession(actor: FoundryActor, view?: SessionView): Act
 
   return {
     actorName: actor.name,
+    actorId: actor.id,
     isNew: false,
-    hdcXml,
+    // The actor's HDC as it is now (a move or a Carried toggle on the sheet changes it)
+    get hdcXml() {
+      return actor.system._hdcXml ?? hdcXml;
+    },
     view,
+
+    moveItem(hdcId, target) {
+      return moveItemToActor(actor, hdcId, target);
+    },
 
     detectDrift(doc) {
       return detectDrift(doc, {
