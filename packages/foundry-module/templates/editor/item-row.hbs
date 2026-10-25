@@ -9,18 +9,18 @@
     {{/if}}
     <img class="hw-item-icon" src="{{row.img}}" alt="" loading="lazy">
     <div class="hw-item-text">
-      <span class="hw-item-name">{{row.name}}{{#if row.children.length}} <span class="hw-item-inside hint" data-tooltip="Items in it">({{row.inside}})</span>{{/if}}{{#if row.free}} <span class="hw-tag hw-tag-free" data-tooltip="Given by the GM: costs no points">Free</span>{{/if}}</span>
+      <span class="hw-item-name">{{#if (or row.quantity (eq row.quantity 0))}}<span class="hw-item-qty" data-tooltip="How many">{{row.quantity}} ×</span> {{/if}}{{row.name}}{{#if row.children.length}} <span class="hw-item-inside hint" data-tooltip="Items in it">({{row.inside}})</span>{{/if}}{{#if row.free}} <span class="hw-tag hw-tag-free" data-tooltip="Given by the GM: costs no points">Free</span>{{/if}}</span>
       {{#if row.detail}}<span class="hint hw-item-detail">{{row.detail}}</span>{{/if}}
     </div>
     {{#if (eq section "skills")}}
     <span class="hw-item-roll" data-tooltip="Roll">{{#if row.roll}}{{row.roll}}{{/if}}</span>
     {{/if}}
     {{#if (eq section "equipment")}}
-    <span class="hw-item-price" data-tooltip="Price">{{#if row.price}}{{row.price}}{{/if}}</span>
+    <span class="hw-item-price" data-tooltip="{{#if (or row.quantity (eq row.quantity 0))}}Price each{{else}}Price{{/if}}">{{#if row.price}}{{row.price}}{{/if}}</span>
     {{#if row.contents}}
     <span class="hw-item-weight" data-tooltip="What's in it: {{row.contents.carried}} kg carried, {{row.contents.stored}} kg stored">{{#if row.contents.carried}}{{row.contents.carried}} kg{{else if row.contents.stored}}({{row.contents.stored}} kg){{/if}}</span>
     {{else}}
-    <span class="hw-item-weight" data-tooltip="Weight">{{#if row.weight}}{{row.weight}} kg{{/if}}</span>
+    <span class="hw-item-weight" data-tooltip="{{#if (or row.quantity (eq row.quantity 0))}}Weight of all {{row.quantity}}{{else}}Weight{{/if}}">{{#if row.weight}}{{row.weight}} kg{{/if}}</span>
     {{/if}}
     {{/if}}
     <span class="hw-item-cost" {{#if (eq section "equipment")}}data-tooltip="Real Cost"{{/if}}>{{row.cost}}</span>

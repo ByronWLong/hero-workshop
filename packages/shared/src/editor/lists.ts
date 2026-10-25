@@ -35,6 +35,8 @@ export interface ItemRowView {
   /** Equipment: what it costs to buy and what it weighs (kg), when set */
   price?: number;
   weight?: number;
+  /** Equipment: how many there are, when not one (the weight is all of them; the price is each) */
+  quantity?: number;
   /** Equipment: whether it's carried (not stored somewhere), and a list's contents' weight */
   carried?: boolean;
   contents?: { carried: number; stored: number };
@@ -194,6 +196,7 @@ export function buildItemTree(character: Character, section: SectionId): ItemRow
       rawCost,
       ...(section === 'equipment' && item.price ? { price: item.price } : {}),
       ...(section === 'equipment' && item.weight ? { weight: Math.round(item.weight * (item.quantity ?? 1) * 10) / 10 } : {}),
+      ...(section === 'equipment' && !isPart && (item.quantity ?? 1) !== 1 ? { quantity: item.quantity } : {}),
       ...(section === 'equipment' && !isPart ? { carried: item.carried ?? true } : {}),
       ...(section === 'equipment' && (kind === 'LIST' || item.isContainer) ? { contents: contentsWeight(children) } : {}),
       isGroup,

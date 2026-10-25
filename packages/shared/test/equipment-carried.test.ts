@@ -95,5 +95,7 @@ describe('carried and stored equipment', () => {
     const row = (id: string) => flat(rows).find((r) => r.id === id)!;
     expect([row('9001').acceptsChildren, row('9001').acceptsParts]).toEqual([true, false]);
     expect([row('9003').acceptsChildren, row('9005').acceptsChildren, row('9005').acceptsParts]).toEqual([true, false, true]);
+    // A stack shows how many; single items and lists don't
+    expect(['9005', '9004', '9001'].map((id) => row(id).quantity)).toEqual([3, undefined, undefined]);
   });
 });

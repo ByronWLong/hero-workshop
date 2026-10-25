@@ -334,6 +334,11 @@
   display: none;
 }
 
+.hero-workshop .hw-item-qty {
+  font-weight: bold;
+  font-variant-numeric: tabular-nums;
+}
+
 .hero-workshop .hw-item-inside {
   font-weight: normal;
 }
