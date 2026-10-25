@@ -26,8 +26,8 @@ import type {
   Rules,
   CharacteristicType,
 } from '../types.js';
-import { calculateActiveCost, calculateRealCost, generateId, heroRoundCost } from '../utils.js';
-import { TALENT_CATALOG_6E } from '../generated/catalog6e.js';
+import { generateId, heroRoundCost } from '../utils.js';
+import { perkTalentCosts, perkTalentEntry, perkXmlId, type PerkTalentPurchase } from '../perkTalentCosts.js';
 import { SKILL_CATALOG_6E } from '../generated/skillCatalog6e.js';
 import { skillLevelCost } from '../skillLevels.js';
 
@@ -1125,42 +1125,17 @@ function parsePerk(obj: Record<string, unknown>): Perk {
     'VEHICLE': 'VEHICLE',
     'VEHICLE_BASE': 'VEHICLE_BASE',
   };
-  const perkType = perkTypeMap[xmlid] || 'GENERIC';
-  
-  // Calculate total cost based on perk type (adders already parsed above)
-  const baseCost = getAttrNum(obj, 'BASECOST', 0);
-  const adderCost = calculateAdderCost(adders);
-  
-  let totalCost = 0;
-  let activeCost = 0; // Track active cost before list discounts
-  
-  if (xmlid === 'VEHICLE_BASE' || xmlid === 'FOLLOWER') {
-    // Vehicles & Bases, Followers: 1 CP per 5 points built on, +5 per doubling of their number
-    const basePoints = getAttrNum(obj, 'BASEPOINTS', 0);
-    const number = Math.max(1, getAttrNum(obj, 'NUMBER', 1));
-    totalCost = Math.ceil(basePoints / 5) + 5 * Math.ceil(Math.log2(number));
-    activeCost = totalCost;
-  } else if (xmlid === 'CONTACT') {
-    // Contact: 1 point per level (at least 1) plus its adders (useful skills, loyalty...), then modifiers
-    const modifiers = parseModifiers(obj);
-    activeCost = calculateActiveCost(Math.max(1, levels) + adderCost, modifiers);
-    totalCost = Math.max(1, calculateRealCost(activeCost, modifiers));
-  } else if (xmlid === 'REPUTATION' || xmlid === 'POSITIVE_REPUTATION') {
-    // Hero Designer (Reputation.java): each level (+1/+1d6) costs how widely plus how well it's
-    // known (at least 1); other adders add to that
-    const scope = adders.filter((a) => a.xmlId === 'HOWWIDE' || a.xmlId === 'HOWWELL');
-    const perLevel = Math.max(1, calculateAdderCost(scope));
-    const others = calculateAdderCost(adders.filter((a) => !scope.includes(a)));
-    activeCost = Math.max(1, Math.ceil(Math.abs(baseCost) + Math.max(1, levels) * perLevel + others));
-    totalCost = activeCost; // Real cost will be adjusted by list discount later
-  } else {
-    totalCost = Math.ceil(Math.abs(baseCost + adderCost + levels));
-    activeCost = totalCost;
-  }
-  
+  // Catalog perks the editor has no name for keep their XMLID
+  const perkType = perkTypeMap[xmlid] || (perkTalentEntry('perk', xmlid) && xmlid !== 'CUSTOMPERK' ? xmlid : 'GENERIC');
+
+  // Priced as Hero Designer prices it (perkTalentCosts.ts); the active cost is before list discounts
+  const purchase = perkPurchase(obj, xmlid, adders);
+  const modifiers = parseModifiers(obj);
+  const { active: activeCost, real: totalCost } = perkTalentCosts('perk', purchase, modifiers);
+
   // Store PARENTID for list discount application
   const parentId = getAttr(obj, 'PARENTID', '');
-  
+
   return {
     id: getAttr(obj, 'ID') || generateId(),
     name: displayName.trim(),
@@ -1171,9 +1146,29 @@ function parsePerk(obj: Record<string, unknown>): Perk {
     realCost: totalCost,
     notes: getAttr(obj, 'NOTES') || undefined,
     type: perkType as Perk['type'],
-    modifiers: parseModifiers(obj),
+    modifiers,
     adders: adders,
     parentId: parentId || undefined,
+    option: purchase.option,
+    optionAlias: getAttr(obj, 'OPTION_ALIAS', '') || undefined,
+    basePrice: purchase.basePrice,
+    basePoints: purchase.basePoints,
+    number: purchase.number,
+  };
+}
+
+/** What a perk is bought with, as the HDC stores it */
+function perkPurchase(obj: Record<string, unknown>, xmlid: string, adders: Adder[]): PerkTalentPurchase {
+  const xmlId = perkXmlId(xmlid);
+  const vehicle = xmlId === 'VEHICLE_BASE' || xmlId === 'FOLLOWER';
+  return {
+    xmlId,
+    basePrice: getAttrNum(obj, 'BASECOST', 0),
+    levels: getAttrNum(obj, 'LEVELS', 0),
+    option: getAttr(obj, 'OPTIONID', '') || undefined,
+    adders,
+    basePoints: vehicle ? getAttrNum(obj, 'BASEPOINTS', 0) : undefined,
+    number: vehicle ? Math.max(1, getAttrNum(obj, 'NUMBER', 1)) : undefined,
   };
 }
 
@@ -1183,40 +1178,37 @@ export function contactRollFor(levels: number): number {
   return 11 + levels - 2;
 }
 
-const TALENT_CATALOG = new Map(TALENT_CATALOG_6E.map((t) => [t.xmlId, t]));
-
 function parseTalent(obj: Record<string, unknown>): Talent {
   // HDC files use XMLID for the talent type
   const xmlid = getAttr(obj, 'XMLID', '');
   const alias = getAttr(obj, 'ALIAS', '');
   const name = alias || getAttr(obj, 'NAME', '') || xmlid || 'Unknown Talent';
   const levels = getAttrNum(obj, 'LEVELS', 0);
-  const baseCost = getAttrNum(obj, 'BASECOST', 0);
-  
-  // For custom talents, LEVELS is the cost; otherwise baseCost + levels at the template's cost per level + adders
+  const basePrice = getAttrNum(obj, 'BASECOST', 0);
+  const option = getAttr(obj, 'OPTIONID', '') || undefined;
+
+  // Base cost, levels at the template's (or its option's) cost per level, and adders (perkTalentCosts.ts)
   const adders = parseAdders(obj);
-  const adderCost = calculateAdderCost(adders);
-  const entry = TALENT_CATALOG.get(xmlid);
-  // An option can price its levels differently (Deadly Blow's circumstances)
-  const option = entry?.options?.find((o) => o.xmlId === getAttr(obj, 'OPTIONID', ''));
-  const lvlCost = option?.lvlCost ?? entry?.lvlCost;
-  const perLevel = lvlCost !== undefined ? lvlCost / ((option?.lvlCost !== undefined ? option.lvlVal : entry?.lvlVal) || 1) : 1;
-  const totalCost = xmlid === 'CUSTOMTALENT' ? levels : Math.ceil(baseCost + levels * perLevel + adderCost);
-  
+  const modifiers = parseModifiers(obj);
+  const { active, real } = perkTalentCosts('talent', { xmlId: xmlid, basePrice, levels, option, adders }, modifiers);
+
   return {
     id: getAttr(obj, 'ID') || generateId(),
     name: name,
     alias: alias || undefined,
     position: getAttrNum(obj, 'POSITION', 0),
     levels: levels,
-    baseCost: totalCost,
-    realCost: totalCost,
+    baseCost: active,
+    realCost: real,
     notes: getAttr(obj, 'NOTES') || undefined,
     type: (xmlid || 'GENERIC') as Talent['type'],
     characteristic: getAttr(obj, 'CHARACTERISTIC') as CharacteristicType || undefined,
-    modifiers: parseModifiers(obj),
+    modifiers,
     adders: adders,
     parentId: getAttr(obj, 'PARENTID', '') || undefined,
+    option,
+    optionAlias: getAttr(obj, 'OPTION_ALIAS', '') || undefined,
+    basePrice,
   };
 }
 

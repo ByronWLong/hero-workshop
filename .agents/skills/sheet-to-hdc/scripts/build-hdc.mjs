@@ -305,11 +305,11 @@ const TALENT_TYPES = { LIGHTNING_REFLEXES_ALL: 'LIGHTNING_REFLEXES', OFFHANDDEFE
 function addTalents(character, ir) {
   for (const [index, item] of asArray(ir.talents).entries()) {
     const type = TALENT_TYPES[item.xmlId] ?? item.xmlId ?? 'GENERIC';
-    const perLevel = type === 'COMBAT_LUCK';
-    const levels = num(item.levels, perLevel ? 1 : 0);
-    const cost = sheetCost(item) ?? 0;
+    // The talent form prices levels from the template; the sheet's cost is used for custom talents
+    // and ones bought within a range (Environmental Movement)
+    const levels = num(item.levels, type === 'COMBAT_LUCK' ? 1 : 0);
     const saved = saveNew(character, 'talents', 'talents', {
-      type, name: item.name ?? '', levels, cost: perLevel ? cost / levels : cost, notes: item.notes ?? '', free: !!item.free,
+      type, name: item.name ?? '', levels, cost: sheetCost(item) ?? 0, notes: item.notes ?? '', free: !!item.free,
     });
     character = saved.character;
     track('talents', index, item, saved.id);

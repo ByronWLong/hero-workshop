@@ -34,6 +34,15 @@ import { FRAMEWORK_NAMES, isFramework } from '../frameworks.js';
 import { characteristicRulesFor, formatRulesName, parseRulesName } from '../characteristics.js';
 import { getModifierByXmlId } from '../modifierDefinitions.js';
 import {
+  defaultBasePrice,
+  perkTalentEntry,
+  perkTalentLevelPrice,
+  perkTalentOption,
+  perkXmlId,
+  talentXmlId,
+  type PerkTalentKind,
+} from '../perkTalentCosts.js';
+import {
   SKILL_CATALOG_6E,
   SKILL_ENHANCER_CATALOG_6E,
   type SkillCatalogEntry,
@@ -1341,20 +1350,6 @@ const EQUIPMENT_SPEC: ItemSpec<Equipment> = {
 // Perks, talents, complications, martial arts
 // =============================================================================
 
-/** Editor type names that differ from Hero Designer's XMLIDs */
-const PERK_XMLIDS: Record<string, string> = {
-  BASE: 'VEHICLE_BASE',
-  VEHICLE: 'VEHICLE_BASE',
-  POSITIVE_REPUTATION: 'REPUTATION',
-  GENERIC: 'CUSTOMPERK',
-};
-
-const TALENT_XMLIDS: Record<string, string> = {
-  LIGHTNING_REFLEXES: 'LIGHTNING_REFLEXES_ALL',
-  OFF_HAND_DEFENSE: 'OFFHANDDEFENSE',
-  GENERIC: 'CUSTOMTALENT',
-};
-
 const DISAD_XMLIDS: Record<string, string> = {
   ACCIDENTAL_CHANGE: 'ACCIDENTALCHANGE',
   DEPENDENT_NPC: 'DEPENDENTNPC',
@@ -1479,10 +1474,59 @@ function writeGroupName(el: XmlElement, name: string): void {
   el.setAttr(el.getAttr('NAME') ? 'NAME' : 'ALIAS', name);
 }
 
+/**
+ * What a perk or talent is bought with: BASECOST, OPTION, and a Follower's or Base's points.
+ * A changed type changes the XMLID (and a perk's label).
+ */
+function writePurchase(kind: PerkTalentKind, el: XmlElement, b: Perk | Talent, a: Perk | Talent): void {
+  const xmlIdOf = kind === 'perk' ? perkXmlId : talentXmlId;
+  if (!same(b.type, a.type) && xmlIdOf(b.type) !== xmlIdOf(a.type)) {
+    const xmlId = xmlIdOf(a.type);
+    el.setAttr('XMLID', xmlId);
+    const label = perkTalentEntry(kind, xmlId)?.display;
+    if (kind === 'perk' && label && xmlId !== 'CUSTOMPERK') el.setAttr('ALIAS', label);
+  }
+  if (!same(b.basePrice, a.basePrice) && a.basePrice !== undefined) el.setAttr('BASECOST', hdCost(a.basePrice));
+  if (!same(b.option, a.option)) {
+    el.setAttr('OPTION', a.option ?? '');
+    el.setAttr('OPTIONID', a.option ?? '');
+  }
+  if (!same(b.optionAlias, a.optionAlias)) el.setAttr('OPTION_ALIAS', a.optionAlias ?? '');
+  if (kind === 'perk') {
+    const [bp, ap] = [b as Perk, a as Perk];
+    if (!same(bp.basePoints, ap.basePoints) && ap.basePoints !== undefined) el.setAttr('BASEPOINTS', hdInt(ap.basePoints));
+    if (!same(bp.number, ap.number) && ap.number !== undefined) el.setAttr('NUMBER', hdInt(ap.number));
+  }
+}
+
+/** A new perk's or talent's option attributes */
+function purchaseAttrs(item: Perk | Talent): Record<string, string | undefined> {
+  return item.option ? { OPTION: item.option, OPTIONID: item.option, OPTION_ALIAS: item.optionAlias ?? '' } : {};
+}
+
+/**
+ * A new item's BASECOST and LEVELS. Editors that give only a total (baseCost) get the
+ * template's base cost when the levels carry the rest, so the levels aren't counted twice.
+ */
+function newPurchase(kind: PerkTalentKind, xmlId: string, item: Perk | Talent): { baseCost: number; levels: number } {
+  const levels = item.levels ?? 0;
+  if (item.basePrice !== undefined) return { baseCost: item.basePrice, levels };
+  if (xmlId === 'CUSTOMPERK') return { baseCost: item.baseCost ?? 0, levels: 0 };
+  // A custom talent's cost is its LEVELS (as Hero Designer writes them)
+  if (xmlId === 'CUSTOMTALENT') return { baseCost: 0, levels: item.baseCost ?? 0 };
+  const entry = perkTalentEntry(kind, xmlId);
+  const option = perkTalentOption(entry, item.option);
+  if (levels && perkTalentLevelPrice(entry, option)) return { baseCost: defaultBasePrice(entry, option), levels };
+  return { baseCost: item.baseCost ?? 0, levels };
+}
+
+const PURCHASE_FIELDS = ['type', 'option', 'optionAlias', 'basePrice'];
+
 const PERK_SPEC: ItemSpec<Perk> = {
-  handled: new Set(['name', 'alias', 'levels', 'notes']),
-  derived: new Set(['baseCost', 'realCost', 'activeCost', 'type', 'isGroup']),
+  handled: new Set(['name', 'alias', 'levels', 'notes', ...PURCHASE_FIELDS, 'basePoints', 'number']),
+  derived: new Set(['baseCost', 'realCost', 'activeCost', 'isGroup']),
   update(ctx, el, b, a) {
+    if (!a.isGroup) writePurchase('perk', el, b, a);
     if (!same(b.name, a.name)) {
       const xmlId = el.getAttr('XMLID');
       if (a.isGroup) writeGroupName(el, a.name);
@@ -1499,12 +1543,13 @@ const PERK_SPEC: ItemSpec<Perk> = {
   },
   create(ctx, p) {
     if (p.isGroup) return listElement(ctx, p);
-    const xmlId = PERK_XMLIDS[p.type] ?? p.type;
+    const xmlId = perkXmlId(p.type);
     const entry = PERK_CATALOG.get(xmlId);
     // ALIAS is the perk's label ("Contact"); the name is the contact (INPUT) or the perk's own NAME
     const label = entry?.display ?? p.alias ?? p.name;
     const named = p.name && p.name !== label && p.name !== p.alias ? p.name : '';
-    const el = genericItem('PERK', xmlId, { ...p, alias: xmlId === 'CUSTOMPERK' ? p.alias || p.name : label });
+    const purchase = newPurchase('perk', xmlId, p);
+    const el = genericItem('PERK', xmlId, { ...p, ...purchase, alias: xmlId === 'CUSTOMPERK' ? p.alias || p.name : label }, purchaseAttrs(p));
     if (xmlId === 'CUSTOMPERK') el.setAttr('NAME', p.name);
     else if (xmlId === 'CONTACT') {
       el.setAttr('INPUT', named);
@@ -1516,9 +1561,10 @@ const PERK_SPEC: ItemSpec<Perk> = {
     // A Base, Vehicle or Follower costs 1 per 5 of its points (Hero Designer reads BASEPOINTS)
     if (xmlId === 'VEHICLE_BASE' || xmlId === 'FOLLOWER') {
       el.setAttr('BASECOST', '0.0');
+      el.setAttr('LEVELS', '0');
       el.setAttr('NAME', p.name === label ? '' : p.name);
-      el.setAttr('NUMBER', '1');
-      el.setAttr('BASEPOINTS', String(Math.round((p.baseCost ?? 0) * 5)));
+      el.setAttr('NUMBER', hdInt(p.number ?? 1));
+      el.setAttr('BASEPOINTS', hdInt(p.basePoints ?? Math.round((p.baseCost ?? 0) * 5)));
       el.setAttr('DISADPOINTS', '0');
     }
     appendChildren(ctx, el, p);
@@ -1529,23 +1575,23 @@ const PERK_SPEC: ItemSpec<Perk> = {
 };
 
 const TALENT_SPEC: ItemSpec<Talent> = {
-  handled: new Set(['name', 'alias', 'levels', 'notes', 'characteristic']),
-  derived: new Set(['baseCost', 'realCost', 'activeCost', 'type', 'isGroup']),
+  handled: new Set(['name', 'alias', 'levels', 'notes', 'characteristic', ...PURCHASE_FIELDS]),
+  derived: new Set(['baseCost', 'realCost', 'activeCost', 'isGroup']),
   update(_ctx, el, b, a) {
     if (!same(b.name, a.name)) {
       if (a.isGroup) writeGroupName(el, a.name);
       else el.setAttr('ALIAS', a.name);
     }
+    if (!a.isGroup) writePurchase('talent', el, b, a);
     if (!same(b.levels, a.levels)) el.setAttr('LEVELS', hdInt(a.levels));
     if (!same(b.notes, a.notes)) setNotes(el, a.notes);
     if (!same(b.characteristic, a.characteristic) && a.characteristic) el.setAttr('CHARACTERISTIC', a.characteristic);
   },
   create(ctx, t) {
     if (t.isGroup) return listElement(ctx, t);
-    const xmlId = TALENT_XMLIDS[t.type] ?? t.type;
-    // A custom talent's cost is its LEVELS (as Hero Designer writes them)
+    const xmlId = talentXmlId(t.type);
     const custom = xmlId === 'CUSTOMTALENT';
-    const el = genericItem('TALENT', xmlId, custom ? { ...t, baseCost: 0, levels: t.baseCost } : t, { CHARACTERISTIC: t.characteristic, ...(custom ? { ROLL: '0' } : {}) });
+    const el = genericItem('TALENT', xmlId, { ...t, ...newPurchase('talent', xmlId, t) }, { CHARACTERISTIC: t.characteristic, ...purchaseAttrs(t), ...(custom ? { ROLL: '0' } : {}) });
     appendChildren(ctx, el, t);
     addRequiredAdders(ctx, el, TALENT_CATALOG.get(xmlId), t.name);
     if (!TALENT_CATALOG.has(xmlId)) ctx.warn(`${t.name}: unknown talent type ${xmlId}; Hero Designer may drop it.`);

@@ -276,21 +276,35 @@ export type DisadvantageType =
 // Perks
 // ============================================================================
 
-export interface Perk extends GenericObjectBase {
+/** What a perk or talent is bought with besides its levels and adders (see perkTalentCosts.ts) */
+export interface PerkTalentPurchaseFields {
+  /** The template option chosen (OPTIONID), e.g. Money's WEALTHY */
+  option?: string;
+  optionAlias?: string;
+  /** BASECOST in the file: the cost before levels and adders (a custom item's, or one chosen within a range) */
+  basePrice?: number;
+}
+
+export interface Perk extends GenericObjectBase, PerkTalentPurchaseFields {
   type: PerkType;
   isGroup?: boolean; // True if this is a LIST container for other perks
+  /** Followers and Vehicles & Bases: the points they're built on (BASEPOINTS) */
+  basePoints?: number;
+  /** Followers and Vehicles & Bases: how many (NUMBER) */
+  number?: number;
 }
 
 export type PerkType =
-  | 'ANONYMITY' | 'BASE' | 'COMPUTER_LINK' | 'CONTACT' | 'DEEP_COVER'
+  | 'ACCESS' | 'ANONYMITY' | 'BASE' | 'COMPUTER_LINK' | 'CONTACT' | 'DEEP_COVER'
   | 'FAVOR' | 'FOLLOWER' | 'FRINGE_BENEFIT' | 'MONEY' | 'POSITIVE_REPUTATION'
-  | 'REPUTATION' | 'VEHICLE' | 'VEHICLE_BASE' | 'GENERIC';
+  | 'REPUTATION' | 'RESOURCE_POOL' | 'VEHICLE' | 'VEHICLE_BASE' | 'GENERIC';
 
 // ============================================================================
 // Talents
 // ============================================================================
 
-export interface Talent extends GenericObjectBase {
+export interface Talent extends GenericObjectBase, PerkTalentPurchaseFields {
+  /** Hero Designer's XMLID (earlier editors used the names below; see talentXmlId) */
   type: TalentType;
   characteristic?: CharacteristicType;
   isGroup?: boolean; // True if this is a LIST container for other talents
@@ -302,7 +316,9 @@ export type TalentType =
   | 'EIDETIC_MEMORY' | 'ENVIRONMENTAL_MOVEMENT' | 'LIGHTNING_CALCULATOR'
   | 'LIGHTNING_REFLEXES' | 'LIGHTSLEEP' | 'OFF_HAND_DEFENSE' | 'PERFECT_PITCH'
   | 'RESISTANCE' | 'SIMULATE_DEATH' | 'SPEED_READING' | 'STRIKING_APPEARANCE'
-  | 'UNIVERSAL_TRANSLATOR' | 'GENERIC';
+  | 'UNIVERSAL_TRANSLATOR' | 'GENERIC'
+  | 'ANIMALFRIENDSHIP' | 'COMBAT_SENSE' | 'CUSTOMTALENT' | 'DEADLYBLOW' | 'LIGHTNING_REFLEXES_ALL'
+  | 'OFFHANDDEFENSE' | 'WEAPON_MASTER';
 
 // ============================================================================
 // Martial Arts

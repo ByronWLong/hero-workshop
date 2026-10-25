@@ -38,7 +38,7 @@ describe('item forms', () => {
   it('edits keep what the form does not show (adders, modifiers, grouping)', () => {
     const character = parseHdcFile(EVO);
     const perk = character.perks.find((p) => (p.adders?.length ?? 0) > 0) ?? character.perks[0]!;
-    const values = { ...itemFormValues(character, 'perks', perk.id), levels: (perk.levels ?? 0) + 1 };
+    const values = { ...itemFormValues(character, 'perks', perk.id), name: 'Diplomat' };
     const edited = saveItemForm(character, 'perks', perk.id, values);
     const after = edited.perks.find((p) => p.id === perk.id)!;
     expect(after.adders).toEqual(perk.adders);
@@ -50,7 +50,8 @@ describe('item forms', () => {
     const b = before.findById(perk.id)!;
     const a = HdcDocument.parse(xml).findById(perk.id)!;
     expect(a.elements('ADDER').map((x) => x.toString())).toEqual(b.elements('ADDER').map((x) => x.toString()));
-    expect(a.getAttr('LEVELS')).toBe(String((perk.levels ?? 0) + 1));
+    expect(a.getAttr('NAME')).toBe('Diplomat');
+    expect(a.elements('MODIFIER').map((x) => x.toString())).toEqual(b.elements('MODIFIER').map((x) => x.toString()));
   });
 
   it('saves an unchanged form without changing the file', () => {

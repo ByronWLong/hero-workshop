@@ -20,8 +20,22 @@ import {
   DISADVANTAGE_CATALOG_6E,
   PERK_CATALOG_6E,
   TALENT_CATALOG_6E,
+  type CatalogAdder,
+  type CatalogEntry,
 } from '../generated/catalog6e.js';
+import {
+  defaultBasePrice,
+  perkTalentCosts,
+  perkTalentEntry,
+  perkTalentLevelPrice,
+  perkTalentOption,
+  perkXmlId,
+  talentXmlId,
+  type PerkTalentKind,
+  type PerkTalentPurchase,
+} from '../perkTalentCosts.js';
 import { SKILL_CATALOG_6E } from '../generated/skillCatalog6e.js';
+import { calculateAdderCost } from '../utils.js';
 import { getPowerDefinition } from '../powerDefinitions.js';
 import {
   pslOptionAlias,
@@ -602,6 +616,7 @@ function saveSkill(existing: Skill | undefined, v: FormValues, position: number,
 
 /** Editor perk types (as the web editor names them) with their Hero Designer entries */
 const PERK_TYPES: { value: Perk['type']; xmlId: string }[] = [
+  { value: 'ACCESS', xmlId: 'ACCESS' },
   { value: 'ANONYMITY', xmlId: 'ANONYMITY' },
   { value: 'COMPUTER_LINK', xmlId: 'COMPUTER_LINK' },
   { value: 'CONTACT', xmlId: 'CONTACT' },
@@ -611,36 +626,19 @@ const PERK_TYPES: { value: Perk['type']; xmlId: string }[] = [
   { value: 'FRINGE_BENEFIT', xmlId: 'FRINGE_BENEFIT' },
   { value: 'MONEY', xmlId: 'MONEY' },
   { value: 'REPUTATION', xmlId: 'REPUTATION' },
+  { value: 'RESOURCE_POOL', xmlId: 'RESOURCE_POOL' },
   { value: 'VEHICLE_BASE', xmlId: 'VEHICLE_BASE' },
   { value: 'GENERIC', xmlId: 'CUSTOMPERK' },
 ];
 const PERK_LABELS = new Map(PERK_CATALOG_6E.map((p) => [p.xmlId, p.display]));
 const perkLabel = (type: string) => PERK_LABELS.get(PERK_TYPES.find((p) => p.value === type)?.xmlId ?? '') ?? type;
 
-const TALENT_TYPES: { value: Talent['type']; xmlId: string; perLevel?: boolean }[] = [
-  { value: 'ABSOLUTE_RANGE_SENSE', xmlId: 'ABSOLUTE_RANGE_SENSE' },
-  { value: 'ABSOLUTE_TIME_SENSE', xmlId: 'ABSOLUTE_TIME_SENSE' },
-  { value: 'AMBIDEXTERITY', xmlId: 'AMBIDEXTERITY' },
-  { value: 'BUMP_OF_DIRECTION', xmlId: 'BUMP_OF_DIRECTION' },
-  { value: 'COMBAT_LUCK', xmlId: 'COMBAT_LUCK', perLevel: true },
-  { value: 'DANGER_SENSE', xmlId: 'DANGER_SENSE' },
-  { value: 'DOUBLE_JOINTED', xmlId: 'DOUBLE_JOINTED' },
-  { value: 'EIDETIC_MEMORY', xmlId: 'EIDETIC_MEMORY' },
-  { value: 'ENVIRONMENTAL_MOVEMENT', xmlId: 'ENVIRONMENTAL_MOVEMENT' },
-  { value: 'LIGHTNING_CALCULATOR', xmlId: 'LIGHTNING_CALCULATOR' },
-  { value: 'LIGHTNING_REFLEXES', xmlId: 'LIGHTNING_REFLEXES_ALL', perLevel: true },
-  { value: 'LIGHTSLEEP', xmlId: 'LIGHTSLEEP' },
-  { value: 'OFF_HAND_DEFENSE', xmlId: 'OFFHANDDEFENSE' },
-  { value: 'PERFECT_PITCH', xmlId: 'PERFECT_PITCH' },
-  { value: 'RESISTANCE', xmlId: 'RESISTANCE', perLevel: true },
-  { value: 'SIMULATE_DEATH', xmlId: 'SIMULATE_DEATH' },
-  { value: 'SPEED_READING', xmlId: 'SPEED_READING', perLevel: true },
-  { value: 'STRIKING_APPEARANCE', xmlId: 'STRIKING_APPEARANCE', perLevel: true },
-  { value: 'UNIVERSAL_TRANSLATOR', xmlId: 'UNIVERSAL_TRANSLATOR' },
-  { value: 'GENERIC', xmlId: 'CUSTOMTALENT' },
-];
-const TALENTS_BY_ID = new Map(TALENT_CATALOG_6E.map((t) => [t.xmlId, t]));
-const talentEntry = (type: string) => TALENTS_BY_ID.get(TALENT_TYPES.find((t) => t.value === type)?.xmlId ?? '');
+/** Template wording without its level placeholder ("Deadly Blow:  +[LVL]d6" is Deadly Blow) */
+const plainDisplay = (display: string) => display.replace(/:?\s*[+x-]?\[LVL\].*$/, '').replace(/^\[(.*)\]$/, '$1').trim();
+
+/** Talents are typed by Hero Designer's XMLID (earlier editors' names are read as theirs) */
+const TALENT_TYPES = TALENT_CATALOG_6E.map((t) => ({ value: t.xmlId, label: plainDisplay(t.display) }));
+const talentLabel = (type: string) => TALENT_TYPES.find((t) => t.value === talentXmlId(type))?.label ?? type;
 
 const DISAD_TYPES: { value: Disadvantage['type']; xmlId: string }[] = [
   { value: 'ACCIDENTAL_CHANGE', xmlId: 'ACCIDENTALCHANGE' },
@@ -668,12 +666,315 @@ const disadTypeFor = (d: Disadvantage | undefined) =>
 const signedText = (n: number) => (n >= 0 ? `+${n}` : String(n));
 
 // =============================================================================
+// Perks and talents: priced as Hero Designer prices them (perkTalentCosts.ts)
+// =============================================================================
+
+type PerkOrTalent = Perk | Talent;
+
+const xmlIdFor = (kind: PerkTalentKind, type: string) => (kind === 'perk' ? perkXmlId(type) : talentXmlId(type));
+const isCustom = (xmlId: string) => xmlId === 'CUSTOMPERK' || xmlId === 'CUSTOMTALENT';
+const isVehicle = (xmlId: string) => xmlId === 'FOLLOWER' || xmlId === 'VEHICLE_BASE';
+
+/** A Fringe Benefit is one benefit, chosen from a list */
+const ONE_ADDER = new Set(['FRINGE_BENEFIT']);
+/** Adders that exclude each other are chosen in one list, under this label */
+const ADDER_GROUP_LABELS: Record<string, string> = { GOODRELATIONSHIP: 'Relationship' };
+const LEVEL_HINTS: Record<string, string> = {
+  CONTACT: 'The roll: 1 level is 8-, 2 is 11-, each level after +1. 1 point per level',
+  REPUTATION: '+1/+1d6 per level; each level costs how widely plus how well it is known (at least 1)',
+};
+
+const pointsText = (n: number) => (n < 0 ? String(n) : `${n}`);
+
+/** "3 per level", "1 per 5 levels" */
+function levelPriceText(price: { lvlCost: number; lvlVal: number }): string {
+  return price.lvlVal > 1 ? `${price.lvlCost} per ${price.lvlVal} levels` : `${price.lvlCost} per level`;
+}
+
+interface AdderChoice {
+  field: string;
+  label: string;
+  kind: 'check' | 'options' | 'levels' | 'group';
+  adders: CatalogAdder[];
+}
+
+/** The template's adders as form choices: ticked, picked from their options, or bought in levels */
+function adderChoices(entry: CatalogEntry | undefined): AdderChoice[] {
+  if (!entry || ONE_ADDER.has(entry.xmlId)) return [];
+  const all = entry.adders ?? [];
+  const plain = (a: CatalogAdder) => !a.options?.length && !a.lvlCost;
+  const grouped = new Set<string>();
+  const out: AdderChoice[] = [];
+  for (const a of all) {
+    if (grouped.has(a.xmlId)) continue;
+    const field = `adder_${a.xmlId}`;
+    if (a.options?.length) out.push({ field, label: a.display, kind: 'options', adders: [a] });
+    else if (a.lvlCost) out.push({ field, label: a.display.replace('[LVL]', 'N'), kind: 'levels', adders: [a] });
+    else {
+      const rivals = all.filter((o) => o !== a && plain(o) && (a.excludes?.includes(o.xmlId) || o.excludes?.includes(a.xmlId)));
+      if (!rivals.length) out.push({ field, label: a.display, kind: 'check', adders: [a] });
+      else {
+        [a, ...rivals].forEach((m) => grouped.add(m.xmlId));
+        out.push({ field, label: ADDER_GROUP_LABELS[a.xmlId] ?? a.display, kind: 'group', adders: [a, ...rivals] });
+      }
+    }
+  }
+  return out;
+}
+
+/** A required adder starts at its free option (11-, a small group), else its first */
+const startingOption = (a: CatalogAdder) => (a.options?.find((o) => !o.baseCost) ?? a.options?.[0])?.xmlId ?? '';
+
+/** The form values for the item's adders (a new item starts with the ones it must have) */
+function adderValues(entry: CatalogEntry | undefined, adders: Adder[] | undefined, isNew: boolean): FormValues {
+  const values: FormValues = {};
+  const find = (xmlId: string) => adders?.find((a) => a.xmlId === xmlId);
+  for (const c of adderChoices(entry)) {
+    const def = c.adders[0]!;
+    const have = find(def.xmlId);
+    if (c.kind === 'check') values[c.field] = !!have;
+    else if (c.kind === 'options') values[c.field] = have?.optionId ?? (def.required && isNew ? startingOption(def) : '');
+    else if (c.kind === 'levels') values[c.field] = have?.levels ?? 0;
+    else values[c.field] = c.adders.find((d) => find(d.xmlId))?.xmlId ?? '';
+  }
+  if (entry && ONE_ADDER.has(entry.xmlId)) {
+    const have = adders?.find((a) => entry.adders?.some((d) => d.xmlId === a.xmlId));
+    values.benefit = have ? (have.optionId ? `${have.xmlId}:${have.optionId}` : have.xmlId!) : '';
+  }
+  return values;
+}
+
+function catalogAdder(def: CatalogAdder): Adder {
+  const display = def.display.replace('[LVL]', '').replace(/\s+\)/, ')').trim();
+  return {
+    id: newId(),
+    xmlId: def.xmlId,
+    name: display,
+    alias: display,
+    baseCost: def.baseCost ?? 0,
+    includeInBase: def.includeInBase,
+    selected: true,
+  };
+}
+
+/**
+ * The item's adders as the form chooses them; adders the template doesn't offer are kept. A new
+ * item has the ones it must have (an existing one keeps what it has until they're chosen).
+ */
+function chosenAdders(entry: CatalogEntry | undefined, v: FormValues, existing: Adder[] = [], isNew = false): Adder[] {
+  const offered = entry?.adders ?? [];
+  const own = new Set(offered.map((a) => a.xmlId));
+  const chosen: Adder[] = [];
+  const take = (def: CatalogAdder, change: Partial<Adder> = {}) => {
+    if (chosen.some((a) => a.xmlId === def.xmlId)) return;
+    chosen.push({ ...(existing.find((a) => a.xmlId === def.xmlId) ?? catalogAdder(def)), ...change });
+  };
+  const withOption = (def: CatalogAdder, optionId: string) => {
+    const option = def.options?.find((o) => o.xmlId === optionId);
+    // An unchanged option keeps the file's own wording ("Star and Region")
+    if (option && existing.some((a) => a.xmlId === def.xmlId && a.optionId === option.xmlId)) take(def);
+    else if (option) take(def, { optionId: option.xmlId, optionAlias: option.display, baseCost: option.baseCost ?? def.baseCost ?? 0 });
+  };
+  if (entry && ONE_ADDER.has(entry.xmlId)) {
+    const [xmlId, optionId] = str(v.benefit).split(':');
+    const def = offered.find((a) => a.xmlId === xmlId);
+    if (def && optionId) withOption(def, optionId);
+    else if (def) take(def);
+  }
+  for (const c of adderChoices(entry)) {
+    const def = c.adders[0]!;
+    const value = v[c.field];
+    if (c.kind === 'check' && bool(value)) take(def);
+    else if (c.kind === 'options') withOption(def, str(value) || (def.required && isNew ? startingOption(def) : ''));
+    else if (c.kind === 'levels' && num(value) > 0) {
+      take(def, { levels: num(value), lvlCost: def.lvlCost, lvlVal: def.lvlVal !== undefined && def.lvlVal !== 1 ? def.lvlVal : undefined });
+    } else if (c.kind === 'group') {
+      const picked = c.adders.find((d) => d.xmlId === value);
+      if (picked) take(picked);
+    }
+  }
+  // An adder brings any it requires (Analyze needs Discriminatory)
+  for (const a of [...chosen]) {
+    for (const needed of offered.find((d) => d.xmlId === a.xmlId)?.requires ?? []) {
+      const def = offered.find((d) => d.xmlId === needed);
+      if (def) take(def);
+    }
+  }
+  return [...chosen, ...existing.filter((a) => !own.has(a.xmlId ?? ''))];
+}
+
+/** Whether the form asks for the base cost: custom items, a cost within a range, a benefit not listed */
+function asksBaseCost(entry: CatalogEntry | undefined, xmlId: string, v: FormValues): boolean {
+  if (isCustom(xmlId)) return true;
+  if (ONE_ADDER.has(xmlId)) return !str(v.benefit);
+  return entry?.minCost !== undefined && entry.maxCost !== undefined && entry.maxCost > entry.minCost && !entry.lvlCost && !entry.options?.length;
+}
+
+/** Whether the item is bought in levels */
+function hasLevels(entry: CatalogEntry | undefined, xmlId: string, option: string): boolean {
+  if (isCustom(xmlId) || isVehicle(xmlId)) return false;
+  return xmlId === 'CONTACT' || xmlId === 'REPUTATION' || !!perkTalentLevelPrice(entry, perkTalentOption(entry, option));
+}
+
+/** Where the form's base cost comes from: what it was bought at, until the type or option changes */
+const priceKey = (type: string, option: string) => `${type}|${option}`;
+
+function purchaseValues(kind: PerkTalentKind, item: PerkOrTalent | undefined, type: string): FormValues {
+  const xmlId = xmlIdFor(kind, type);
+  const entry = perkTalentEntry(kind, xmlId);
+  const option = item?.option ?? entry?.options?.[0]?.xmlId ?? '';
+  const basePrice = item?.basePrice ?? (item ? item.baseCost : defaultBasePrice(entry, perkTalentOption(entry, option)));
+  const perk = item as Perk | undefined;
+  return {
+    type,
+    name: item?.name ?? '',
+    option,
+    levels: item ? item.levels ?? 0 : (entry?.levelStart ?? entry?.minVal ?? (xmlId === 'CONTACT' ? 1 : 0)),
+    // A custom item's cost is its base cost and levels together
+    cost: isCustom(xmlId) ? basePrice + (item?.levels ?? 0) : basePrice,
+    priceOf: priceKey(type, option),
+    basePoints: perk?.basePoints ?? 0,
+    number: perk?.number ?? 1,
+    ...adderValues(entry, item?.adders, !item),
+    notes: item?.notes ?? '',
+  };
+}
+
+/** A perk list's adders discount the perks in it (as the HDC parser applies them) */
+function listDiscount(character: Character | undefined, kind: PerkTalentKind, item: PerkOrTalent | undefined): number {
+  if (kind !== 'perk' || !character || !item?.parentId) return 0;
+  return calculateAdderCost(character.perks.find((p) => p.id === item.parentId && p.isGroup)?.adders ?? []);
+}
+
+/** What the form buys, priced */
+function purchaseFromValues(kind: PerkTalentKind, v: FormValues, existing: PerkOrTalent | undefined, discount = 0) {
+  const type = str(v.type);
+  const xmlId = xmlIdFor(kind, type);
+  const entry = perkTalentEntry(kind, xmlId);
+  const option = entry?.options?.length ? str(v.option) || entry.options[0]!.xmlId : '';
+  const optionDef = perkTalentOption(entry, option);
+  const custom = isCustom(xmlId);
+  // A custom talent's cost is its LEVELS, a custom perk's its BASECOST (as Hero Designer writes
+  // them); an unchanged cost stays as the file has it
+  const keepCustom = custom && existing && xmlIdFor(kind, existing.type) === xmlId && num(v.cost) === (existing.basePrice ?? 0) + (existing.levels ?? 0);
+  let levels = custom ? (xmlId === 'CUSTOMTALENT' ? num(v.cost) : 0) : hasLevels(entry, xmlId, option) ? num(v.levels) : existing?.levels ?? 0;
+  let basePrice: number;
+  if (keepCustom) {
+    levels = existing.levels ?? 0;
+    basePrice = existing.basePrice ?? 0;
+  } else if (custom) basePrice = xmlId === 'CUSTOMTALENT' ? 0 : num(v.cost);
+  else if (asksBaseCost(entry, xmlId, v)) basePrice = num(v.cost);
+  // A listed benefit is its adder's cost
+  else if (ONE_ADDER.has(xmlId)) basePrice = 0;
+  else if (str(v.priceOf) === priceKey(type, option)) basePrice = num(v.cost);
+  else basePrice = isVehicle(xmlId) || xmlId === 'CONTACT' ? 0 : defaultBasePrice(entry, optionDef);
+  const purchase: PerkTalentPurchase = {
+    xmlId,
+    basePrice,
+    levels,
+    option: option || undefined,
+    adders: chosenAdders(entry, v, existing?.adders, !existing),
+    // Callers that give only a cost buy 5 points per point
+    basePoints: isVehicle(xmlId) ? (v.basePoints !== undefined ? num(v.basePoints) : num(v.cost) * 5) : undefined,
+    number: isVehicle(xmlId) ? Math.max(1, num(v.number, 1)) : undefined,
+  };
+  const optionAlias = optionDef ? (option === existing?.option ? existing.optionAlias : plainDisplay(optionDef.display)) : undefined;
+  const costs = perkTalentCosts(kind, purchase, existing?.modifiers);
+  if (discount) costs.real = Math.max(0, costs.active + discount);
+  return { type, entry, purchase, optionAlias, costs };
+}
+
+function purchaseForm(kind: PerkTalentKind, v: FormValues, isNew: boolean, existing: PerkOrTalent | undefined, discount: number): ItemForm {
+  const { type, entry, purchase, costs } = purchaseFromValues(kind, v, existing, discount);
+  const xmlId = purchase.xmlId;
+  const typeOptions = kind === 'perk'
+    ? PERK_TYPES.map((p) => ({ value: p.value, label: perkLabel(p.value) }))
+    : TALENT_TYPES;
+  const fields: FormField[] = [
+    { name: 'type', label: kind === 'perk' ? 'Perk' : 'Talent', type: 'select', value: type, options: options(typeOptions, type) },
+    { name: 'name', label: 'Name', type: 'text', value: str(v.name) },
+  ];
+  if (entry?.options?.length) {
+    const list = entry.options.map((o) => {
+      const price = perkTalentLevelPrice(entry, o);
+      const cost = o.lvlCost !== undefined && price ? levelPriceText(price) : pointsText(defaultBasePrice(entry, o));
+      return { value: o.xmlId, label: `${capitalize(plainDisplay(o.display))} (${cost})` };
+    });
+    fields.push({ name: 'option', label: entry.optionLabel ?? 'Option', type: 'select', value: purchase.option ?? '', options: options(list, purchase.option ?? '') });
+  }
+  if (ONE_ADDER.has(xmlId)) {
+    const list = [
+      { value: '', label: 'Other (enter its cost)' },
+      ...(entry?.adders ?? []).flatMap((a) =>
+        a.options?.length
+          ? a.options.map((o) => ({ value: `${a.xmlId}:${o.xmlId}`, label: `${a.display}: ${o.display} (${pointsText(o.baseCost ?? a.baseCost)})` }))
+          : [{ value: a.xmlId, label: `${a.display} (${pointsText(a.baseCost)})` }],
+      ),
+    ];
+    fields.push({ name: 'benefit', label: 'Benefit', type: 'select', value: str(v.benefit), options: options(list, str(v.benefit)) });
+  }
+  if (hasLevels(entry, xmlId, purchase.option ?? '')) {
+    const price = perkTalentLevelPrice(entry, perkTalentOption(entry, purchase.option));
+    fields.push({ name: 'levels', label: 'Levels', type: 'number', value: num(v.levels), hint: LEVEL_HINTS[xmlId] ?? (price && `${levelPriceText(price)}`) });
+  }
+  if (isVehicle(xmlId)) {
+    fields.push(
+      { name: 'basePoints', label: xmlId === 'FOLLOWER' ? "Follower's points" : 'Points built on', type: 'number', value: num(v.basePoints), hint: '1 point per 5 points' },
+      { name: 'number', label: 'How many', type: 'number', value: num(v.number, 1), hint: '+5 points per doubling' },
+    );
+  }
+  if (asksBaseCost(entry, xmlId, v)) {
+    const range = !isCustom(xmlId) && entry?.minCost !== undefined && entry.maxCost !== undefined ? `${entry.minCost} to ${entry.maxCost} points` : undefined;
+    fields.push({ name: 'cost', label: 'Cost', type: 'number', value: num(v.cost), hint: range });
+  }
+  for (const c of adderChoices(entry)) {
+    const def = c.adders[0]!;
+    if (c.kind === 'check') {
+      fields.push({ name: c.field, label: `${c.label} (${signedText(def.baseCost ?? 0)})`, type: 'checkbox', value: bool(v[c.field]) || purchase.adders!.some((a) => a.xmlId === def.xmlId) });
+    } else if (c.kind === 'levels') {
+      fields.push({ name: c.field, label: c.label, type: 'number', value: num(v[c.field]), hint: `${def.lvlCost} per level` });
+    } else {
+      const list = c.kind === 'options'
+        ? (def.options ?? []).map((o) => ({ value: o.xmlId, label: `${o.display} (${signedText(o.baseCost ?? def.baseCost ?? 0)})` }))
+        : c.adders.map((d) => ({ value: d.xmlId, label: `${d.display} (${signedText(d.baseCost ?? 0)})` }));
+      const value = purchase.adders!.find((a) => c.adders.some((d) => d.xmlId === a.xmlId));
+      const selected = c.kind === 'options' ? value?.optionId ?? '' : value?.xmlId ?? '';
+      // A required adder can't be taken off, but one the item doesn't have yet shows as none
+      const none = !def.required || !selected ? [{ value: '', label: 'None' }] : [];
+      fields.push({ name: c.field, label: c.label, type: 'select', value: selected, options: options([...none, ...list], selected) });
+    }
+  }
+  fields.push({ name: 'notes', label: 'Notes', type: 'textarea', value: str(v.notes) });
+  const title = `${isNew ? 'Add' : 'Edit'} ${kind}`;
+  return { title, fields, cost: costs.real, costLabel: 'pts' };
+}
+
+function savePurchase<T extends PerkOrTalent>(kind: PerkTalentKind, existing: T | undefined, v: FormValues, position: number, discount: number): T {
+  const { type, entry, purchase, optionAlias, costs } = purchaseFromValues(kind, v, existing, discount);
+  const label = kind === 'perk' ? perkLabel(type) : talentLabel(type) || entry?.display || type;
+  return {
+    ...(existing ?? { id: newId(), position, name: '' }),
+    type,
+    name: str(v.name).trim() || label,
+    levels: purchase.levels ?? 0,
+    option: purchase.option,
+    optionAlias,
+    basePrice: purchase.basePrice,
+    ...(kind === 'perk' ? { basePoints: purchase.basePoints, number: purchase.number } : {}),
+    adders: purchase.adders?.length ? purchase.adders : existing?.adders?.length ? [] : existing?.adders,
+    baseCost: costs.active,
+    realCost: costs.real,
+    notes: str(v.notes) || undefined,
+  } as T;
+}
+
+// =============================================================================
 // Public API
 // =============================================================================
 
 export function itemFormValues(character: Character, section: FormSection, itemId?: string): FormValues {
   const item = itemId ? sectionItems(character, section).find((i) => i.id === itemId) : undefined;
-  return { ...sectionFormValues(section, item), icon: item?.icon ?? '', free: item?.multiplier === 0 };
+  return { ...sectionFormValues(section, item), icon: item?.icon ?? '', free: item?.multiplier === 0, itemId: item?.id };
 }
 
 function sectionFormValues(section: FormSection, item: ListItem | undefined): FormValues {
@@ -684,19 +985,11 @@ function sectionFormValues(section: FormSection, item: ListItem | undefined): Fo
       return skillValues(item as Skill | undefined);
     case 'perks': {
       const p = item as Perk | undefined;
-      return { type: p?.type ?? 'CONTACT', name: p?.name ?? '', levels: p?.levels ?? 1, cost: p?.realCost ?? p?.baseCost ?? 1, notes: p?.notes ?? '' };
+      return purchaseValues('perk', p, p?.type ?? 'CONTACT');
     }
     case 'talents': {
       const t = item as Talent | undefined;
-      const perLevel = TALENT_TYPES.find((x) => x.value === t?.type)?.perLevel;
-      const levels = t?.levels || 1;
-      return {
-        type: t?.type ?? 'COMBAT_LUCK',
-        name: t?.name ?? '',
-        levels,
-        cost: perLevel ? (t?.baseCost ?? 0) / levels : (t?.baseCost ?? talentEntry(t?.type ?? 'COMBAT_LUCK')?.baseCost ?? 5),
-        notes: t?.notes ?? '',
-      };
+      return purchaseValues('talent', t, talentXmlId(t?.type ?? 'COMBAT_LUCK'));
     }
     case 'disadvantages': {
       const d = item as Disadvantage | undefined;
@@ -748,38 +1041,15 @@ function sectionForm(section: FormSection, values: FormValues, isNew: boolean, c
       costLabel: '',
     };
   }
+  // A perk's or talent's own modifiers and custom adders count toward its cost
+  const existing = character && values.itemId ? sectionItems(character, section).find((i) => i.id === values.itemId) : undefined;
   switch (section) {
     case 'skills':
       return skillForm(values, isNew, character);
     case 'perks':
-      return {
-        title: isNew ? 'Add perk' : 'Edit perk',
-        fields: [
-          { name: 'type', label: 'Perk', type: 'select', value: str(values.type), options: options(PERK_TYPES.map((p) => ({ value: p.value, label: perkLabel(p.value) })), str(values.type)) },
-          { name: 'name', label: 'Name', type: 'text', value: str(values.name) },
-          { name: 'levels', label: 'Levels', type: 'number', value: num(values.levels) },
-          { name: 'cost', label: 'Cost', type: 'number', value: num(values.cost) },
-          notes,
-        ],
-        cost: num(values.cost),
-        costLabel: 'pts',
-      };
-    case 'talents': {
-      const type = str(values.type);
-      const perLevel = TALENT_TYPES.find((t) => t.value === type)?.perLevel;
-      return {
-        title: isNew ? 'Add talent' : 'Edit talent',
-        fields: [
-          { name: 'type', label: 'Talent', type: 'select', value: type, options: options(TALENT_TYPES.map((t) => ({ value: t.value, label: talentEntry(t.value)?.display ?? t.value })), type) },
-          { name: 'name', label: 'Name', type: 'text', value: str(values.name) },
-          { name: 'levels', label: 'Levels', type: 'number', value: num(values.levels, 1) },
-          { name: 'cost', label: perLevel ? 'Cost per level' : 'Cost', type: 'number', value: num(values.cost) },
-          notes,
-        ],
-        cost: perLevel ? num(values.cost) * num(values.levels, 1) : num(values.cost),
-        costLabel: 'pts',
-      };
-    }
+      return purchaseForm('perk', values, isNew, existing as Perk | undefined, listDiscount(character, 'perk', existing as Perk | undefined));
+    case 'talents':
+      return purchaseForm('talent', values, isNew, existing as Talent | undefined, 0);
     case 'disadvantages':
       return {
         title: isNew ? 'Add complication' : 'Edit complication',
@@ -840,35 +1110,11 @@ export function saveItemForm(character: Character, section: FormSection, itemId:
       return before ? retargetSkillRolls(saved, before, skill) : saved;
     }
 
-    case 'perks': {
-      const cost = num(values.cost);
-      const perk: Perk = {
-        ...((existing as Perk | undefined) ?? { id: newId(), position, baseCost: 0, levels: 0, type: 'GENERIC', name: '' }),
-        type: str(values.type) as Perk['type'],
-        name: str(values.name).trim() || perkLabel(str(values.type)),
-        levels: num(values.levels),
-        baseCost: cost,
-        realCost: cost,
-        notes: str(values.notes) || undefined,
-      };
-      return { ...character, perks: put(character.perks, perk) };
-    }
+    case 'perks':
+      return { ...character, perks: put(character.perks, savePurchase('perk', existing as Perk | undefined, values, position, listDiscount(character, 'perk', existing as Perk | undefined))) };
 
-    case 'talents': {
-      const type = str(values.type) as Talent['type'];
-      const perLevel = TALENT_TYPES.find((t) => t.value === type)?.perLevel;
-      const cost = perLevel ? num(values.cost) * num(values.levels, 1) : num(values.cost);
-      const talent: Talent = {
-        ...((existing as Talent | undefined) ?? { id: newId(), position, baseCost: 0, levels: 0, type: 'GENERIC', name: '' }),
-        type,
-        name: str(values.name).trim() || talentEntry(type)?.display || type,
-        levels: num(values.levels, 1),
-        baseCost: cost,
-        realCost: cost,
-        notes: str(values.notes) || undefined,
-      };
-      return { ...character, talents: put(character.talents, talent) };
-    }
+    case 'talents':
+      return { ...character, talents: put(character.talents, savePurchase('talent', existing as Talent | undefined, values, position, 0)) };
 
     case 'disadvantages': {
       const type = str(values.type) as Disadvantage['type'];
@@ -933,7 +1179,7 @@ export function typeChoices(section: FormSection): { field: string; groups: Type
     case 'perks':
       return flat('type', PERK_TYPES.map((p) => ({ value: p.value, label: perkLabel(p.value) })));
     case 'talents':
-      return flat('type', TALENT_TYPES.map((t) => ({ value: t.value, label: talentEntry(t.value)?.display ?? t.value })));
+      return flat('type', TALENT_TYPES);
     case 'disadvantages':
       return flat('type', DISAD_TYPES.map((d) => ({ value: d.value, label: disadLabel(d.value) })));
     default:
@@ -941,16 +1187,11 @@ export function typeChoices(section: FormSection): { field: string; groups: Type
   }
 }
 
-/** Form values for a new item of the given type (a talent starts at its catalog cost) */
+/** Form values for a new item of the given type (a perk or talent starts at its template's purchase) */
 export function newItemFormValues(character: Character, section: FormSection, type: string): FormValues {
   const values = itemFormValues(character, section);
+  if (section === 'perks') return { ...values, ...purchaseValues('perk', undefined, type) };
+  if (section === 'talents') return { ...values, ...purchaseValues('talent', undefined, talentXmlId(type)) };
   const field = typeChoices(section)?.field;
-  if (!field) return values;
-  const next: FormValues = { ...values, [field]: type };
-  if (section === 'talents') {
-    const entry = talentEntry(type);
-    const perLevel = TALENT_TYPES.find((t) => t.value === type)?.perLevel;
-    next.cost = (perLevel ? (entry?.lvlCost ?? entry?.baseCost) : entry?.baseCost) ?? values.cost;
-  }
-  return next;
+  return field ? { ...values, [field]: type } : values;
 }
