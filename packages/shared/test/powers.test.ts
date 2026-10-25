@@ -14,6 +14,7 @@ import {
   powerDraft,
   savePowerDraft,
   selectPower,
+  setModifierComments,
   setModifierOption,
   updateHdc,
 } from '../src/index.js';
@@ -125,5 +126,20 @@ describe('power drafts', () => {
     const xml = blankHdc().replace('<POWERS />', '<POWERS><POWER XMLID="FORCEFIELD" ID="1" BASECOST="0.0" LEVELS="10" ALIAS="Resistant Protection" POSITION="0" NAME="" QUANTITY="1" /></POWERS>');
     const character = parseHdcFile(xml);
     expect(powerDraft(character, 'powers', '1').barrier).toMatchObject({ pd: 5, ed: 5 });
+  });
+
+  it("edits a limitation's comments (why it applies)", () => {
+    const xml = blankHdc().replace(
+      '<POWERS />',
+      '<POWERS><POWER XMLID="SWINGING" ID="9601" BASECOST="0.0" LEVELS="16" ALIAS="Swinging" POSITION="0" NAME="Vine Brachiation" QUANTITY="1">' +
+        '<MODIFIER XMLID="LIMITEDPOWER" ID="9602" BASECOST="-0.5" LEVELS="0" ALIAS="Limited Power" POSITION="-1" OPTION="3" OPTIONID="3" OPTION_ALIAS="Power loses about a third of its effectiveness" NAME="" COMMENTS="" PRIVATE="No" FORCEALLOW="No" />' +
+        '</POWER></POWERS>',
+    );
+    const character = parseHdcFile(xml);
+    const draft = setModifierComments(powerDraft(character, 'powers', '9601'), '9602', ' Only in jungle or forest ');
+    const { xml: out } = updateHdc(xml, savePowerDraft(character, 'powers', '9601', draft));
+    expect(HdcDocument.parse(out).findById('9602')!.getAttr('COMMENTS')).toBe('Only in jungle or forest');
+    expect(out.replace('COMMENTS="Only in jungle or forest"', 'COMMENTS=""')).toBe(xml);
+    expect(parseHdcFile(out).powers[0]!.modifiers![0]!.comments).toBe('Only in jungle or forest');
   });
 });

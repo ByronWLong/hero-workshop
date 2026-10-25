@@ -83,9 +83,17 @@ export function fractionText(value: number): string {
   return `${sign}${whole || !frac ? whole : ''}${frac}`;
 }
 
-/** "Armor Piercing (+¼), OAF (-1)" */
+/**
+ * "Armor Piercing (+¼), Limited Power (Only in jungle or forest; -½)": with each modifier's
+ * comments, as Hero Designer prints them (a Requires A Roll's name the skill it rolls instead)
+ */
 export function modifierSummary(modifiers: Modifier[] | undefined): string {
-  return (modifiers ?? []).map((m) => `${m.name} (${fractionText(m.value)})`).join(', ');
+  return (modifiers ?? [])
+    .map((m) => {
+      const why = m.xmlId !== 'REQUIRESASKILLROLL' ? m.comments?.trim() : '';
+      return `${m.name} (${why ? `${why}; ` : ''}${fractionText(m.value)})`;
+    })
+    .join(', ');
 }
 
 function detailFor(section: SectionId, item: ListItem): string {

@@ -25,6 +25,7 @@ import {
   setModifierOption,
   setModifierValue,
   setModifierInput,
+  setModifierComments,
   convertSpellModifier,
   convertCustomSpells,
   setModifierAdder,
@@ -245,6 +246,7 @@ export class PowerDialog extends HeroWorkshopApplication {
         if (prop === 'levels') return this.#update(setModifierLevels(draft, id!, n));
         if (prop === 'value') return this.#update(setModifierValue(draft, id!, n));
         if (prop === 'input') return this.#update(setModifierInput(draft, id!, value));
+        if (prop === 'comments') return this.#update(setModifierComments(draft, id!, value));
         if (prop === 'adder') return this.#update(setModifierAdder(draft, id!, sub!, target.checked));
         if (prop === 'adderOption') return this.#update(setModifierAdderOption(draft, id!, sub!, value));
         if (prop === 'adderLevels') return this.#update(setModifierAdderLevels(draft, id!, sub!, n));

@@ -211,7 +211,7 @@
       Same cost; hero6e then knows it's a Spell (desktop Hero Designer's 6E template doesn't include it).
     </p>
     {{/if}}
-    {{#if (or input adderChoices.length subChoices.length linkChoices nakedPart)}}
+    {{#if (or input comments adderChoices.length subChoices.length linkChoices nakedPart)}}
     <div class="hw-mod-details">
       {{#if nakedPart}}
       <label class="checkbox" data-tooltip="Checked: it applies to the naked advantage itself (like Reduced Endurance on a naked Autofire). Unchecked: it's what the naked advantage adds to the other power."><input type="checkbox" data-field="mod.{{id}}.private" {{checked nakedPart.private}}> On the naked advantage itself</label>
@@ -227,6 +227,11 @@
       {{#if input}}
       <label class="hw-mod-input">{{input.label}}
         <input type="text" data-field="mod.{{id}}.input" value="{{input.value}}" placeholder="{{input.label}}">
+      </label>
+      {{/if}}
+      {{#if comments}}
+      <label class="hw-mod-input">Comments
+        <input type="text" data-field="mod.{{id}}.comments" value="{{comments.value}}" placeholder="{{comments.placeholder}}">
       </label>
       {{/if}}
       {{#each adderChoices}}

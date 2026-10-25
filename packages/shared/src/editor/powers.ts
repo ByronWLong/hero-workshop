@@ -38,7 +38,7 @@ import {
   type ModifierDefinition,
 } from '../modifierDefinitions.js';
 import { calculateAdderCost, heroRoundCost } from '../utils.js';
-import { fractionText as fraction } from './lists.js';
+import { fractionText as fraction, modifierSummary } from './lists.js';
 import { skillRollCategory } from '../hdc/foundry.js';
 import { HdcDocument } from '../hdc/document.js';
 import { parseHdcFile } from '../hdc/parse.js';
@@ -815,6 +815,14 @@ export function setModifierInput(draft: PowerDraft, id: string, input: string): 
   return { ...draft, modifiers: draft.modifiers.map((m) => (m.id === id ? { ...m, input: input.trim() || undefined } : m)) };
 }
 
+/**
+ * A modifier's comments (COMMENTS): why or when it applies ("Only in jungle or forest"). Hero
+ * Designer and hero6e show them with the modifier. Requires A Roll keeps its roll binding there
+ */
+export function setModifierComments(draft: PowerDraft, id: string, comments: string): PowerDraft {
+  return { ...draft, modifiers: draft.modifiers.map((m) => (m.id === id ? { ...m, comments: comments.trim() || undefined } : m)) };
+}
+
 export function setModifierValue(draft: PowerDraft, id: string, value: number): PowerDraft {
   return {
     ...draft,
@@ -1059,6 +1067,10 @@ export function powerFormView(character: Character, section: PowerSection, draft
         input: nnd
           ? { label: 'Rare defense', value: m.input ?? '' }
           : mdef?.inputLabel || m.input ? { label: mdef?.inputLabel ?? 'Details', value: m.input ?? '' } : undefined,
+        // Why or when it applies; Requires A Roll's COMMENTS name what it rolls instead
+        comments: m.xmlId === 'REQUIRESASKILLROLL'
+          ? undefined
+          : { value: m.comments ?? '', placeholder: m.value < 0 ? 'Why or when it limits the power' : 'What it covers' },
         // The modifier's own adders (AVAD's All Or Nothing makes it NND)
         adderChoices: nnd ? [] : modifierAdderChoices(m, mdef),
         // Its own modifiers ("throughout" doubles Gestures)
@@ -1078,7 +1090,7 @@ export function powerFormView(character: Character, section: PowerSection, draft
     subPowers: draft.subPowers.map((p) => ({
       id: p.id,
       name: p.name,
-      detail: [p.alias && p.alias !== p.name ? p.alias : '', modifierText(p.modifiers)].filter(Boolean).join(' · '),
+      detail: [p.alias && p.alias !== p.name ? p.alias : '', modifierSummary(p.modifiers)].filter(Boolean).join(' · '),
       cost: p.realCost ?? 0,
     })),
     modifierChoices: modifierChoices(draft.xmlId, draft.modifiers),
@@ -1109,8 +1121,6 @@ export function powerFacts(character: Character, draft: PowerDraft, itemId?: str
     characterItems: items.filter((p) => p.id !== itemId).map((p) => ({ id: p.id, xmlId: p.type, modifiers: p.modifiers ?? [] })),
   };
 }
-
-const modifierText = (mods: Modifier[] | undefined) => (mods ?? []).map((m) => `${m.name} (${fraction(m.value)})`).join(', ');
 
 // =============================================================================
 // Saving
