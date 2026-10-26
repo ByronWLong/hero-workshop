@@ -232,6 +232,9 @@ export interface Power extends GenericObjectBase {
   lengthLevels?: number;  // Length in meters
   heightLevels?: number;  // Height in meters
   widthLevels?: number;   // Thickness in half-meters (0.5m increments)
+  /** An Endurance Reserve's Recovery (its nested ENDURANCERESERVEREC's LEVELS), and that power's own modifiers */
+  recoveryLevels?: number;
+  recoveryModifiers?: Modifier[];
 }
 
 export type PowerType = 

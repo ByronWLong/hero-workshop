@@ -93,6 +93,13 @@
     {{#if definition.levelLabel}}<p class="hint">{{definition.levelLabel}}</p>{{/if}}
   </div>
   {{/unless}}{{/unless}}{{/if}}
+  {{#if recovery}}
+  <div class="form-group">
+    <label>Recovery (REC)</label>
+    <input type="number" data-field="recovery" value="{{recovery.value}}" min="0">
+    <p class="hint">2 pts per 3 REC{{#if recovery.modifiers}}; its own modifiers: {{recovery.modifiers}}{{/if}} ({{recovery.cost}} pts).</p>
+  </div>
+  {{/if}}
   {{/if}}
 
   {{#if targets}}

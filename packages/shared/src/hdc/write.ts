@@ -1183,7 +1183,7 @@ const POWER_DERIVED = new Set([
   'baseCost', 'activeCost', 'realCost', 'endCost', 'effectDice', 'levelCost', 'range', 'duration',
   'target', 'defense', 'doesDamage', 'doesKnockback', 'killing', 'standardEffect', 'isContainer',
   'display', 'textOutput', 'framework', 'type', 'abbreviation', 'isPower', 'isEquipment', 'inputLabel',
-  'ownCost',
+  'ownCost', 'recoveryModifiers',
 ]);
 
 function isCustomPowerElement(el: XmlElement): boolean {
@@ -1241,6 +1241,7 @@ function updatePowerFields(ctx: WriteContext, el: XmlElement, b: Power, a: Power
   }
   writeBarrierFields(el, b, a);
   writeSenseGroup(el, b, a);
+  writeRecovery(ctx, el, b, a);
 }
 
 /** An enhanced sense's group (GROUP) */
@@ -1265,6 +1266,25 @@ function writeBarrierFields(el: XmlElement, b: Partial<Power>, a: Partial<Power>
       el.setAttr(attr, String(Math.max(0, (a[field] as number) - base)));
     }
   }
+}
+
+/**
+ * An Endurance Reserve's Recovery: the LEVELS of its nested ENDURANCERESERVEREC, which is added
+ * (as Hero Designer writes it) when the reserve has none
+ */
+function writeRecovery(ctx: WriteContext, el: XmlElement, b: Partial<Power>, a: Partial<Power>): void {
+  if (el.getAttr('XMLID') !== 'ENDURANCERESERVE' || a.recoveryLevels === undefined || same(b.recoveryLevels ?? 0, a.recoveryLevels)) return;
+  const rec = el.elements().find((child) => child.name === 'POWER' && child.getAttr('XMLID') === 'ENDURANCERESERVEREC');
+  if (rec) {
+    rec.setAttr('LEVELS', hdInt(a.recoveryLevels));
+    return;
+  }
+  el.appendElement(
+    createElement('POWER', {
+      XMLID: 'ENDURANCERESERVEREC', ID: ctx.doc.nextId(), BASECOST: '0.0', LEVELS: hdInt(a.recoveryLevels), ALIAS: 'Recovery', POSITION: '-1',
+      ...GENERIC_ATTRS, NAME: '', QUANTITY: '1', AFFECTS_PRIMARY: 'No', AFFECTS_TOTAL: 'Yes',
+    }),
+  );
 }
 
 /** A Multipower slot's type: fixed (ULTRA_SLOT="Yes") or variable */
@@ -1347,6 +1367,8 @@ function createPower(ctx: WriteContext, p: Power, section: HdcItemSection): XmlE
     el.setAttr('POWDLEVELS', hdInt(p.powdLevels ?? 0));
   }
   appendChildren(ctx, el, p);
+  // After its modifiers, as Hero Designer writes it
+  writeRecovery(ctx, el, {}, p);
   return el;
 }
 
@@ -1354,7 +1376,7 @@ const POWER_SPEC: ItemSpec<Power> = {
   handled: new Set([
     'name', 'alias', 'levels', 'input', 'option', 'optionAlias', 'affectsPrimary', 'affectsTotal', 'notes', 'slotFixed',
     'pdLevels','edLevels', 'mdLevels', 'powdLevels', 'bodyLevels', 'lengthLevels', 'heightLevels', 'widthLevels',
-    'senseGroup',
+    'senseGroup', 'recoveryLevels',
   ]),
   derived: POWER_DERIVED,
   update: updatePowerFields,
@@ -1370,12 +1392,12 @@ const EQUIPMENT_SPEC: ItemSpec<Equipment> = {
     'name', 'levels', 'notes', 'price', 'weight', 'carried', 'quantity', 'subPowers',
     'input', 'option', 'optionAlias', 'affectsPrimary', 'affectsTotal', 'slotFixed',
     'pdLevels','edLevels', 'mdLevels', 'powdLevels', 'bodyLevels', 'lengthLevels', 'heightLevels', 'widthLevels',
-    'senseGroup',
+    'senseGroup', 'recoveryLevels',
   ]),
   derived: new Set([...POWER_DERIVED, 'alias', 'xmlId']),
   nested: (e) => e.subPowers,
 
-  update(_ctx, el, b, a) {
+  update(ctx, el, b, a) {
     if (!same(b.name, a.name)) el.setAttr('NAME', a.name);
     if (!same(b.levels, a.levels)) el.setAttr('LEVELS', hdInt(a.levels));
     if (el.name === 'MULTIPOWER' && !same(b.baseCost, a.baseCost)) el.setAttr('BASECOST', hdCost(a.baseCost ?? 0));
@@ -1398,6 +1420,7 @@ const EQUIPMENT_SPEC: ItemSpec<Equipment> = {
     if (!same(bp.affectsTotal, ap.affectsTotal)) el.setAttr('AFFECTS_TOTAL', yesNo(ap.affectsTotal ?? true));
     writeBarrierFields(el, bp, ap);
     writeSenseGroup(el, bp, ap);
+    writeRecovery(ctx, el, bp, ap);
   },
 
   create(ctx, e, section) {

@@ -193,6 +193,9 @@ export interface PowerDraft {
   /** An enhanced sense's group (Detect: Unusual Senses, or any group) */
   senseGroup: string;
   barrier: { length: number; height: number; width: number; body: number; pd: number; ed: number; md: number; powd: number };
+  /** An Endurance Reserve's Recovery (REC), and the Recovery's own modifiers (kept as they are) */
+  recovery: number;
+  recoveryModifiers: Modifier[];
   adders: Adder[];
   modifiers: Modifier[];
   parentId: string;
@@ -329,6 +332,8 @@ export function powerDraft(character: Character, section: PowerSection, itemId?:
       md: p?.mdLevels ?? 0,
       powd: p?.powdLevels ?? 0,
     },
+    recovery: p?.recoveryLevels ?? 0,
+    recoveryModifiers: p?.recoveryModifiers ? [...p.recoveryModifiers] : [],
     adders: p?.adders ? [...p.adders] : [],
     modifiers: p?.modifiers ? [...p.modifiers] : [],
     parentId: p?.parentId ?? '',
@@ -1007,7 +1012,23 @@ export function powerCosts(draft: PowerDraft, inherited: Modifier[] = []): Power
   const active = heroRoundCost(base * (1 + advantages));
   const real = limitations > 0 ? heroRoundCost(active / (1 + limitations)) : active;
   const end = powerEndCost(base, def?.usesEnd !== false, all);
+  // An Endurance Reserve's Recovery is a power of its own inside it, priced with its own modifiers
+  if (def?.xmlId === 'ENDURANCERESERVE') {
+    const rec = recoveryCosts(draft);
+    return { base, active: active + rec.active, real: real + rec.real, end };
+  }
   return { base, active, real, end };
+}
+
+/** What an Endurance Reserve's Recovery costs (2 points per 3 REC, with its own modifiers) */
+export function recoveryCosts(draft: Pick<PowerDraft, 'recovery' | 'recoveryModifiers'>): { active: number; real: number } {
+  const def = getPowerDefinition('ENDURANCERESERVEREC');
+  if (!def || !draft.recovery) return { active: 0, real: 0 };
+  const base = calculatePowerBaseCost(def, draft.recovery);
+  const advantages = draft.recoveryModifiers.filter((m) => m.value > 0).reduce((s, m) => s + m.value, 0);
+  const limitations = draft.recoveryModifiers.filter((m) => m.value < 0).reduce((s, m) => s + Math.abs(m.value), 0);
+  const active = heroRoundCost(base * (1 + advantages));
+  return { active, real: limitations > 0 ? heroRoundCost(active / (1 + limitations)) : active };
 }
 
 // =============================================================================
@@ -1128,6 +1149,10 @@ export function powerFormView(character: Character, section: PowerSection, draft
       ? { value: def.options?.some((o) => o.display === draft.optionAlias) ? '' : draft.optionAlias, placeholder: 'Magic, gold, minds…' }
       : undefined,
     isDefenses: def?.xmlId === 'FORCEFIELD',
+    // An Endurance Reserve's Recovery: how much END it regains, and what that costs
+    recovery: def?.xmlId === 'ENDURANCERESERVE'
+      ? { value: draft.recovery, cost: recoveryCosts(draft).real, modifiers: draft.recoveryModifiers.length ? modifierSummary(draft.recoveryModifiers) : '' }
+      : undefined,
     isEquipment: section === 'equipment',
     draft,
     definition: def && {
@@ -1140,7 +1165,7 @@ export function powerFormView(character: Character, section: PowerSection, draft
       levelLabel: def.xmlId === 'NAKEDMODIFIER'
         ? 'The naked advantage costs its value on this many Active Points of the power it\'s for (6E1 315).'
         : def.lvlVal && def.lvlCost ? `${def.lvlCost} pts per ${def.lvlVal === 1 ? 'level' : `${def.lvlVal}`}` : undefined,
-      levelsTitle: def.xmlId === 'NAKEDMODIFIER' ? 'Up to Active Points' : isEnhancedSense(def.xmlId) ? 'PER bonus' : undefined,
+      levelsTitle: def.xmlId === 'NAKEDMODIFIER' ? 'Up to Active Points' : isEnhancedSense(def.xmlId) ? 'PER bonus' : def.xmlId === 'ENDURANCERESERVE' ? 'END' : undefined,
       hasLevels: !!def.lvlCost || !!def.options?.some((o) => o.lvlCost),
       options: def.options?.length
         ? [
@@ -1356,7 +1381,9 @@ function buildPower(existing: PowerLike | undefined, draft: PowerDraft, costs: P
         }
       : def?.xmlId === 'FORCEFIELD'
         ? { pdLevels: draft.barrier.pd, edLevels: draft.barrier.ed, mdLevels: draft.barrier.md, powdLevels: draft.barrier.powd }
-        : {}),
+        : def?.xmlId === 'ENDURANCERESERVE'
+          ? { recoveryLevels: Math.max(0, Math.floor(draft.recovery)), recoveryModifiers: draft.recoveryModifiers.length ? draft.recoveryModifiers : undefined }
+          : {}),
   } as Power;
 }
 

@@ -1417,13 +1417,16 @@ function parsePower(obj: Record<string, unknown>): Power {
   }
 
   // An Endurance Reserve's Recovery is a power nested in it, with its own cost and modifiers
+  let recoveryFields: Pick<Power, 'recoveryLevels' | 'recoveryModifiers'> = {};
   if (xmlid === 'ENDURANCERESERVE') {
     const nested = obj['POWER'];
+    recoveryFields = { recoveryLevels: 0 };
     for (const rec of Array.isArray(nested) ? nested : nested ? [nested] : []) {
       if (typeof rec !== 'object' || rec === null || getAttr(rec as Record<string, unknown>, 'XMLID') !== 'ENDURANCERESERVEREC') continue;
       const recovery = parsePower(rec as Record<string, unknown>);
       activeCost += recovery.activeCost ?? 0;
       realCost += recovery.realCost ?? 0;
+      recoveryFields = { recoveryLevels: recovery.levels, recoveryModifiers: recovery.modifiers };
     }
   }
 
@@ -1485,6 +1488,7 @@ function parsePower(obj: Record<string, unknown>): Power {
     senseGroup: isEnhancedSense(xmlid) ? getAttr(obj, 'GROUP') || undefined : undefined,
     // Barrier-specific fields
     ...barrierFields,
+    ...recoveryFields,
   };
 }
 
@@ -1783,8 +1787,8 @@ function parseEquipmentItem(obj: Record<string, unknown>): Equipment {
     const single = parsePower(obj);
     singleEnd = single.endCost;
     // A Barrier's size and defenses, Resistant Protection's defenses
-    const { pdLevels, edLevels, mdLevels, powdLevels, bodyLevels, lengthLevels, heightLevels, widthLevels, senseGroup } = single;
-    defenses = { pdLevels, edLevels, mdLevels, powdLevels, bodyLevels, lengthLevels, heightLevels, widthLevels, senseGroup };
+    const { pdLevels, edLevels, mdLevels, powdLevels, bodyLevels, lengthLevels, heightLevels, widthLevels, senseGroup, recoveryLevels, recoveryModifiers } = single;
+    defenses = { pdLevels, edLevels, mdLevels, powdLevels, bodyLevels, lengthLevels, heightLevels, widthLevels, senseGroup, recoveryLevels, recoveryModifiers };
     totalActiveCost = single.activeCost ?? 0;
     totalRealCost = single.realCost ?? 0;
   } else if (totalRealCost === 0) {
